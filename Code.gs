@@ -65,6 +65,8 @@ function normVal(table, field, v, id) {
 function canDo(role, op) {
   if (role === 'admin') return true;
   if (role !== 'volunteer') return false;
+  // the upload screen's remembered answers live in one settings row that volunteers may update
+  if (op.table === 'settings' && (op.op === 'set' ? (op.id === 'learned' && op.field === 'value') : (op.op === 'add' && op.row && op.row.id === 'learned'))) return true;
   return op.op === 'set' && (VOLUNTEER_CAN[op.table] || []).indexOf(op.field) >= 0;
 }
 function labelOf(table, row) {
@@ -193,7 +195,7 @@ function doPost(e) {
   if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(20000)) return json({ ok: false, error: 'The tracker is busy saving someone else\'s changes. Try Submit again.' });
+  if (!lock.tryLock(20000)) return json({ ok: false, error: 'The tracker is busy saving someone else\'s changes. Try again in a moment.' });
   try {
     var touched = {}, tables = {};
     body.ops.forEach(function (op) { if (op && SCHEMA[op.table] && op.table !== 'log') touched[op.table] = true; });

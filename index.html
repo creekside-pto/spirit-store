@@ -284,10 +284,107 @@ details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-
 .chk{display:flex;align-items:center;gap:8px;font-weight:600}
 @media (max-width:640px){.imp-line .lbl{display:block}.imp-cols{display:none}.imp-line{grid-template-columns:26px repeat(3,minmax(0,1fr))}.imp-line .goes{grid-column:2/-1}.imp-line .n1{grid-column:2}.imp-head{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--band);color:var(--band-ink);padding:10px 16px;border-radius:10px;font-weight:600;z-index:40;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.toast.top{bottom:auto;top:calc(14px + env(safe-area-inset-top,0px))}
 .muted{color:var(--muted)}
 .mt{margin-top:12px}
 .empty-state{padding:24px;text-align:center;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.tab,.btn,.need{transition:background .15s,border-color .15s}}
+
+/* ---------- upload flow: steps, reading paws, questions, saved ---------- */
+.steps{display:flex;gap:6px;list-style:none;margin:0 0 14px;padding:0}
+.steps li{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--surface-2);border-radius:99px;padding:6px 8px;white-space:nowrap;min-width:0}
+.steps li b{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--ink);font-size:11.5px}
+.steps li.on{background:var(--band);color:#fff}.steps li.on b{background:#fff;color:var(--band)}
+.steps li.done{background:var(--good-soft);color:var(--good)}.steps li.done b{background:var(--good);color:#fff}
+@media (max-width:520px){.steps li:not(.on) span{display:none}.steps li.on{flex:2.4}}
+.kinds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.kinds div{background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3}
+.kinds b{display:block;font-size:14px}.kinds span{color:var(--muted)}
+.kinds .locked{opacity:.55}
+.drop b{display:block;color:var(--ink);font-size:16px;margin-bottom:3px}
+.drop span{font-size:13px}
+.ready{margin-top:10px;font-weight:600;font-size:14.5px}
+.ready .tick{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--good);color:#fff;font-size:12px;font-weight:900;margin-right:4px}
+.thumbs .pdf{height:76px;min-width:76px;padding:8px;display:grid;place-items:center;text-align:center;font-size:12px;font-weight:700;color:var(--muted);border:2px dashed var(--input-line);background:var(--input);border-radius:8px}
+.thumbs.view{align-items:flex-start;margin:0 0 12px}
+.thumbs.view > span{width:100%;font-size:12.5px}
+.thumbs.view img{cursor:zoom-in}
+.thumbs.view img.big{height:auto;width:100%;max-width:760px;cursor:zoom-out}
+.thumbs.view figure:has(img.big){width:100%}
+.banner{display:flex;gap:10px;align-items:flex-start;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:14.5px;line-height:1.45;color:var(--ink)}
+.banner .ico{flex:none;display:grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:99px;font-weight:900;font-size:14px;color:#fff}
+.banner.wait{background:var(--warn-soft)}.banner.wait .ico{background:var(--warn)}
+.banner.ok{background:var(--good-soft)}.banner.ok .ico{background:var(--good)}
+.banner.bad{background:var(--bad-soft)}.banner.bad .ico{background:var(--bad)}
+.bad-t{color:var(--bad);font-weight:700}
+.reading{text-align:center;padding:4px 0 0}
+.reading h3{font-size:22px;margin:8px 0 4px}
+.reading .banner{text-align:left;margin-top:14px}
+.rd-msg{font-weight:700;color:var(--ink)!important;margin:0 0 2px!important;min-height:1.4em}
+.rd-time{font-size:13px;margin:0!important}
+.acts.center{justify-content:center}
+.pawtrail{position:relative;width:min(280px,86%);height:78px;margin:6px auto 0}
+.pawtrail i{position:absolute;font-size:26px;color:var(--accent);opacity:.9;left:calc(var(--i) * 17%);transform:rotate(90deg)}
+.pawtrail i:nth-child(odd){top:40px}.pawtrail i:nth-child(even){top:8px}
+.pawtrail.mini{width:110px;height:30px;margin:0;flex:none}.pawtrail.mini i{font-size:13px;left:calc(var(--i) * 26%)}
+.pawtrail.mini i:nth-child(odd){top:15px}.pawtrail.mini i:nth-child(even){top:1px}
+@media (prefers-reduced-motion:no-preference){
+  .pawtrail i{opacity:0;animation:pawstep 2.4s infinite;animation-delay:calc(var(--i) * .32s)}
+  .bigcheck{animation:stamp .5s cubic-bezier(.2,1.5,.4,1)}
+  .q{transition:border-color .2s,background .2s}
+}
+@keyframes pawstep{0%{opacity:0;transform:rotate(90deg) scale(.5)}10%{opacity:1;transform:rotate(90deg) scale(1.1)}18%{transform:rotate(90deg) scale(1)}60%{opacity:1}80%,100%{opacity:0}}
+@keyframes stamp{0%{transform:scale(1.8);opacity:0}100%{transform:scale(1);opacity:1}}
+.q-all{margin:0 0 10px}
+.qs{display:grid;gap:10px;margin-bottom:12px}
+.q{border:2px solid var(--warn);background:var(--surface);border-radius:12px;padding:12px 12px 12px}
+.q.done{border-color:var(--line);background:var(--surface-2)}
+.q.auto{border-style:dashed}
+.q-top{display:flex;gap:10px;align-items:flex-start}
+.q-body{flex:1;min-width:0}
+.q-n{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--warn);color:#fff;font-weight:800;font-size:13px}
+.q.done .q-n{background:var(--good)}
+.q-t{font-weight:600;line-height:1.4;font-size:15px}
+.q-s{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.4}
+.q-opts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0 36px}
+.q-o{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 13px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;min-height:44px;text-align:left;line-height:1.25}
+.q-o:hover{border-color:var(--accent)}
+.q-o em{display:block;font-style:normal;font-size:11px;font-weight:800;color:var(--good);text-transform:uppercase;letter-spacing:.04em}
+.q-o.on{background:var(--band);border-color:var(--band);color:#fff}
+.q-f{margin:10px 0 0 36px;display:grid;gap:8px}
+.q-f .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.q-f .lbl{margin:0}.q-f .lbl .in{margin-top:3px;text-transform:none;letter-spacing:0;font-weight:400}
+.chips-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips-row .lbl{width:100%}
+.chips-row .in{width:110px;min-height:40px}
+.q-c{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 13px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;min-height:40px}
+.q-c.on{background:var(--band);border-color:var(--band);color:#fff}
+.q-miss{margin:6px 0 0 36px;color:var(--bad);font-size:13px;font-weight:700}
+.q-miss:empty{display:none}
+@media (max-width:560px){.q-opts,.q-f,.q-miss{margin-left:0}.q-o{flex:1 1 100%}}
+.more{margin:4px 0 0;border-top:1px solid var(--line)}
+.more > summary{font-weight:700;cursor:pointer;padding:12px 0;color:var(--ink)}
+.cnt-line.off{opacity:.5}
+.cnt-line .what b{display:block;font-size:14px}
+.saving{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-weight:700;margin-top:10px}
+.saved{text-align:center;padding:6px 0 4px}
+.saved h3{font-size:26px;margin:0 0 4px}
+.saved p{margin:0 0 4px!important;color:var(--ink)!important;font-size:15.5px}
+.saved p.muted{color:var(--muted)!important;font-size:13.5px}
+.bigcheck{width:88px;height:88px;margin:4px auto 12px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center;font-size:48px;font-weight:900;box-shadow:0 0 0 8px var(--good-soft)}
+.saved.undone .bigcheck{background:var(--muted);box-shadow:0 0 0 8px var(--surface-2)}
+.chg{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:12px}
+.chg summary{font-weight:700;cursor:pointer}
+.chg ul{margin:8px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6}
+.sub-h{font-size:14px;font-weight:800;margin:6px 0 6px}
+.ca-g{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.ca-top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+.ca-top .sys{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.ca-amt{font-weight:800;font-size:16px;white-space:nowrap}
+.ca-g > .btn{margin-top:6px;min-height:30px}
+.ca-p{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+@media (max-width:520px){.ca-p{grid-template-columns:1fr}}
+.small-t{font-size:12.5px}
 </style>
 
 
@@ -378,6 +475,8 @@ function normVal(table, field, v, id) {
 function canDo(role, op) {
   if (role === 'admin') return true;
   if (role !== 'volunteer') return false;
+  // the upload screen's remembered answers live in one settings row that volunteers may update
+  if (op.table === 'settings' && (op.op === 'set' ? (op.id === 'learned' && op.field === 'value') : (op.op === 'add' && op.row && op.row.id === 'learned'))) return true;
   return op.op === 'set' && (VOLUNTEER_CAN[op.table] || []).indexOf(op.field) >= 0;
 }
 function labelOf(table, row) {
@@ -639,7 +738,7 @@ function refreshCalcs(){
 function vOverview(M){
   const needs = needsList(M);
   const pct = M.T.n ? Math.round(M.T.counted / M.T.n * 100) : 0;
-  const log = (data.log || []).slice(0, 5);
+  const log = shownLog().slice(0, 5);
   return `
   ${setting('announcement') ? '<div class="announce"><span class="paw" aria-hidden="true"></span><span>' + esc(setting('announcement')) + '</span></div>' : ''}
   <div class="hero">
@@ -848,8 +947,10 @@ function logEntry(e){
   const canRevert = isAdmin() && e.field && e.field[0] !== '(' && live && normVal(e.table, e.field, live[e.field], e.rowId) === normVal(e.table, e.field, e.new, e.rowId);
   return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${what} <span class="muted">· ${esc(tname)}</span></span>${canRevert ? `<button class="btn small" type="button" data-revert='${esc(JSON.stringify({ t:e.table, id:e.rowId, f:e.field, old:e.old, nw:e.new }))}'>Undo</button>` : '<span></span>'}</div>`;
 }
+/* the tracker's own bookkeeping (remembered answers, imported Cash App IDs) stays out of the change lists */
+function shownLog(){ return (data.log || []).filter(l => !(l.table === 'settings' && /^(learned|cashappSeen)$/.test(String(l.rowId)))); }
 function vActivity(){
-  const log = data.log || [];
+  const log = shownLog();
   return `<div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Activity</h2><p>Every saved change, newest first.${DEMO ? '' : ' The full record also lives in the Change Log tab of the Google Sheet.'}</p></div>
   <div class="card">${log.length ? '<div class="log">' + log.map(logEntry).join('') + '</div>' : '<div class="empty-state">No changes yet.</div>'}</div>
   ${isAdmin() ? '<p class="foot">Undo puts a value back the way it was, as long as nobody has changed it again since.</p>' : ''}`;
@@ -966,8 +1067,8 @@ async function submit(){
 }
 
 /* ---------- sheets ---------- */
-function openSheet(html, wide){ $('#sheet').classList.toggle('wide', !!wide); $('#sheet').innerHTML = html; $('#scrim').hidden = false; const f = $('#sheet input, #sheet button'); if (f) f.focus(); }
-function closeSheet(){ $('#scrim').hidden = true; $('#sheet').innerHTML = ''; }
+function openSheet(html, wide){ $('#toast').classList.add('top'); $('#sheet').dataset.guard = ''; $('#sheet').classList.toggle('wide', !!wide); $('#sheet').innerHTML = html; $('#scrim').hidden = false; const f = $('#sheet input, #sheet button'); if (f) f.focus(); }
+function closeSheet(){ readTok++; upBusy = false; stopReading(); $('#sheet').dataset.guard = ''; $('#scrim').hidden = true; $('#sheet').innerHTML = ''; }
 function openUnlock(){
   openSheet(`<h3>Unlock to edit</h3><p>Enter your name so the activity log shows who made each change, then the PIN the PTO gave you.</p>
     <form id="unlockForm" class="form"><div><label class="lbl" for="uName">Your name</label><input class="in" id="uName" autocomplete="name" value="${esc(who)}" required></div>
@@ -1063,13 +1164,12 @@ function sheetRows(M, hideZero){
   const groups = TIERS.map(t => ({ label: t[1], min: t[0], items: [] }));
   for (const i of M.items) {
     const unknown = i.onHandBlank && !i.received;
-    if (hideZero && !unknown && i.avail === 0) continue;
     const g = groups.find(g => num(i.price) >= g.min) || groups[groups.length - 1];
     const note = [unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
-    g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before: unknown ? '' : i.avail, note });
+    g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before: unknown ? '' : i.avail, note, hide: hideZero && !unknown && i.avail === 0 });
   }
-  let n = 0;
-  for (const g of groups) { g.items.sort((a, b) => String(a.name).localeCompare(String(b.name))); for (const it of g.items) it.n = ++n; }
+  let n = 0; // numbered before hiding, so a row number always means the same item
+  for (const g of groups) { g.items.sort((a, b) => String(a.name).localeCompare(String(b.name))); for (const it of g.items) it.n = ++n; g.items = g.items.filter(it => !it.hide); }
   return groups.filter(g => g.items.length);
 }
 function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector('script[src="' + src + '"]')) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load')); document.head.appendChild(s); }); }
@@ -1148,292 +1248,75 @@ async function shareSheet(){
   catch (e) { if (e && e.name !== 'AbortError') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); toast('Count sheet downloaded.'); } }
 }
 
-/* ---------- one Upload for everything ---------- */
-let upCsv = null;
-function openUpload(){
-  if (!auth) { openUnlock(); setTimeout(() => toast('Unlock first, then tap Upload.'), 300); return; }
-  impImgs = []; upCsv = null; impResult = null; impLines = []; cntResult = null; cntLines = [];
-  openSheet(`<h3>Upload</h3><p>Drop in any of these and the tracker works out which it is. You'll check everything before it saves.</p>
-    <ul class="muted" style="margin:0 0 12px;padding-left:18px;font-size:14px;line-height:1.6">
-      <li><b>Amazon order</b> screenshots or PDF: adds the items and costs to Orders${isAdmin() ? '' : ' (admin)'}</li>
-      <li><b>Filled count sheet</b> photos: fills in the after-sale counts and cash box</li>
-      <li><b>Cash App report</b> (the CSV from Cash App > Activity > Export): adds Cash App money to Money In${isAdmin() ? '' : ' (admin)'}</li>
-      <li><b>Bank deposit slip</b> photo: adds the deposit to Money In${isAdmin() ? '' : ' (admin)'}</li>
-    </ul>
-    <div class="drop" id="drop">Tap to take a photo or choose files, drag them here, or paste<input type="file" id="impFiles" accept="image/*,application/pdf,.pdf,.csv,text/csv" multiple aria-label="Choose files"></div>
+/* ======================================================================
+   UPLOAD: one button for everything. Every screen shows four steps at the top:
+   1 Add file, 2 Reading, 3 Check, 4 Saved. Nothing is saved until every question
+   is answered and Save is tapped. After saving, the whole upload can be undone.
+   Rule of thumb in this code: answers never change the data directly. What gets
+   saved is always worked out fresh from what was read + the answers + any edits,
+   so changing an answer (or a question going away) can never leave a stale value.
+   ====================================================================== */
+let upCsv = null, upBusy = false, readTok = 0, rdTimer = null, lastUpload = null, upId = '';
+let impImgs = [], impResult = null, impLines = [], impDateVal = '', impDateEdited = false, impStoreVal = 'Amazon', impAllOpen = false;
+let cntResult = null, cntLines = [], cntAllOpen = false;
+let depData = null;
+let caPays = [], caNet = true; const caOpen = new Set();
+const UPSTEPS = ['Add file', 'Reading', 'Check', 'Saved'];
+const PRICE_CHIPS = [0.5, 1, 2, 3, 4, 5];
+function todayIso(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function daysApart(a, b){ const x = parseDate(a), y = parseDate(b); return x && y ? Math.round(Math.abs(x - y) / 864e5) : 999; }
+function cash$(v){ return Number(String(v ?? '').replace(/[$,\s]/g, '')); }
+function priceOk(v){ return String(v ?? '').trim() !== '' && cash$(v) >= 0; }
+function r2(v){ return Math.round(v * 100) / 100; }
+function showNum(v){ return blank(v) ? 'blank' : String(num(v)); }
+function plural(n, one, many){ return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+function listJoin(a){ return a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+function newId(prefix, k){ return prefix + upId + 'u' + k; } // the same on every try, so a retried save can't add a row twice
+function steps(n){ return '<ol class="steps" aria-label="Upload steps">' + UPSTEPS.map((s, i) => `<li class="${i + 1 < n ? 'done' : i + 1 === n ? 'on' : ''}"${i + 1 === n ? ' aria-current="step"' : ''}><b>${i + 1 < n ? '✓' : i + 1}</b><span>${s}</span></li>`).join('') + '</ol>'; }
+function paws(n, mini){ return `<div class="pawtrail${mini ? ' mini' : ''}" aria-hidden="true">` + Array.from({ length: n }, (_, i) => `<i class="paw" style="--i:${i}"></i>`).join('') + '</div>'; }
+function guard(on){ $('#sheet').dataset.guard = on ? '1' : ''; }
+function focusKey(el){
+  if (!el || !el.closest || !el.closest('#sheet')) return null;
+  for (const a of ['data-qf', 'data-cq', 'data-cnt', 'data-dep', 'data-imp', 'data-ch', 'id']) { const v = el.getAttribute(a); if (v) return [a, v]; }
+  return null;
+}
+/* redraw the open window without jumping to the top or losing the box being typed in */
+function reSheet(html){
+  const s = $('#sheet'), y = s.scrollTop, a = document.activeElement, fk = focusKey(a);
+  let sel = null; try { sel = fk && a.selectionStart != null ? [a.selectionStart, a.selectionEnd] : null; } catch (e) {}
+  s.classList.add('wide'); s.innerHTML = html; s.scrollTop = y; $('#scrim').hidden = false;
+  if (fk) { const el = s.querySelector('[' + fk[0] + '="' + CSS.escape(fk[1]) + '"]'); if (el) { el.focus({ preventScroll: true }); try { if (sel) el.setSelectionRange(sel[0], sel[1]); } catch (e) {} } }
+}
+function laterRedraw(){ setTimeout(() => { if (!upBusy && $('#sheet').dataset.guard && Q.redraw) Q.redraw(); }, 0); }
+function thumbsHtml(rm){
+  return impImgs.map((im, i) => `<figure>${im.preview ? `<img src="${im.preview}" alt="Page ${i + 1}">` : `<div class="pdf">PDF<br>${esc(im.label || '')}</div>`}${rm ? `<button type="button" data-imprm="${i}" aria-label="Remove this file">×</button>` : ''}</figure>`).join('')
+    + (upCsv ? `<figure><div class="pdf">CSV<br>${esc(upCsv.name)}</div>${rm ? '<button type="button" data-csvrm="1" aria-label="Remove this file">×</button>' : ''}</figure>` : '');
+}
+function viewThumbs(){ return impImgs.some(i => i.preview) ? `<div class="thumbs view"><span class="muted">What you uploaded (tap to enlarge):</span>${thumbsHtml(false)}</div>` : ''; }
+
+/* ---------- step 1: add the file ---------- */
+function openUpload(keep){
+  if (!auth) { openUnlock(); setTimeout(() => toast('Unlock with your name and PIN first, then tap Upload.'), 300); return; }
+  if (!keep) { impImgs = []; upCsv = null; }
+  impResult = null; impLines = []; cntResult = null; cntLines = []; depData = null; caPays = []; qReset();
+  if (!DEMO) load(true); // wakes the tracker up while they pick a file
+  const adm = isAdmin();
+  openSheet(`${steps(1)}<h3>Upload</h3><p>Add a photo, screenshot, PDF or Cash App file. The tracker figures out what it is and reads it. You check it before anything saves.</p>
+    <div class="kinds">
+      <div><b>Count sheet</b><span>A photo of each page</span></div>
+      <div><b>Deposit slip</b><span>A photo of the slip</span></div>
+      <div class="${adm ? '' : 'locked'}"><b>Amazon order</b><span>${adm ? 'Screenshot or PDF' : 'Admin PIN only'}</span></div>
+      <div class="${adm ? '' : 'locked'}"><b>Cash App</b><span>${adm ? 'The CSV export' : 'Admin PIN only'}</span></div>
+    </div>
+    <div class="drop" id="drop"><b>Tap here to take a photo or pick a file</b><span>or drag it in, or paste it</span><input type="file" id="impFiles" accept="image/*,application/pdf,.pdf,.csv,text/csv" multiple aria-label="Choose files"></div>
     <div class="thumbs" id="thumbs"></div>
-    <div class="err mt" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="upRead">Read it</button></div>`, true);
+    <div class="ready" id="upReady" aria-live="polite"></div>
+    <div class="err mt" id="iErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="upRead" disabled>Read it</button></div>`, true);
+  guard(false);
+  if (keep) addImpFiles([]);
 }
 function fileToBase64(file){ return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); }); }
-async function readUpload(){
-  if (upCsv) return startCashApp(upCsv.text, upCsv.name);
-  if (!impImgs.length) { $('#iErr').textContent = 'Add a photo, screenshot, PDF or Cash App report first.'; return; }
-  const btn = $('#upRead'); btn.disabled = true; btn.textContent = 'Reading… (10 to 40 seconds)'; $('#iErr').textContent = '';
-  const M = model(), rowsAll = sheetRows(M, false).flatMap(g => g.items);
-  let res;
-  try { res = await apiPost({ action:'readDoc', pin: auth.pin, name: who, images: impImgs.map(i => ({ media_type: i.media_type, data: i.data })), names: M.items.map(i => String(i.name)), rows: rowsAll.map(r => ({ n: r.n, name: r.name, price: r.price, before: r.before })) }); }
-  catch (e) { res = { ok:false, error:'Could not reach the tracker. Check the connection and try again.' }; }
-  const fail = m => { $('#iErr').textContent = m; btn.disabled = false; btn.textContent = 'Read it'; };
-  if (!res.ok) return fail(res.error || 'Could not read that.');
-  const r = res.result || {};
-  if (r.type === 'order') {
-    if (!isAdmin()) return fail('That looks like an order. Only the admin PIN can add orders.');
-    impResult = r; return buildImportLines();
-  }
-  if (r.type === 'countSheet') { cntResult = r; return buildCountLines(M, rowsAll); }
-  if (r.type === 'deposit') {
-    if (!isAdmin()) return fail('That looks like a bank deposit. Only the admin PIN can add money in.');
-    return renderDeposit(r);
-  }
-  return fail("That doesn't look like an order, a count sheet or a deposit" + (r.what ? ' (it looks like: ' + r.what + ')' : '') + '. Try a clearer photo, or a different file.');
-}
-
-/* ---------- bank deposit ---------- */
-let depData = null;
-function renderDeposit(r){
-  depData = r;
-  const sales = rows('sales').slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '';
-  const sameDay = sales.find(s => s.date === date);
-  openSheet(`<h3>Bank deposit</h3><p>Check it, then save. It goes on the Money tab under Money in.</p>
-    <div class="form">
-      <div class="imp-head"><div><label class="lbl" for="dDate">Deposit date</label><input class="in" id="dDate" type="date" value="${esc(date)}"></div>
-      <div><label class="lbl" for="dAmt">Amount</label><input class="in numin" id="dAmt" inputmode="decimal" value="${esc(r.amount ?? '')}"></div></div>
-      <div><label class="lbl" for="dWhat">What it's for</label><input class="in" id="dWhat" value="${esc((sameDay ? sameDay.theme + ' ' : '') + (r.what || 'Cash deposit'))}"></div>
-      <p class="muted" style="margin:0;font-size:13px">Spirit store deposits are counted net of the $${esc(setting('startCash') || 150)} starting cash, so take that out if this deposit includes it.</p>
-      <div><label class="lbl" for="dNote">Notes</label><input class="in" id="dNote" value="${esc(r.note || 'From a deposit slip photo')}"></div>
-    </div>
-    <div class="err" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="depSave">Save deposit</button></div>`);
-}
-async function saveDeposit(){
-  const date = $('#dDate').value, amt = Number(String($('#dAmt').value).replace(/[$,]/g, '')), what = $('#dWhat').value.trim();
-  if (!date) { $('#iErr').textContent = 'Add the deposit date.'; return; }
-  if (!(amt > 0)) { $('#iErr').textContent = 'Add the amount.'; return; }
-  const blankRow = rows('moneyIn').find(m => m.date === date && blank(m.amount) && !/cash app/i.test(m.event || ''));
-  const ops = blankRow
-    ? [{ op:'set', table:'moneyIn', id: blankRow.id, field:'amount', prev:'', value: amt }].concat(blankRow.notes ? [] : [{ op:'set', table:'moneyIn', id: blankRow.id, field:'notes', prev: blankRow.notes ?? '', value: $('#dNote').value }])
-    : [{ op:'add', table:'moneyIn', row:{ id:'mi' + Date.now().toString(36), date, event: what || 'Deposit', amount: amt, notes: $('#dNote').value } }];
-  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }).catch(() => ({ ok:false, error:'Could not reach the tracker.' }));
-  if (!res.ok || (res.conflicts || []).length) { $('#iErr').textContent = (res.error || 'Nothing saved; something changed at the same moment.') + ' Try again.'; if (res.data) data = res.data; return; }
-  data = res.data; closeSheet(); tab = 'money'; render(); toast(blankRow ? 'Filled in ' + blankRow.event + ': ' + money(amt) + '.' : 'Added ' + money(amt) + ' to Money in.');
-}
-
-/* ---------- Cash App report (CSV) ---------- */
-let caPays = []; const caOpen = new Set();
-const CA_CATS = [['store','Spirit store'],['sponsors','Class sponsors'],['shirts','Spirit shirts'],['other','Other fundraising'],['skip','Leave out']];
-function csvParse(text){
-  const out = []; let row = [], cell = '', q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) { if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
-    else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; row.push(cell); out.push(row); row = []; cell = ''; } else cell += c;
-  }
-  if (cell !== '' || row.length) { row.push(cell); out.push(row); }
-  return out.filter(r => r.length > 1);
-}
-function guessCat(note){
-  const s = String(note || '').toLowerCase();
-  if (/shirt|\btee|dri ?-?fit|dry ?fit|youth|adult|\b(xs|sm|med|lg|xl|xxl)\b|size/.test(s)) return ['shirts', false];
-  if (/christmas|holiday/.test(s)) return ['other', false];
-  if (/sponsor|face ?paint|painting|paint the school/.test(s)) return ['sponsors', false];
-  if (/spirit|store|🦁|\bss\b|squish|bracelet|necklace|paint kit|hair|pom|glasses|haul|goods/.test(s)) return ['store', false];
-  if (/\b(mrs?|ms|miss)\.?\s|grade|class/.test(s)) return ['sponsors', true];
-  return ['store', true];
-}
-function startCashApp(text, name){
-  if (!isAdmin()) { $('#iErr').textContent = 'Cash App reports need the admin PIN.'; return; }
-  const rowsCsv = csvParse(text.replace(/^\ufeff/, ''));
-  const h = (rowsCsv[0] || []).map(x => x.trim());
-  const ix = k => h.indexOf(k);
-  if (ix('Transaction ID') < 0 || ix('Net Amount') < 0 || ix('Amount') < 0) { $('#iErr').textContent = "That CSV isn't a Cash App report. In Cash App: Activity > Statements > Export CSV."; return; }
-  const seen = new Set(String(setting('cashappSeen') || '').split(',').filter(Boolean));
-  const salesByDate = new Map(rows('sales').map(s => [String(s.date), s]));
-  const m = v => Number(String(v || '').replace(/[$,\s]/g, '')) || 0;
-  caPays = rowsCsv.slice(1).map(r => ({ date: String(r[ix('Date')] || '').slice(0, 10), id: r[ix('Transaction ID')], type: r[ix('Transaction Type')], amount: m(r[ix('Amount')]), net: m(r[ix('Net Amount')]), fee: m(r[ix('Fee')]), status: r[ix('Status')], note: r[ix('Notes')] || '', from: r[ix('Name of sender/receiver')] || '' }))
-    .filter(p => p.type === 'P2P' && p.amount > 0 && /complete/i.test(p.status));
-  const firstSale = rows('sales').map(s => s.date).filter(Boolean).sort()[0] || '';
-  const salesSorted = rows('sales').filter(s => s.date).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const live = liveSale();
-  caPays.forEach(p => {
-    const [c, unsure] = guessCat(p.note); p.cat = c; p.unsure = unsure; p.dup = seen.has(p.id); p.old = !!(firstSale && p.date < firstSale);
-    const s = salesSorted.find(s => String(s.date) >= p.date) || live || salesSorted[salesSorted.length - 1];
-    p.saleDate = s ? String(s.date) : p.date; p.saleName = s ? s.theme : ''; p.early = p.saleDate !== p.date;
-  });
-  if (!caPays.length) { $('#iErr').textContent = 'No incoming Cash App payments found in that report.'; return; }
-  renderCashApp();
-}
-function caLabel(cat){ return 'Cash App - ' + CA_CATS.find(c => c[0] === cat)[1].toLowerCase(); }
-function caExisting(date, cat){
-  const l = caLabel(cat).toLowerCase(), list = rows('moneyIn').filter(m => m.date === date);
-  return list.find(m => String(m.event || '').trim().toLowerCase() === l)
-    || (cat === 'store' ? list.find(m => /cash app/i.test(m.event || '') && /spirit store|store/i.test(m.event || '') && !/sponsor|shirt/i.test(m.event || '')) : null)
-    || (cat === 'sponsors' ? list.find(m => /cash app/i.test(m.event || '') && /sponsor/i.test(m.event || '')) : null) || null;
-}
-function caGroups(includeShirts){
-  const g = new Map();
-  for (const p of caPays) {
-    if (p.dup || p.cat === 'skip' || p.old || (p.cat === 'shirts' && !includeShirts)) continue;
-    const k = p.saleDate + '|' + p.cat; if (!g.has(k)) g.set(k, { date: p.saleDate, saleName: p.saleName, cat: p.cat, pays: [], gross: 0, net: 0 });
-    const x = g.get(k); x.pays.push(p); x.gross += p.amount; x.net += p.net;
-  }
-  return [...g.values()].sort((a, b) => b.date.localeCompare(a.date) || a.cat.localeCompare(b.cat));
-}
-function renderCashApp(){
-  const useNet = ($('#caNet') ? $('#caNet').checked : true), withShirts = ($('#caShirts') ? $('#caShirts').checked : false);
-  const shirtCount = caPays.filter(p => p.cat === 'shirts' && !p.dup && !p.old).length;
-  const dups = caPays.filter(p => p.dup).length, old = caPays.filter(p => p.old && !p.dup).length;
-  const salesByDate = new Map(rows('sales').map(s => [String(s.date), s]));
-  const groups = caGroups(withShirts);
-  const catSel = (p, i) => `<select class="in" data-ca="${i}" aria-label="Category">${CA_CATS.map(([k, n]) => `<option value="${k}" ${p.cat === k ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
-  const body = groups.map((g, gi) => {
-    const sale = salesByDate.get(g.date);
-    const existing = caExisting(g.date, g.cat);
-    const unsure = g.pays.filter(p => p.unsure).length, early = g.pays.filter(p => p.early).length;
-    const action = existing ? (blank(existing.amount) ? 'Fills in the blank "' + existing.event + '" line' : (/cash app import/i.test(existing.notes || '') ? 'Adds to "' + existing.event + '" (now ' + money(existing.amount) + ')' : 'Replaces "' + existing.event + '" (now ' + money(existing.amount) + ', typed by hand)')) : 'Adds a new line';
-    return `<div class="cnt-line" style="grid-template-columns:minmax(0,1fr) auto">
-      <div><b>${esc(fdate(g.date, true))}</b> · ${esc(CA_CATS.find(c => c[0] === g.cat)[1])} ${sale ? '<span class="tag match">' + esc(sale.theme) + ' sale</span>' : '<span class="tag">Not a sale day</span>'} ${unsure ? '<span class="tag warn">' + unsure + ' to check</span>' : ''}
-        <span class="sys">${g.pays.length} payment${g.pays.length === 1 ? '' : 's'}${early ? ' (' + early + ' paid ahead of the sale)' : ''} · ${esc(action)} · <button class="btn small ghost" type="button" data-cagrp="${gi}" data-cakey="${esc(g.date + '|' + g.cat)}" style="min-height:24px;padding:0 6px">Show payments</button></span>
-        <div id="cag-${gi}" ${caOpen.has(g.date + '|' + g.cat) ? '' : 'hidden'}>${g.pays.map(p => { const i = caPays.indexOf(p); return `<div class="imp-line" style="grid-template-columns:minmax(0,1fr) 150px;padding:6px 0"><div style="font-size:13px">${esc(fdate(p.date))} · ${money(p.amount)} · ${esc(p.from)} · <i>"${esc(p.note)}"</i>${p.unsure ? ' <span class="tag warn">best guess</span>' : ''}</div>${catSel(p, i)}</div>`; }).join('')}</div></div>
-      <div class="num" style="font-weight:800;font-size:16px">${money(useNet ? g.net : g.gross)}</div></div>`;
-  }).join('');
-  openSheet(`<h3>Cash App report</h3><p>Payments are grouped by day and type. Open a group to see each payment and move any that are in the wrong group. Yellow means a best guess, so check those.</p>
-    <label class="chk"><input type="checkbox" id="caNet" ${useNet ? 'checked' : ''}> Use what actually landed after Cash App fees (recommended)</label>
-    ${shirtCount ? `<label class="chk mt"><input type="checkbox" id="caShirts" ${withShirts ? 'checked' : ''}> Include ${shirtCount} spirit shirt payment${shirtCount === 1 ? '' : 's'} <span class="muted">(only shirts sold at the store; leave off pre-orders)</span></label>` : ''}
-    <p class="muted" style="font-size:13px;margin:6px 0 0">${[dups ? dups + ' payment' + (dups === 1 ? ' was' : 's were') + ' already imported before and are skipped' : '', old ? old + ' older payment' + (old === 1 ? '' : 's') + ' from before this year\'s first sale are left out' : '', shirtCount && !withShirts ? 'Spirit shirt payments are left out unless you tick the box above' : ''].filter(Boolean).join('. ')}.</p>
-    <div>${body || '<div class="empty-state">Nothing new to add from this report.</div>'}</div>
-    <div class="err" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>${body ? '<button class="btn primary" type="button" id="caSave">Save to Money in</button>' : ''}</div>`, true);
-}
-async function saveCashApp(){
-  const useNet = $('#caNet').checked, withShirts = $('#caShirts') ? $('#caShirts').checked : false;
-  const groups = caGroups(withShirts);
-  const ops = []; const r2 = v => Math.round(v * 100) / 100;
-  for (const g of groups) {
-    const label = caLabel(g.cat);
-    const amt = r2(useNet ? g.net : g.gross);
-    const note = 'Cash App import · ' + g.pays.length + ' payment' + (g.pays.length === 1 ? '' : 's') + (useNet ? ' after fees' : '');
-    const exRow = caExisting(g.date, g.cat), ex = exRow ? serverRow('moneyIn', exRow.id) : null;
-    if (ex) {
-      const add = !blank(ex.amount) && /cash app import/i.test(ex.notes || '');
-      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'amount', prev: ex.amount ?? '', value: add ? r2(num(ex.amount) + amt) : amt });
-      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'notes', prev: ex.notes ?? '', value: note });
-    } else ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + Date.now().toString(36) + Math.floor(Math.random()*1e6), date: g.date, event: label, amount: amt, notes: note } });
-  }
-  const ids = new Set(String(setting('cashappSeen') || '').split(',').filter(Boolean));
-  for (const g of groups) for (const p of g.pays) ids.add(p.id);
-  const seenRow = serverRow('settings', 'cashappSeen'); const val = [...ids].join(',');
-  ops.push(seenRow ? { op:'set', table:'settings', id:'cashappSeen', field:'value', prev: seenRow.value ?? '', value: val } : { op:'add', table:'settings', row:{ id:'cashappSeen', value: val } });
-  const btn = $('#caSave'); btn.disabled = true; btn.textContent = 'Saving…';
-  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }).catch(() => ({ ok:false, error:'Could not reach the tracker. Nothing was saved.' }));
-  if (!res.ok || (res.conflicts || []).length) { if (res.data) data = res.data; $('#iErr').textContent = (res.error || 'Nothing saved; something changed at the same moment.') + ' Try again.'; btn.disabled = false; btn.textContent = 'Save to Money in'; return; }
-  data = res.data; closeSheet(); tab = 'money'; render(); toast('Cash App saved: ' + groups.length + ' line' + (groups.length === 1 ? '' : 's') + ' on Money in.');
-}
-
-/* ---------- filled count sheet: AI reads the handwriting, a person checks it ---------- */
-let cntResult = null, cntLines = [];
-function buildCountLines(M, rowsAll){
-  const btn = $('#upRead');
-  const byName = new Map(M.items.map(i => [String(i.name).trim().toLowerCase(), i]));
-  const byN = new Map(rowsAll.map(r => [r.n, r.id]));
-  cntLines = (cntResult.rows || []).map(r => {
-    let item = r.name ? byName.get(String(r.name).trim().toLowerCase()) : null;
-    if (!item && r.n && byN.has(Number(r.n))) item = M.items.find(i => i.id === byN.get(Number(r.n)));
-    if (!item && r.name) { const k = String(r.name).toLowerCase(); item = M.items.find(i => String(i.name).toLowerCase().includes(k) || k.includes(String(i.name).toLowerCase().replace(/\s*\(.*\)$/, ''))) || null; }
-    return { on: true, itemId: item ? item.id : '', n: r.n || '', name: r.name || '', before: r.before ?? '', after: r.after ?? '', sold: r.sold ?? '', note: r.note || '', unclear: !!r.unclear, newPrice: '' };
-  });
-  if (!cntLines.length) { $('#iErr').textContent = "Couldn't find any handwritten counts. Try a clearer photo of the whole page."; if (btn) { btn.disabled = false; btn.textContent = 'Read it'; } return; }
-  renderCountReview();
-}
-function renderCountReview(){
-  const M = model(), itemById = new Map(M.items.map(i => [i.id, i]));
-  const names = M.items.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  const cash = (cntResult && cntResult.cash) || {};
-  const line = (l, i) => {
-    const it = itemById.get(l.itemId);
-    const sysBefore = it ? (it.onHandBlank && !it.received ? '' : it.avail) : '';
-    const b = blank(l.before) ? sysBefore : num(l.before), a = blank(l.after) ? null : num(l.after);
-    const sold = a === null || blank(b) ? '' : Math.max(num(b) - a, 0);
-    const flags = [];
-    if (l.unclear) flags.push('<span class="tag warn">Hard to read, check it</span>');
-    if (it && !blank(l.before) && num(l.before) !== num(sysBefore)) flags.push('<span class="tag warn">Before changed from ' + (blank(sysBefore) ? 'blank' : sysBefore) + '</span>');
-    if (!blank(l.sold) && sold !== '' && num(l.sold) !== sold) flags.push('<span class="tag warn">Sheet says ' + num(l.sold) + ' sold</span>');
-    if (a !== null && !blank(b) && a > num(b)) flags.push('<span class="tag warn">After is more than before</span>');
-    if (!it) flags.push('<span class="tag new">Not in the tracker</span>');
-    return `<div class="cnt-line ${l.unclear ? 'unclear' : ''}" data-line="${i}">
-      <span class="n">${esc(l.n || '+')}</span>
-      <div class="what"><select class="in" data-cnt="${i}|itemId" aria-label="Which item">
-          <option value="">${isAdmin() ? 'Add as a new item' : 'Skip this line'}</option>${names.map(n => `<option value="${esc(n.id)}" ${n.id === l.itemId ? 'selected' : ''}>${esc(n.name)}</option>`).join('')}
-          ${isAdmin() ? '<option value="__skip">Skip this line</option>' : ''}</select>
-        <span class="sys">Sheet: ${esc(l.name)}${l.note ? ' · "' + esc(l.note) + '"' : ''} ${flags.join(' ')}</span>
-        ${!l.itemId && isAdmin() ? `<div class="newfields"><input class="in" data-cnt="${i}|name" value="${esc(l.name)}" aria-label="New item name"><input class="in numin" data-cnt="${i}|newPrice" value="${esc(l.newPrice)}" inputmode="decimal" placeholder="Sell $" aria-label="Sell price"></div>` : ''}
-      </div>
-      <div class="b"><span class="lbl">Before</span><input class="in numin" data-cnt="${i}|before" value="${esc(blank(l.before) ? sysBefore : l.before)}" inputmode="numeric" aria-label="Before count"></div>
-      <div><span class="lbl">After</span><input class="in numin ${blank(l.after) ? 'empty' : ''}" data-cnt="${i}|after" value="${esc(l.after)}" inputmode="numeric" aria-label="After count"></div>
-      <div class="sold" data-cntsold="${i}"><span class="lbl">Sold</span>${sold === '' ? '<span class="blank">·</span>' : sold}</div>
-    </div>`;
-  };
-  openSheet(`<h3>Check the count sheet</h3><p>Yellow rows were hard to read or don't add up; take a second look at those. Fix any number by typing over it. Rows that weren't written on stay as they are.</p>
-    <div class="imp-head"><div><label class="lbl" for="cBy1">Counted before by</label><input class="in" id="cBy1" value="${esc(cntResult.countedBeforeBy || '')}"></div>
-      <div><label class="lbl" for="cBy2">Counted after by</label><input class="in" id="cBy2" value="${esc(cntResult.countedAfterBy || '')}"></div>
-      <div><label class="lbl" for="cStart">Starting cash</label><input class="in numin" id="cStart" inputmode="decimal" value="${esc(cash.start ?? '')}"></div>
-      <div><label class="lbl" for="cEnd">Ending cash</label><input class="in numin" id="cEnd" inputmode="decimal" value="${esc(cash.end ?? '')}"></div>
-      <div><label class="lbl" for="cApp">Cash App total</label><input class="in numin" id="cApp" inputmode="decimal" value="${esc(cash.cashApp ?? '')}"></div>
-      <div><label class="lbl" for="cNotes">Notes</label><input class="in" id="cNotes" value="${esc(cntResult.notes || '')}"></div></div>
-    <div class="cnt-cols"><span>#</span><span>Item</span><span>Before</span><span>After</span><span class="r">Sold</span></div>
-    <div>${cntLines.map(line).join('')}</div>
-    <div class="err" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="cntSave">Save counts</button></div>`, true);
-}
-function cntSyncInputs(){ document.querySelectorAll('[data-cnt]').forEach(el => { const [i, f] = el.dataset.cnt.split('|'); const l = cntLines[+i]; if (l && f !== 'itemId') l[f] = el.value; }); }
-async function saveCountSheet(){
-  cntSyncInputs();
-  const M = model(), itemById = new Map(M.items.map(i => [i.id, i]));
-  const ops = [], seen = new Set();
-  const setOp = (table, id, field, value) => { const r = serverRow(table, id); if (!r) return; if (normVal(table, field, r[field], id) === normVal(table, field, value, id)) return; ops.push({ op:'set', table, id, field, prev: r[field] ?? '', value }); };
-  for (const l of cntLines) {
-    if (l.itemId === '__skip') continue;
-    const it = itemById.get(l.itemId);
-    const before = String(l.before).trim(), after = String(l.after).trim();
-    if (before !== '' && !(Number(before) >= 0)) { $('#iErr').textContent = 'Before needs a number for: ' + (it ? it.name : l.name); return; }
-    if (after !== '' && !(Number(after) >= 0)) { $('#iErr').textContent = 'After needs a number for: ' + (it ? it.name : l.name); return; }
-    if (it) {
-      if (seen.has(it.id)) { $('#iErr').textContent = it.name + ' is on two lines. Pick a different item or skip one.'; return; }
-      seen.add(it.id);
-      const sysBefore = it.onHandBlank && !it.received ? '' : it.avail;
-      if (before !== '' && Number(before) !== num(sysBefore)) {
-        const onHand = Number(before) - it.received;
-        if (onHand < 0) { $('#iErr').textContent = it.name + ': before (' + before + ') is less than the ' + it.received + ' that arrived in this sale\'s orders. Fix before, or fix the order.'; return; }
-        setOp('items', it.id, 'onHand', onHand);
-      }
-      if (after !== '') setOp('items', it.id, 'countedAfter', Number(after));
-    } else if (isAdmin()) {
-      const nm = String(l.name || '').trim(), price = Number(String(l.newPrice).replace(/[$,]/g, ''));
-      if (!nm) continue;
-      if (String(l.newPrice).trim() === '' || !(price >= 0)) { $('#iErr').textContent = 'Add a sell price for the new item "' + nm + '", or choose Skip this line.'; return; }
-      ops.push({ op:'add', table:'items', row:{ id:'it' + Date.now().toString(36) + Math.floor(Math.random()*1e6), name: nm, category:'Carry-over', price, unitCost:'', onHand: before === '' ? '' : Number(before), countedAfter: after === '' ? '' : Number(after), notes:'Added from a count sheet' } });
-    }
-  }
-  const v = id => $(id).value.trim();
-  const by = [v('#cBy1') && 'before: ' + v('#cBy1'), v('#cBy2') && 'after: ' + v('#cBy2')].filter(Boolean).join(' · ');
-  if (v('#cStart') !== '') setOp('cash', 'start', 'value', v('#cStart'));
-  if (v('#cEnd') !== '') setOp('cash', 'end', 'value', v('#cEnd'));
-  if (v('#cApp') !== '') setOp('cash', 'cashapp', 'value', v('#cApp'));
-  if (by) setOp('cash', 'countedBy', 'value', by);
-  if (v('#cNotes')) setOp('cash', 'notes', 'value', v('#cNotes'));
-  if (!ops.length) { closeSheet(); toast('Nothing new to save. The tracker already matches the sheet.'); return; }
-  const btn = $('#cntSave'); btn.disabled = true; btn.textContent = 'Saving…';
-  let res;
-  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); }
-  catch (e) { $('#iErr').textContent = 'Could not reach the tracker. Nothing was saved. Try again.'; btn.disabled = false; btn.textContent = 'Save counts'; return; }
-  if (!res.ok || (res.conflicts || []).length) { if (res.data) data = res.data; $('#iErr').textContent = (res.error || 'Someone changed a count at the same moment, so nothing was saved.') + ' Tap Save counts again.'; btn.disabled = false; btn.textContent = 'Save counts'; return; }
-  data = res.data; closeSheet(); tab = 'overview'; render();
-  toast('Count sheet saved: ' + ops.length + ' update' + (ops.length === 1 ? '' : 's') + '. Sales and profit are updated.');
-}
-
-/* ---------- order import: screenshots or PDF, read by AI, checked by the admin ---------- */
-let impImgs = [], impResult = null, impLines = [];
 function shrinkImage(file){
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -1449,91 +1332,787 @@ function shrinkImage(file){
   });
 }
 async function addImpFiles(files){
+  const err = $('#iErr'); if (err && files.length) err.textContent = '';
   for (const f of [...files]) {
     const nm = String(f.name || '').toLowerCase();
     if (/\.csv$/.test(nm) || /csv/.test(f.type)) { upCsv = { name: f.name, text: await f.text() }; continue; }
-    if (impImgs.length >= 8) { $('#iErr').textContent = 'Up to 8 files at a time.'; break; }
-    if (f.type === 'application/pdf' || /\.pdf$/.test(nm)) { if (f.size > 8e6) { $('#iErr').textContent = 'That PDF is too big. Use a screenshot instead.'; continue; } impImgs.push({ media_type:'application/pdf', data: await fileToBase64(f), preview: '', label: f.name }); continue; }
-    if (/^image\//.test(f.type)) { try { impImgs.push(await shrinkImage(f)); } catch (e) { $('#iErr').textContent = 'One of those files could not be opened as a picture.'; } }
-    else $('#iErr').textContent = 'Use photos, screenshots, PDFs or a Cash App CSV.';
+    if (impImgs.length >= 8) { if (err) err.textContent = 'That is the most it takes at once (8). Upload the rest after.'; break; }
+    if (f.type === 'application/pdf' || /\.pdf$/.test(nm)) { if (f.size > 8e6) { if (err) err.textContent = 'That PDF is too big. Take a screenshot of it instead.'; continue; } impImgs.push({ media_type:'application/pdf', data: await fileToBase64(f), preview: '', label: f.name }); continue; }
+    if (/^image\//.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/.test(nm)) { try { impImgs.push(await shrinkImage(f)); } catch (e) { if (err) err.textContent = "One of those pictures couldn't be opened. Try taking the photo again."; } }
+    else if (err) err.textContent = "That kind of file can't be read. Use a photo, a screenshot, a PDF or the Cash App CSV.";
   }
   const t = $('#thumbs'); if (!t) return;
-  t.innerHTML = impImgs.map((im, i) => `<figure>${im.preview ? `<img src="${im.preview}" alt="File ${i+1}">` : `<div class="drop" style="height:76px;padding:10px;display:grid;place-items:center;font-size:12px">PDF<br>${esc(im.label || '')}</div>`}<button type="button" data-imprm="${i}" aria-label="Remove file">×</button></figure>`).join('')
-    + (upCsv ? `<figure><div class="drop" style="height:76px;padding:10px;display:grid;place-items:center;font-size:12px">CSV<br>${esc(upCsv.name)}</div><button type="button" data-csvrm="1" aria-label="Remove file">×</button></figure>` : '');
+  t.innerHTML = thumbsHtml(true);
+  const ph = impImgs.filter(i => i.preview).length, pd = impImgs.length - ph, r = $('#upReady'), b = $('#upRead');
+  const parts = [ph ? plural(ph, 'photo') : '', pd ? plural(pd, 'PDF') : '', upCsv ? 'the Cash App file' : ''].filter(Boolean);
+  if (r) r.innerHTML = parts.length ? '<span class="tick">✓</span> ' + esc(listJoin(parts)) + ' added. ' + (ph === 1 && !pd && !upCsv ? 'If the count sheet has a second page, add that photo too. ' : '') + 'Then tap <b>Read it</b>.' : '';
+  if (b) b.disabled = !parts.length;
+}
+
+/* ---------- step 2: reading ---------- */
+const RD_MSGS = ['Looking at the page', 'Finding the numbers', 'Matching items to the tracker', 'Double-checking', 'Almost done'];
+function showReading(){
+  const ph = impImgs.filter(i => i.preview).length, what = ph === impImgs.length ? (ph === 1 ? 'photo' : ph + ' photos') : 'file';
+  reSheet(`${steps(2)}<div class="reading" role="status" aria-live="polite">${paws(6)}
+      <h3>Reading your ${what}…</h3>
+      <p class="rd-msg" id="rdMsg">${RD_MSGS[0]}</p>
+      <p class="rd-time" id="rdTime">This usually takes 5 to 20 seconds</p>
+      <div class="banner wait"><span class="ico">i</span><span><b>Nothing is saved yet.</b> Keep this screen open. You'll check everything next.</span></div>
+      <div class="acts center"><button class="btn ghost" type="button" id="rdCancel">Stop</button></div></div>`);
+  guard(true);
+  const t0 = Date.now(); clearInterval(rdTimer);
+  rdTimer = setInterval(() => {
+    const s = Math.round((Date.now() - t0) / 1000), m = $('#rdMsg'), t = $('#rdTime');
+    if (!m || !t) return clearInterval(rdTimer);
+    m.textContent = RD_MSGS[Math.min(Math.floor(s / 4), RD_MSGS.length - 1)];
+    t.textContent = s + (s === 1 ? ' second' : ' seconds') + (s >= 25 ? '. Big or blurry photos take longer' : ', usually 5 to 20');
+  }, 1000);
+}
+function stopReading(){ clearInterval(rdTimer); }
+function readFailed(msg, final){
+  upBusy = false; stopReading();
+  reSheet(`${steps(2)}<div class="banner bad" role="alert"><span class="ico">!</span><span><b>Nothing was saved.</b> ${esc(msg)}</span></div>
+    ${impImgs.length || upCsv ? `<div class="thumbs view">${thumbsHtml(false)}</div>` : ''}
+    <div class="acts"><button class="btn ghost" type="button" data-close>Close</button><button class="btn ${final ? 'primary' : 'ghost'}" type="button" id="upBack">Start over</button>${final ? '' : '<button class="btn primary" type="button" id="rdRetry">Try again</button>'}</div>`);
+  guard(false);
+}
+async function readUpload(){
+  if (upBusy) return;
+  if (upCsv && impImgs.length) { $('#iErr').textContent = 'Upload the Cash App file by itself. Remove the photos or the CSV, then try again.'; return; }
+  upId = Date.now().toString(36);
+  if (upCsv) return startCashApp(upCsv.text);
+  if (!impImgs.length) { const e = $('#iErr'); if (e) e.textContent = 'Add a photo, screenshot, PDF or Cash App file first.'; return; }
+  const tok = ++readTok; upBusy = true;
+  showReading(); qReset();
+  const M = model(), rowsAll = sheetRows(M, false).flatMap(g => g.items);
+  let res;
+  try {
+    res = await Promise.race([
+      apiPost({ action:'readDoc', pin: auth.pin, name: who, images: impImgs.map(i => ({ media_type: i.media_type, data: i.data })), names: M.items.map(i => String(i.name)), rows: rowsAll.map(r => ({ n: r.n, name: r.name, price: r.price, before: r.before })) }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 100000))
+    ]);
+  } catch (e) { res = { ok:false, error: e && e.message === 'slow' ? 'Reading took too long. Try again, or use a smaller or clearer photo.' : 'Could not reach the tracker. Check the internet connection and try again.' }; }
+  if (tok !== readTok) return; // stopped or closed while reading
+  upBusy = false; stopReading();
+  if (!res.ok && /PIN/.test(res.error || '')) { auth = null; store.sset('css-auth', null); render(); return readFailed((res.error || 'That PIN did not work.') + ' The PIN may have been changed. Tap Unlock and use the new one.', true); }
+  if (!res.ok) return readFailed(res.error || 'That could not be read.');
+  const r = res.result || {};
+  if (r.type === 'order') {
+    if (!isAdmin()) return readFailed('This looks like an Amazon order. Only the admin PIN can add orders, so ask the admin to upload it.', true);
+    impResult = r; return buildImportLines();
+  }
+  if (r.type === 'countSheet') { cntResult = r; return buildCountLines(M, rowsAll); }
+  if (r.type === 'deposit') return startDeposit(r);
+  return readFailed("This doesn't look like a count sheet, an Amazon order or a deposit slip" + (r.what ? '. It looks like ' + String(r.what).replace(/\.$/, '') : '') + '. Try a clearer photo of the whole page, or a different file.', true);
+}
+
+/* ---------- remembered answers: after the same answer 3 times in a row, it answers for you ---------- */
+const LEARN_AT = 3;
+function learned(){ try { return JSON.parse(setting('learned') || '{}') || {}; } catch (e) { return {}; } }
+function learnKey(kind, s){ return kind + ':' + String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 60); }
+function learnedAnswer(key){ const e = learned()[key]; return e && e.n >= LEARN_AT ? e : null; }
+function learnOps(pairs){
+  if (!pairs.length) return [];
+  const L = learned(), now = todayIso();
+  for (const [k, a] of pairs) { const e = L[k]; if (e && e.a === a) { e.n++; e.t = now; } else L[k] = { a, n: 1, t: now }; }
+  const keys = Object.keys(L); // one cell holds 50,000 characters, so keep the newest 250
+  if (keys.length > 250) keys.sort((x, y) => String(L[x].t).localeCompare(String(L[y].t))).slice(0, keys.length - 250).forEach(k => delete L[k]);
+  const val = JSON.stringify(L), row = serverRow('settings', 'learned');
+  return [row ? { op:'set', table:'settings', id:'learned', field:'value', prev: row.value ?? '', value: val } : { op:'add', table:'settings', row:{ id:'learned', value: val } }];
+}
+
+/* ---------- step 3: questions. Every flag is a one-tap question; Save stays locked until all are answered ---------- */
+let Q = null; qReset();
+function qReset(){ Q = { list: [], ans: {}, vals: {}, auto: {}, manual: {}, bulk: {}, builder: () => [], redraw: null, okText: () => '', nothing: () => false, err: () => '' }; }
+function qv(id, k, d){ const v = (Q.vals[id] || {})[k]; return v === undefined ? d : v; }
+function qSetVal(id, k, v){ (Q.vals[id] = Q.vals[id] || {})[k] = v; }
+/* an answer only counts while its question is still on screen */
+function act(id){ return Q.list.some(q => q.id === id) ? Q.ans[id] : undefined; }
+function qMissing(q){ const a = Q.ans[q.id]; if (q.opts.length && a === undefined) return 'pick'; return q.need ? (q.need(a, Q.vals[q.id] || {}) || '') : ''; }
+function qDone(q){ return !qMissing(q); }
+function qLeft(){ return Q.list.filter(q => !qDone(q)).length; }
+function qSet(builder){
+  Q.builder = builder;
+  for (let k = 0; k < 6; k++) { // build, fill in remembered answers, and rebuild until nothing changes
+    const before = Q.list.map(q => q.id + '=' + (Q.ans[q.id] ?? '')).join('|');
+    Q.list = builder();
+    for (const q of Q.list) {
+      if (!q.learn || Q.ans[q.id] !== undefined || Q.manual[q.id]) continue;
+      const e = learnedAnswer(q.learn); if (!e) continue;
+      const v = q.learnDec ? q.learnDec(e.a) : e.a;
+      if (v != null && q.opts.some(o => o.v === v)) { Q.ans[q.id] = v; Q.auto[q.id] = e.n; }
+    }
+    if (Q.list.map(q => q.id + '=' + (Q.ans[q.id] ?? '')).join('|') === before) break;
+  }
+}
+function qLearnPairs(){
+  return Q.list.filter(q => q.learn && Q.manual[q.id] && Q.ans[q.id] !== undefined && (!Q.bulk[q.id] || q.learnBulk))
+    .map(q => [q.learn, q.learnEnc ? q.learnEnc(Q.ans[q.id], Q.vals[q.id] || {}) : Q.ans[q.id]]).filter(p => p[1] != null);
+}
+function qMissText(q){ const m = qMissing(q); if (!m || m === 'pick') return ''; return Q.ans[q.id] !== undefined || Q.vals[q.id] ? m : ''; }
+function qCard(q, i){
+  const a = Q.ans[q.id], done = qDone(q), auto = Q.auto[q.id];
+  if (auto && done) { const lab = (q.opts.find(o => o.v === a) || {}).label || a; return `<div class="q done auto" data-qcard="${esc(q.id)}"><div class="q-top"><span class="q-n">✓</span><div class="q-body"><div class="q-t">${q.text}</div><div class="q-s"><b>Answered for you: ${esc(lab)}</b>. It was picked ${auto} times before.</div></div><button class="btn small ghost" type="button" data-qchange="${esc(q.id)}">Change</button></div></div>`; }
+  const extra = q.fields ? q.fields(a) : '';
+  return `<div class="q${done ? ' done' : ''}" data-qcard="${esc(q.id)}">
+    <div class="q-top"><span class="q-n">${done ? '✓' : i + 1}</span><div class="q-body"><div class="q-t">${q.text}</div>${q.sub ? '<div class="q-s">' + q.sub + '</div>' : ''}</div></div>
+    ${q.opts.length ? '<div class="q-opts">' + q.opts.map(o => `<button type="button" class="q-o${a === o.v ? ' on' : ''}" data-q="${esc(q.id)}" data-qv="${esc(o.v)}" aria-pressed="${a === o.v}">${esc(o.label)}${o.rec && a === undefined ? '<em>Suggested</em>' : ''}</button>`).join('') + '</div>' : ''}
+    ${extra ? '<div class="q-f">' + extra + '</div>' : ''}
+    <div class="q-miss" role="alert">${esc(qMissText(q))}</div></div>`;
+}
+function qBannerText(){
+  const left = qLeft(), err = Q.err();
+  if (left) return '<b>Not saved yet.</b> Answer ' + (left === 1 ? 'the question below' : 'the ' + left + ' questions below') + ', then tap Save.';
+  if (err) return '<b>Not saved yet.</b> <span class="bad-t">' + esc(err) + '</span>';
+  return '<b>Not saved yet.</b> ' + (Q.list.length ? 'All answered. ' : 'Nothing needs an answer. ') + Q.okText();
+}
+function qPanel(){
+  const left = qLeft(), err = !left && Q.err(), recs = Q.list.filter(q => Q.ans[q.id] === undefined && q.opts.some(o => o.rec)).length;
+  return `<div class="banner ${left ? 'wait' : err ? 'bad' : 'ok'}" id="qBanner"><span class="ico">${left || (err ? '!' : '✓')}</span><span id="qBannerText">${qBannerText()}</span></div>
+    ${recs > 1 ? `<button class="btn small q-all" type="button" id="qAll">Accept all ${recs} suggested answers</button>` : ''}
+    ${Q.list.length ? '<div class="qs">' + Q.list.map(qCard).join('') + '</div>' : ''}`;
+}
+function saveLabel(label){ const left = qLeft(); return left ? 'Answer ' + left + ' more to save' : Q.err() ? "Can't save yet, see above" : Q.nothing() ? 'Close, nothing to save' : label; }
+function saveBtn(id, label){ return `<button class="btn primary" type="button" id="${id}" data-label="${esc(label)}"${qLeft() || Q.err() ? ' disabled' : ''}>${esc(saveLabel(label))}</button>`; }
+function qRefresh(){
+  Q.list.forEach((q, i) => {
+    const c = document.querySelector('[data-qcard="' + CSS.escape(q.id) + '"]'); if (!c) return;
+    const d = qDone(q); c.classList.toggle('done', d);
+    const n = c.querySelector('.q-n'); if (n) n.textContent = d ? '✓' : i + 1;
+    const m = c.querySelector('.q-miss'); if (m) m.textContent = qMissText(q);
+  });
+  const left = qLeft(), err = !left && Q.err(), b = $('#qBanner');
+  if (b) { b.className = 'banner ' + (left ? 'wait' : err ? 'bad' : 'ok'); b.querySelector('.ico').textContent = left || (err ? '!' : '✓'); $('#qBannerText').innerHTML = qBannerText(); }
+  const s = document.querySelector('.acts [data-label]'); if (s && !upBusy) { s.disabled = !!(left || Q.err()); s.textContent = saveLabel(s.dataset.label); }
+}
+function qAnswer(id, v){ if (!Q.list.some(x => x.id === id)) return; Q.ans[id] = v; delete Q.auto[id]; delete Q.bulk[id]; Q.manual[id] = true; Q.redraw(); }
+function qChange(id){ delete Q.ans[id]; delete Q.auto[id]; Q.manual[id] = true; Q.redraw(); }
+function qAll(){ for (const q of Q.list) if (Q.ans[q.id] === undefined) { const o = q.opts.find(o => o.rec); if (o) { Q.ans[q.id] = o.v; Q.manual[q.id] = true; Q.bulk[q.id] = true; } } Q.redraw(); }
+function qInput(id, k, v, redraw){ qSetVal(id, k, v); if (redraw) Q.redraw(); else qRefresh(); }
+/* every screen saves the same careful way: rebuild the questions, stop if anything is open, then send */
+function readyToSave(){ qSet(Q.builder); if (qLeft() || Q.err()) { Q.redraw(); return false; } return true; }
+function priceChips(id){
+  const cur = String(qv(id, 'price', ''));
+  return '<div class="chips-row"><span class="lbl">Sell price</span>' + PRICE_CHIPS.map(p => `<button type="button" class="q-c${cur !== '' && cash$(cur) === p ? ' on' : ''}" data-qset="${esc(id)}|price|${p}">${p < 1 ? '50¢' : '$' + p}</button>`).join('')
+    + `<input class="in numin" data-qf="${esc(id)}|price" value="${esc(PRICE_CHIPS.includes(cash$(cur)) && cur !== '' ? '' : cur)}" inputmode="decimal" placeholder="Other $" aria-label="Other sell price"></div>`;
+}
+
+/* ---------- saving, the Saved screen, and undo ---------- */
+function saving(btnId){
+  upBusy = true; const b = $('#' + btnId); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  const s = $('#saveState'); if (s) s.innerHTML = '<div class="saving">' + paws(4, true) + '<span>Saving. Keep this screen open.</span></div>';
+  const e = $('#iErr'); if (e) e.textContent = '';
+}
+function saveFailed(btnId, msg){
+  upBusy = false;
+  const s = $('#saveState'); if (s) s.innerHTML = `<div class="banner bad" role="alert"><span class="ico">!</span><span><b>Not saved.</b> ${esc(msg)} Your answers are still here, so tap Save again.</span></div>`;
+  const b = $('#' + btnId); if (b) { b.disabled = !!(qLeft() || Q.err()); b.textContent = saveLabel(b.dataset.label); }
+  if (s) s.scrollIntoView({ block:'nearest' });
+}
+async function sendOps(ops){ try { return await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); } catch (e) { return { ok:false, error:'Could not reach the tracker. Check the internet connection.' }; } }
+function alreadySaved(res){ const c = res.conflicts || []; return res.ok && c.length > 0 && c.every(x => x.reason === 'duplicate'); }
+function saveError(res){
+  if (!res.ok) return res.error || 'Something went wrong.';
+  const c = res.conflicts || []; if (!c.length) return '';
+  if (c.some(x => x.reason === 'not allowed with this PIN')) return "Your PIN isn't allowed to make one of these changes. Ask the admin.";
+  if (c.some(x => x.reason === 'row was removed')) return 'Someone removed a line this needed while you were checking. Tap Start over.';
+  return 'Someone else changed some of these numbers at the same moment, so nothing was saved. Their numbers are showing now.';
+}
+/* run a save: handles the busy state, errors, the "it already went through" case, and the Saved screen */
+async function doSave(btnId, ops, msg, tabTo, again){
+  saving(btnId);
+  const res = await sendOps(ops);
+  if (alreadySaved(res)) { data = res.data; return showSaved({ ops, msg: msg + ' (It had already gone through.)', tab: tabTo }); }
+  const err = saveError(res);
+  if (err) { if (res.data) { data = res.data; again(); } return saveFailed(btnId, err); }
+  data = res.data; showSaved({ ops, msg, tab: tabTo });
+}
+function fmtVal(table, id, field, v){ if (blank(v)) return 'blank'; if (['amount','packCost','price','unitCost','spent','sales','other'].includes(field) || (table === 'cash' && ['start','end','cashapp'].includes(String(id)))) return money(v); return String(v); }
+function describeOps(ops){
+  const out = [];
+  for (const op of ops) {
+    if (op.table === 'settings' || op.field === 'notes') continue;
+    if (op.op === 'add') { const r = op.row; out.push('Added <b>' + esc(labelOf(op.table, r)) + '</b>' + (op.table === 'moneyIn' ? ': ' + money(r.amount) : op.table === 'purchases' ? ': ' + num(r.packs) + ' × ' + money(r.packCost) : op.table === 'items' ? ' (sells for ' + money(r.price) + ')' : '')); continue; }
+    if (op.op === 'set') { const r = serverRow(op.table, op.id), lab = esc(labelOf(op.table, r) || op.id); out.push('<b>' + lab + '</b>: ' + (op.table === 'cash' ? '' : esc((FIELD_NAMES[op.field] || op.field).toLowerCase()) + ' ') + esc(fmtVal(op.table, op.id, op.field, op.prev)) + ' → ' + esc(fmtVal(op.table, op.id, op.field, op.value))); }
+  }
+  return out;
+}
+function showSaved(o){
+  upBusy = false; lastUpload = { ops: o.ops };
+  const lines = describeOps(o.ops);
+  if (o.tab) tab = o.tab; render();
+  reSheet(`${steps(4)}<div class="saved" role="status"><div class="bigcheck" aria-hidden="true">✓</div><h3>Saved</h3><p>${esc(o.msg)}</p><p class="muted">Everyone with the link sees it now.</p></div>
+    ${lines.length ? `<details class="chg"${lines.length <= 8 ? ' open' : ''}><summary>What changed (${lines.length})</summary><ul>${lines.slice(0, 80).map(l => '<li>' + l + '</li>').join('')}${lines.length > 80 ? '<li>and ' + (lines.length - 80) + ' more</li>' : ''}</ul></details>` : ''}
+    <div id="saveState" aria-live="polite"></div>
+    <div class="acts"><button class="btn ghost" type="button" id="undoUp">Undo this upload</button><button class="btn primary" type="button" id="doneUp">Done</button></div>`);
+  guard(false);
+  toast(o.msg);
+}
+async function undoUpload(){
+  if (!lastUpload || upBusy) return;
+  const inv = [];
+  for (const op of lastUpload.ops.slice().reverse()) {
+    // "prev" is what this upload saved, so undo stops instead of overwriting anything changed since
+    if (op.op === 'set') inv.push({ op:'set', table: op.table, id: op.id, field: op.field, prev: op.value, value: op.prev });
+    else if (op.op === 'add' && op.table === 'settings' && op.row.id === 'learned') { const r = serverRow('settings', 'learned'); if (r) inv.push({ op:'set', table:'settings', id:'learned', field:'value', prev: r.value ?? '', value:'{}' }); }
+    else if (op.op === 'add') inv.push({ op:'del', table: op.table, id: op.row.id });
+  }
+  const b = $('#undoUp'); if (b) { b.disabled = true; b.textContent = 'Undoing…'; } upBusy = true;
+  const res = await sendOps(inv); upBusy = false;
+  const err = saveError(res);
+  if (err) {
+    if (res.data) { data = res.data; render(); }
+    const s = $('#saveState'); if (s) s.innerHTML = `<div class="banner bad" role="alert"><span class="ico">!</span><span><b>Not undone.</b> ${(res.conflicts || []).some(c => c.reason === 'changed') ? 'Someone changed some of these numbers since, so nothing was undone. You can undo single changes on the Activity tab.' : esc(err)}</span></div>`;
+    if (b) { b.disabled = false; b.textContent = 'Undo this upload'; } return;
+  }
+  data = res.data; lastUpload = null; render();
+  reSheet(`<div class="saved undone" role="status"><div class="bigcheck" aria-hidden="true">↺</div><h3>Undone</h3><p>Everything from that upload was taken back out. The tracker is back the way it was.</p></div>
+    <div class="acts"><button class="btn primary" type="button" data-close>Done</button></div>`);
+  toast('Undone. The tracker is back the way it was.');
+}
+
+/* ---------- count sheet ---------- */
+function nameKey(s){ return String(s || '').toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9#]+/g, ' ').trim(); }
+function similar(a, b){
+  const A = new Set(nameKey(a).split(' ').filter(w => w.length > 1)), B = new Set(nameKey(b).split(' ').filter(w => w.length > 1));
+  if (!A.size || !B.size) return 0; let n = 0; for (const w of A) if (B.has(w)) n++; return n / Math.max(A.size, B.size);
+}
+function sysBefore(it){ return it.onHandBlank && !it.received ? '' : it.avail; }
+function buildCountLines(M, rowsAll){
+  const exact = new Map(M.items.map(i => [String(i.name).trim().toLowerCase(), i]));
+  const keyed = new Map(); for (const i of M.items) { const k = nameKey(i.name); keyed.set(k, keyed.has(k) ? null : i); }
+  const byId = new Map(M.items.map(i => [i.id, i])), byN = new Map(rowsAll.map(r => [Number(r.n), r.id]));
+  cntLines = (cntResult.rows || []).map(r => {
+    const nm = String(r.name || '').trim();
+    let item = exact.get(nm.toLowerCase()) || (nm ? keyed.get(nameKey(nm)) : null) || null, guess = null, sure = false;
+    const atN = r.n ? byId.get(byN.get(Number(r.n))) : null;
+    if (!item && atN && similar(atN.name, nm) >= 0.5) item = atN;
+    if (!item) {
+      const e = nm ? learnedAnswer(learnKey('cnt', nm)) : null;
+      if (e && /^item:/.test(e.a) && byId.get(e.a.slice(5))) { guess = byId.get(e.a.slice(5)); sure = true; }
+      if (!guess) { let best = null, sc = 0; for (const i of M.items) { const s = similar(i.name, nm); if (s > sc) { sc = s; best = i; } } if (sc >= 0.34) { guess = best; sure = sc >= 0.5; } else if (!nm && atN) guess = atN; }
+    }
+    const o = { before: r.before ?? '', after: r.after ?? '', sold: r.sold ?? '' };
+    return { itemId: item ? item.id : '', guessId: guess ? guess.id : '', sureGuess: sure, wasUnknown: !item, n: r.n || '', name: nm || ('Row ' + (r.n || '?')), o, ed: {}, note: r.note || '', unclear: !!r.unclear, skipLine: false };
+  }).filter(l => !(blank(l.o.before) && blank(l.o.after) && blank(l.o.sold) && !l.note));
+  if (!cntLines.length) return readFailed('No handwritten counts were found on that photo. Take it straight on, in good light, with the whole page in the picture.');
+  cntResult.cash = cntResult.cash || {}; cntResult.end0 = cntResult.cash.end; cntAllOpen = false;
+  renderCountReview(); guard(true);
+}
+/* what each line works out to, given what was read, the answers and any edits */
+function cntEff(i, M){
+  const l = cntLines[i], byId = new Map(M.items.map(x => [x.id, x]));
+  const na = act('n' + i);
+  const itemId = l.wasUnknown ? (na === 'guess' ? l.guessId : na === 'match' ? qv('n' + i, 'item', '') : '') : l.itemId;
+  const it = byId.get(itemId) || null;
+  let skip = l.skipLine || (l.wasUnknown && (na === 'skip' || na === 'admin')) || act('a' + i) === 'skip';
+  const twoAns = it ? act('two' + it.id) : undefined;
+  if (twoAns !== undefined && String(twoAns) !== String(i)) skip = true;
+  const sysB = it ? sysBefore(it) : '';
+  let before = 'before' in l.ed ? l.ed.before : act('b' + i) === 'keep' ? sysB : blank(l.o.before) ? sysB : num(l.o.before);
+  if (!('before' in l.ed) && act('nb' + i) === 'type') before = qv('nb' + i, 'n', '');
+  const after = 'after' in l.ed ? l.ed.after : act('s' + i) === 'sold' && !blank(before) ? Math.max(num(before) - num(l.o.sold), 0) : l.o.after;
+  return { l, it, itemId, skip, sysB, before: blank(before) ? '' : before, after: blank(after) ? '' : after };
+}
+function cntBlankItems(M){
+  const used = new Set(), hasAfter = cntLines.some(l => !blank(l.o.after));
+  if (!hasAfter) return [];
+  cntLines.forEach((l, i) => { const e = cntEff(i, M); if (e.itemId) used.add(e.itemId); });
+  return M.items.filter(it => it.counted === null && !used.has(it.id) && !(it.onHandBlank && !it.received) && it.avail > 0);
+}
+function cntQuestions(){
+  const M = model(), adm = isAdmin(), out = [];
+  const sorted = M.items.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const pickItem = (id, sel) => `<select class="in" data-qf="${id}|item" aria-label="Which item"><option value="">Pick the item…</option>${sorted.map(i => `<option value="${esc(i.id)}"${i.id === sel ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}</select>`;
+  const fixInputs = (i, e) => `<div class="two"><label class="lbl">Before<input class="in numin" data-cq="${i}|before" value="${esc(e.before)}" inputmode="numeric"></label><label class="lbl">After<input class="in numin" data-cq="${i}|after" value="${esc(e.after)}" inputmode="numeric"></label></div>`;
+  const effs = cntLines.map((l, i) => cntEff(i, M));
+  cntLines.forEach((l, i) => {
+    const e = effs[i], row = l.n ? 'Row ' + esc(l.n) + ': ' : '', nums = 'before ' + showNum(l.o.before) + ', after ' + showNum(l.o.after);
+    if (l.wasUnknown) {
+      const g = M.items.find(x => x.id === l.guessId), id = 'n' + i, o = [];
+      if (g) o.push({ v:'guess', label:"Yes, it's " + g.name, rec: l.sureGuess });
+      o.push({ v:'match', label: g ? "No, it's a different item" : "It's an item we already have" });
+      if (adm) o.push({ v:'new', label:'Add it as a new item' });
+      o.push(adm ? { v:'skip', label:'Skip it' } : { v:'admin', label:'Leave it for the admin', rec: !g || !l.sureGuess });
+      out.push({ id, text: `${row}<b>"${esc(l.name)}"</b> isn't in the tracker.${g ? ' Is it <b>' + esc(g.name) + '</b>?' : ''}`, sub: 'The sheet says ' + nums + '.', opts: o,
+        fields: a => a === 'match' ? pickItem(id, qv(id, 'item', '')) : a === 'new' ? `<label class="lbl">Item name<input class="in" data-qf="${id}|name" value="${esc(qv(id, 'name', l.name))}"></label>${priceChips(id)}` : '',
+        need: (a, v) => a === 'match' && !v.item ? 'Pick the item.' : a === 'new' ? (!String(v.name ?? l.name).trim() ? 'Give it a name.' : !priceOk(v.price) ? 'Pick the sell price.' : '') : '',
+        learn: learnKey('cnt', l.name),
+        learnEnc: (a, v) => a === 'guess' ? 'item:' + l.guessId : a === 'match' ? (v.item ? 'item:' + v.item : null) : a === 'skip' ? 'skip' : null,
+        learnDec: s => s === 'skip' ? (adm ? 'skip' : null) : s === 'item:' + l.guessId ? 'guess' : null });
+    }
+    const it = e.it; if (!it || l.skipLine) return;
+    if (l.unclear) out.push({ id:'u' + i, text: `${row}<b>${esc(it.name)}</b> was hard to read.`, sub: 'It read ' + nums + '. Check the photo.', opts: [{ v:'ok', label:"That's right" }, { v:'fix', label:'Fix the numbers' }], fields: a => a === 'fix' ? fixInputs(i, e) : '' });
+    if (!blank(l.o.before) && !blank(e.sysB) && num(l.o.before) !== num(e.sysB))
+      out.push({ id:'b' + i, text: `<b>${esc(it.name)}</b>: the sheet says <b>${num(l.o.before)}</b> before. The tracker had <b>${e.sysB}</b>.`, sub: 'A crossed-out number usually means more came in, or the first count was off.',
+        opts: [{ v:'sheet', label:'Use ' + num(l.o.before) + ' from the sheet', rec: true }, { v:'keep', label:'Keep ' + e.sysB }] });
+    if (blank(e.sysB) && blank(l.o.before) && !('before' in l.ed) && !blank(e.after))
+      out.push({ id:'nb' + i, text: `<b>${esc(it.name)}</b> has an AFTER count (${num(e.after)}) but no BEFORE, here or in the tracker.`, sub: 'Without a before count, sold can\'t be worked out.',
+        opts: [{ v:'type', label:'Type the before count' }, { v:'after', label:'Save just the after count' }],
+        fields: a => a === 'type' ? `<input class="in numin" data-qf="nb${i}|n" value="${esc(qv('nb' + i, 'n', ''))}" inputmode="numeric" placeholder="Before count" aria-label="Before count">` : '',
+        need: (a, v) => a === 'type' && !(String(v.n ?? '').trim() !== '' && Number(v.n) >= 0) ? 'Type the before count.' : '' });
+    if (!blank(l.o.sold) && !blank(l.o.after) && !('after' in l.ed) && !blank(e.before) && num(l.o.sold) !== num(e.before) - num(l.o.after)) {
+      const calc = num(e.before) - num(l.o.after), alt = num(e.before) - num(l.o.sold), o = [{ v:'counts', label: calc + ' sold (the counts are right)', rec: calc >= 0 }];
+      if (alt >= 0) o.push({ v:'sold', label: num(l.o.sold) + ' sold (so ' + alt + ' left)' });
+      o.push({ v:'fix', label:'Fix the numbers' });
+      out.push({ id:'s' + i, text: `<b>${esc(it.name)}</b>: the sheet says <b>${num(l.o.sold)} sold</b>, but ${num(e.before)} before minus ${num(l.o.after)} after is <b>${calc}</b>.`, opts: o, fields: a => a === 'fix' ? fixInputs(i, e) : '' });
+    }
+    if (!blank(e.after) && !blank(e.before) && num(e.after) > num(e.before))
+      out.push({ id:'a' + i, text: `<b>${esc(it.name)}</b>: ${num(e.after)} after is more than ${num(e.before)} before.`, sub: "After can't be more than before, so one of them is off.",
+        opts: [{ v:'fix', label:'Fix the numbers' }, { v:'skip', label:'Skip this item for now' }], fields: a => a === 'fix' ? fixInputs(i, e) : '',
+        need: a => a === 'fix' ? 'Change the numbers so after is not more than before.' : '' });
+  });
+  // the same item on two lines (overlapping photos): pick which line is right
+  const byItem = new Map();
+  effs.forEach((e, i) => { if (e.itemId && !cntLines[i].skipLine && !(cntLines[i].wasUnknown && ['skip', 'admin'].includes(act('n' + i))) && act('a' + i) !== 'skip') { if (!byItem.has(e.itemId)) byItem.set(e.itemId, []); byItem.get(e.itemId).push(i); } });
+  for (const [itemId, idx] of byItem) if (idx.length > 1) {
+    const it = M.items.find(x => x.id === itemId);
+    out.push({ id:'two' + itemId, text: `<b>${esc(it.name)}</b> is on ${idx.length} lines. Which one is right?`, sub: 'This happens when two photos overlap.',
+      opts: idx.map(i => ({ v: String(i), label: 'Before ' + showNum(effs[i].before) + ', after ' + showNum(effs[i].after) + (cntLines[i].n ? ' (row ' + cntLines[i].n + ')' : '') })) });
+  }
+  const blanks = cntBlankItems(M);
+  if (blanks.length) {
+    const names = blanks.map(i => i.name);
+    out.push({ id:'blank', text: `<b>${plural(blanks.length, 'item')}</b> ${blanks.length === 1 ? 'has' : 'have'} nothing written in AFTER.`, sub: esc(names.slice(0, 4).join(', ')) + (names.length > 4 ? ' and ' + (names.length - 4) + ' more' : '') + '. Missing a page? Add it with the button below.',
+      opts: [{ v:'later', label:'Leave them blank for now' }, { v:'none', label:'None of them sold' }],
+      fields: () => '<button class="btn small" type="button" id="upMore">Add another page</button>' });
+  }
+  const cash = cntResult.cash, hasAfter = cntLines.some(l => !blank(l.o.after));
+  if (hasAfter && blank(cntResult.end0) && blank(cash.end))
+    out.push({ id:'cash', text:'No ending cash is written in the cash box section.', sub:'Over or short is worked out from it.', opts: [{ v:'later', label:'Add it later', rec: true }, { v:'now', label:'Type it now' }],
+      fields: a => a === 'now' ? `<input class="in numin" data-qf="cash|end" value="${esc(qv('cash', 'end', ''))}" inputmode="decimal" placeholder="Ending cash $" aria-label="Ending cash">` : '',
+      need: (a, v) => a === 'now' && !priceOk(v.end) ? 'Type the ending cash.' : '' });
+  return out;
+}
+function countPlan(){
+  const M = model(), ops = [], seen = new Set(), forAdmin = [], c = { after:0, before:0, added:0, none:0, cash:0 };
+  const fail = err => ({ err, ops: [], list: '' });
+  const setOp = (table, id, field, value) => { const r = serverRow(table, id); if (!r) return false; if (normVal(table, field, r[field], id) === normVal(table, field, value, id)) return false; ops.push({ op:'set', table, id, field, prev: r[field] ?? '', value }); return true; };
+  for (let i = 0; i < cntLines.length; i++) {
+    const e = cntEff(i, M), l = e.l, na = act('n' + i);
+    if (e.skip) { if (l.wasUnknown && na === 'admin') forAdmin.push(l.name + ' (before ' + showNum(l.o.before) + ', after ' + showNum(l.o.after) + ')'); continue; }
+    const before = String(e.before).trim(), after = String(e.after).trim(), label = e.it ? e.it.name : l.name;
+    if (before !== '' && !(Number(before) >= 0)) return fail('Before needs a number for ' + label + '.');
+    if (after !== '' && !(Number(after) >= 0)) return fail('After needs a number for ' + label + '.');
+    if (e.it) {
+      const it = e.it;
+      if (seen.has(it.id)) return fail(it.name + ' is on two lines. Answer the question about it.');
+      seen.add(it.id);
+      if (before !== '' && after !== '' && Number(after) > Number(before)) return fail(it.name + ': after is more than before.');
+      if (before !== '' && (blank(e.sysB) || Number(before) !== num(e.sysB))) {
+        const onHand = Number(before) - it.received;
+        if (onHand < 0) return fail(it.name + ': before (' + before + ') is less than the ' + it.received + " that came in this sale's orders.");
+        if (setOp('items', it.id, 'onHand', onHand)) c.before++;
+      }
+      if (after !== '' && setOp('items', it.id, 'countedAfter', Number(after))) c.after++;
+    } else if (l.wasUnknown && na === 'new' && isAdmin()) {
+      const nm = String(qv('n' + i, 'name', l.name)).trim(), pr = qv('n' + i, 'price', '');
+      if (!nm || !priceOk(pr)) return fail('Add the name and sell price for ' + l.name + '.');
+      if (M.items.some(x => String(x.name).trim().toLowerCase() === nm.toLowerCase())) return fail(nm + ' is already in the tracker. Choose "It\'s an item we already have" instead.');
+      ops.push({ op:'add', table:'items', row:{ id: newId('it', i), name: nm, category:'Carry-over', price: cash$(pr), unitCost:'', onHand: before === '' ? '' : Number(before), countedAfter: after === '' ? '' : Number(after), notes:'Added from a count sheet' } }); c.added++;
+    }
+  }
+  if (act('blank') === 'none') for (const it of cntBlankItems(M)) if (setOp('items', it.id, 'countedAfter', it.avail)) c.none++;
+  const cr = cntResult, cash = cr.cash || {};
+  const end = act('cash') === 'now' ? qv('cash', 'end', '') : cash.end;
+  for (const [id, v] of [['start', cash.start], ['end', end], ['cashapp', cash.cashApp]]) {
+    if (blank(v) || String(v).trim() === '') continue;
+    if (!(cash$(v) >= 0)) return fail('The cash box amounts need to be numbers.');
+    if (setOp('cash', id, 'value', cash$(v))) c.cash++;
+  }
+  const by = [cr.countedBeforeBy && 'before: ' + cr.countedBeforeBy, cr.countedAfterBy && 'after: ' + cr.countedAfterBy].filter(Boolean).join(' · ');
+  if (by && setOp('cash', 'countedBy', 'value', by)) c.cash++;
+  const add = [String(cr.notes || '').trim(), forAdmin.length ? 'Not in the tracker yet: ' + forAdmin.join('; ') : ''].filter(Boolean).join(' · ');
+  if (add) { const cur = String((serverRow('cash', 'notes') || {}).value || '').trim(); if (!cur.includes(add)) setOp('cash', 'notes', 'value', cur ? cur + ' · ' + add : add); }
+  const parts = [c.after ? plural(c.after, 'after count') : '', c.before ? plural(c.before, 'before count') : '', c.none ? plural(c.none, 'item') + ' marked none sold' : '', c.added ? plural(c.added, 'new item') : '', c.cash ? 'the cash box' : '', forAdmin.length ? 'a note for the admin' : ''].filter(Boolean);
+  return { ops, list: listJoin(parts) };
+}
+function cntSold(i){
+  const el = document.querySelector('[data-cntsold="' + i + '"]'); if (!el) return;
+  const e = cntEff(i, model());
+  el.innerHTML = '<span class="lbl">Sold</span>' + (blank(e.after) || blank(e.before) ? '<span class="blank">·</span>' : Math.max(num(e.before) - num(e.after), 0));
+}
+function renderCountReview(){
+  qSet(cntQuestions); Q.redraw = renderCountReview;
+  Q.err = () => countPlan().err || '';
+  Q.okText = () => { const r = countPlan(); return r.ops.length ? 'Ready to save ' + esc(r.list) + '.' : 'This sheet is already in the tracker.'; };
+  Q.nothing = () => { const r = countPlan(); return !r.err && !r.ops.length; };
+  const M = model(), names = M.items.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))), cash = cntResult.cash;
+  const line = (l, i) => {
+    const e = cntEff(i, M), sold = blank(e.after) || blank(e.before) ? '' : Math.max(num(e.before) - num(e.after), 0);
+    const what = l.wasUnknown
+      ? `<b>${esc(e.skip ? l.name + ' (skipped)' : e.it ? e.it.name : l.name)}</b><span class="sys">${e.it || e.skip ? 'Sheet: ' + esc(l.name) : 'Answer the question above'}</span>`
+      : `<select class="in" data-cnt="${i}|itemId" aria-label="Which item">${names.map(n => `<option value="${esc(n.id)}"${n.id === l.itemId && !l.skipLine ? ' selected' : ''}>${esc(n.name)}</option>`).join('')}<option value="__skip"${l.skipLine ? ' selected' : ''}>Skip this line</option></select><span class="sys">Sheet: ${esc(l.name)}${l.note ? ' · "' + esc(l.note) + '"' : ''}${e.skip ? ' · skipped' : ''}</span>`;
+    return `<div class="cnt-line${e.skip ? ' off' : ''}" data-line="${i}"><span class="n">${esc(l.n || '+')}</span><div class="what">${what}</div>
+      <div class="b"><span class="lbl">Before</span><input class="in numin" data-cnt="${i}|before" value="${esc(e.before)}" inputmode="numeric" aria-label="Before count"></div>
+      <div><span class="lbl">After</span><input class="in numin${blank(e.after) ? ' empty' : ''}" data-cnt="${i}|after" value="${esc(e.after)}" inputmode="numeric" aria-label="After count"></div>
+      <div class="sold" data-cntsold="${i}"><span class="lbl">Sold</span>${sold === '' ? '<span class="blank">·</span>' : sold}</div></div>`;
+  };
+  reSheet(`${steps(3)}<h3>Check the count sheet</h3>${viewThumbs()}${qPanel()}
+    <details class="more" id="cntAll"${cntAllOpen || !Q.list.length ? ' open' : ''}><summary>Everything it read (${plural(cntLines.length, 'line')}). Tap any number to fix it.</summary>
+      <div class="imp-head"><div><label class="lbl" for="cBy1">Counted before by</label><input class="in" id="cBy1" data-ch="countedBeforeBy" value="${esc(cntResult.countedBeforeBy || '')}"></div>
+        <div><label class="lbl" for="cBy2">Counted after by</label><input class="in" id="cBy2" data-ch="countedAfterBy" value="${esc(cntResult.countedAfterBy || '')}"></div>
+        <div><label class="lbl" for="cStart">Starting cash</label><input class="in numin" id="cStart" data-ch="cash.start" inputmode="decimal" value="${esc(cash.start ?? '')}"></div>
+        <div><label class="lbl" for="cEnd">Ending cash</label><input class="in numin" id="cEnd" data-ch="cash.end" inputmode="decimal" value="${esc(cash.end ?? '')}"></div>
+        <div><label class="lbl" for="cApp">Cash App total</label><input class="in numin" id="cApp" data-ch="cash.cashApp" inputmode="decimal" value="${esc(cash.cashApp ?? '')}"></div>
+        <div><label class="lbl" for="cNotes">Notes</label><input class="in" id="cNotes" data-ch="notes" value="${esc(cntResult.notes || '')}"></div></div>
+      <div class="cnt-cols"><span>#</span><span>Item</span><span>Before</span><span>After</span><span class="r">Sold</span></div>
+      <div>${cntLines.map(line).join('')}</div></details>
+    <div id="saveState" aria-live="polite"></div><div class="err" id="iErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>${saveBtn('cntSave', 'Save counts')}</div>`);
+}
+async function saveCountSheet(){
+  if (upBusy || !readyToSave()) return;
+  const r = countPlan();
+  if (!r.ops.length) { closeSheet(); toast('Nothing new. The tracker already matches this sheet.'); return; }
+  doSave('cntSave', r.ops.concat(learnOps(qLearnPairs())), 'Saved ' + r.list + '. Sales and profit are updated.', 'overview', renderCountReview);
+}
+
+/* ---------- Amazon order ---------- */
+function packGuesses(title){
+  const s = String(title || ''), out = [];
+  for (const m of s.matchAll(/(\d{1,4})\s*-?\s*(?:pack|pk|pcs|pieces|piece|count|ct|pairs|sheets|set)\b/gi)) out.push(Number(m[1]));
+  for (const m of s.matchAll(/(?:pack|set|box) of (\d{1,4})/gi)) out.push(Number(m[1]));
+  return [...new Set(out.filter(n => n >= 2 && n <= 1000))].slice(0, 3);
 }
 function buildImportLines(){
-  const btn = $('#upRead');
   const names = rows('items').map(i => String(i.name));
   const find = n => { if (!n) return ''; const k = String(n).trim().toLowerCase(); return names.find(x => x.trim().toLowerCase() === k) || ''; };
   impLines = (impResult.lines || []).map(l => {
-    const target = find(l.match) || find(l.name);
-    return { on: true, title: l.title || l.name || '', target, newName: l.name || l.title || '', price: '', packs: l.packs || 1, packCost: l.packCost ?? '', unitsPerPack: l.unitsPerPack ?? '', note: l.note || '' };
+    const target = find(l.match) || find(l.name), title = l.title || l.name || '';
+    const upp = Number(l.unitsPerPack) > 0 ? Number(l.unitsPerPack) : '';
+    return { on: true, title, target, wasNew: !target, newName: l.name || title, packs: l.packs || 1, packCost: l.packCost ?? '', unitsPerPack: upp, uppMissing: upp === '', uppEdited: false, note: l.note || '' };
   });
-  if (!impLines.length) { $('#iErr').textContent = "Couldn't find any items in that. Try a clearer or closer screenshot."; if (btn) { btn.disabled = false; btn.textContent = 'Read it'; } return; }
-  renderImportReview();
+  if (!impLines.length) return readFailed('No items were found in that. Use a screenshot that shows each item with its quantity and price.');
+  impDateVal = /^\d{4}-\d{2}-\d{2}$/.test(impResult.orderDate || '') ? impResult.orderDate : todayIso(); impDateEdited = false;
+  impStoreVal = impResult.store || 'Amazon'; impAllOpen = false;
+  renderImportReview(); guard(true);
 }
-function renderImportReview(){
-  const names = rows('items').map(i => String(i.name)).sort((a, b) => a.localeCompare(b));
-  const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-  const date = (impResult && /^\d{4}-\d{2}-\d{2}$/.test(impResult.orderDate || '')) ? impResult.orderDate : iso;
-  const line = (l, i) => `<div class="imp-line ${l.on ? '' : 'off'}" data-line="${i}">
-      <input type="checkbox" data-imp="${i}|on" ${l.on ? 'checked' : ''} aria-label="Include this line">
-      <div class="goes"><select class="in" data-imp="${i}|target" aria-label="Which item this is">
-          <option value="">New item</option>${names.map(n => `<option ${n === l.target ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-        <div class="title">${esc(l.title)}${l.target ? '<span class="tag match">Restock of existing item</span>' : '<span class="tag new">New item</span>'}${l.note ? ' · ' + esc(l.note) : ''}</div>
-        ${l.target ? '' : `<div class="newfields"><input class="in" data-imp="${i}|newName" value="${esc(l.newName)}" placeholder="Item name" aria-label="New item name"><input class="in numin" data-imp="${i}|price" value="${esc(l.price)}" inputmode="decimal" placeholder="Sell $" aria-label="Sell price"></div>`}
-      </div>
-      <div class="n1"><span class="lbl">Packs</span><input class="in numin" data-imp="${i}|packs" value="${esc(l.packs)}" inputmode="numeric" aria-label="Packs"></div>
-      <div><span class="lbl">Pack cost</span><input class="in numin" data-imp="${i}|packCost" value="${esc(l.packCost)}" inputmode="decimal" aria-label="Pack cost"></div>
-      <div><span class="lbl">Units / pack</span><input class="in numin ${blank(l.unitsPerPack) ? 'empty' : ''}" data-imp="${i}|unitsPerPack" value="${esc(l.unitsPerPack)}" inputmode="numeric" aria-label="Units per pack"></div>
-    </div>`;
-  openSheet(`<h3>Check the order</h3><p>Green means it's a restock of something you already sell, so the new units add onto it. Pink means a new item: give it a sell price. Uncheck anything you don't want.</p>
-    <div class="imp-head"><div><label class="lbl" for="impDate">Order date</label><input class="in" id="impDate" type="date" value="${date}"></div>
-      <div><label class="lbl" for="impStore">Store</label><input class="in" id="impStore" value="${esc((impResult && impResult.store) || 'Amazon')}"></div></div>
-    <div class="imp-cols"><span></span><span>Item</span><span>Packs</span><span>Pack cost</span><span>Units/pack</span></div>
-    <div id="impLines">${impLines.map(line).join('')}</div>
-    <div class="imp-sum num"><span id="impTotal"></span><span class="muted">${impResult && impResult.orderTotal ? 'Order total on the screenshot: ' + money(impResult.orderTotal) + ' (may include tax or shipping)' : ''}</span></div>
-    <div class="err" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="impSave">Save order</button></div>`, true);
-  updateImpTotal();
+function impEff(i){
+  const l = impLines[i], na = act('new' + i);
+  const on = l.on && na !== 'off' && act('dup' + i) !== 'off';
+  const target = l.wasNew ? (na === 'match' ? qv('new' + i, 'item', '') : '') : l.target;
+  const name = target || String(qv('new' + i, 'name', l.newName) || '').trim();
+  const ua = act('upp' + i);
+  const upp = l.uppMissing && !l.uppEdited ? (ua && /^n:/.test(ua) ? Number(ua.slice(2)) : ua === 'other' ? qv('upp' + i, 'n', '') : '') : l.unitsPerPack;
+  return { l, on, target, name, price: qv('new' + i, 'price', ''), upp };
 }
-function updateImpTotal(){ const t = impLines.filter(l => l.on).reduce((s, l) => s + num(l.packs) * num(l.packCost), 0); const n = impLines.filter(l => l.on).length; const el = $('#impTotal'); if (el) el.textContent = n + ' line' + (n === 1 ? '' : 's') + ' · ' + money(t); }
-async function saveImport(){
-  const date = $('#impDate').value, store = $('#impStore').value.trim() || 'Amazon';
-  const live = liveSale(); const sale = live ? live.id : setting('eventName');
+function impDate(){ if (impDateEdited || /^\d{4}-\d{2}-\d{2}$/.test(impResult.orderDate || '')) return impDateVal; const a = act('date'); return a === 'today' ? todayIso() : a === 'pick' ? qv('date', 'd', '') : impDateVal; }
+function impSum(){ return impLines.reduce((s, l, i) => s + (impEff(i).on ? num(l.packs) * num(l.packCost) : 0), 0); }
+function impDup(i){
+  const e = impEff(i), l = e.l, d = impDate(), nm = String(e.name || '').trim().toLowerCase();
+  return rows('purchases').find(p => {
+    if (Math.abs(num(p.packCost) - num(l.packCost)) >= 0.01 || num(p.packs) !== num(l.packs) || daysApart(p.date, d) > 10) return false;
+    const pi = String(p.item || '').trim().toLowerCase();
+    return pi === nm || similar(p.item, e.name) >= 0.5 || similar(p.item, l.title) >= 0.5;
+  }) || null;
+}
+function impQuestions(){
+  const out = [], names = rows('items').map(i => String(i.name)).sort((a, b) => a.localeCompare(b));
+  impLines.forEach((l, i) => {
+    if (l.wasNew) {
+      const id = 'new' + i;
+      out.push({ id, text: `New item: <b>${esc(l.title)}</b>`, sub: "It isn't in the tracker yet.",
+        opts: [{ v:'new', label:'Add it as a new item', rec: true }, { v:'match', label:'More of an item we already have' }, { v:'off', label:'Leave it off' }],
+        fields: a => a === 'new' ? `<label class="lbl">Name in the tracker<input class="in" data-qf="${id}|name" value="${esc(qv(id, 'name', l.newName))}"></label>${priceChips(id)}`
+          : a === 'match' ? `<select class="in" data-qf="${id}|item" aria-label="Which item"><option value="">Pick the item…</option>${names.map(n => `<option${n === qv(id, 'item', '') ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : '',
+        need: (a, v) => a === 'new' ? (!String(v.name ?? l.newName).trim() ? 'Give it a name.' : !priceOk(v.price) ? 'Pick the sell price.' : '') : a === 'match' && !v.item ? 'Pick the item.' : '',
+        learn: learnKey('ord', l.title),
+        learnEnc: (a, v) => a === 'match' && v.item ? 'item:' + v.item : a === 'off' ? 'off' : null,
+        learnDec: s => s === 'off' ? 'off' : /^item:/.test(s) && names.includes(s.slice(5)) ? (qSetVal(id, 'item', s.slice(5)), 'match') : null });
+    }
+    const e = impEff(i);
+    if (l.uppMissing && !l.uppEdited && e.on) {
+      const id = 'upp' + i, g = packGuesses(l.title), lr = learnedAnswer(learnKey('upp', l.title));
+      if (lr && /^n:\d+$/.test(lr.a) && !g.includes(Number(lr.a.slice(2)))) g.unshift(Number(lr.a.slice(2)));
+      out.push({ id, text: `How many pieces come in one pack of <b>${esc(l.title)}</b>?`, sub: 'The screenshot did not say. "24 pack" means 24.',
+        opts: g.map(n => ({ v:'n:' + n, label: n + ' in a pack', rec: g.length === 1 })).concat([{ v:'other', label: g.length ? 'A different number' : 'Type the number' }]),
+        fields: a => a === 'other' ? `<input class="in numin" data-qf="${id}|n" value="${esc(qv(id, 'n', ''))}" inputmode="numeric" placeholder="Pieces in one pack" aria-label="Pieces in one pack">` : '',
+        need: (a, v) => a === 'other' && !(Number(v.n) > 0) ? 'Type how many are in one pack.' : '',
+        learn: learnKey('upp', l.title), learnEnc: (a, v) => a === 'other' ? (Number(v.n) > 0 ? 'n:' + Number(v.n) : null) : a });
+    }
+    if (l.on && act('new' + i) !== 'off') { const d = impDup(i);
+      if (d) out.push({ id:'dup' + i, text: `This may already be in Orders: <b>${esc(d.item)}</b>, ${plural(num(d.packs), 'pack')} at ${money(d.packCost)} on ${fdate(d.date)}.`, sub: 'Saving it again would count it twice.',
+        opts: [{ v:'off', label:"Leave it off, it's already in", rec: true }, { v:'keep', label:"It's a new order, add it" }] }); }
+  });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(impResult.orderDate || '') && !impDateEdited)
+    out.push({ id:'date', text:'What day was this ordered?', sub:"The date didn't show on the screenshot.", opts: [{ v:'today', label:'Today (' + fdate(todayIso()) + ')', rec: true }, { v:'pick', label:'A different day' }],
+      fields: a => a === 'pick' ? `<input class="in" type="date" data-qf="date|d" value="${esc(qv('date', 'd', ''))}" aria-label="Order date">` : '', need: (a, v) => a === 'pick' && !v.d ? 'Pick the date.' : '' });
+  const tot = num(impResult.orderTotal), sum = impSum();
+  if (tot > 0 && impLines.some((l, i) => impEff(i).on) && Math.abs(sum - tot) > 1)
+    out.push({ id:'total', text: `These lines add up to <b>${money(sum)}</b>. The order total on the screenshot is <b>${money(tot)}</b>.`, sub: sum < tot ? 'The difference is usually tax or shipping.' : 'The lines add up to more than the total, so check the pack costs.',
+      opts: sum < tot ? [{ v:'ok', label:"That's tax or shipping", rec: true }, { v:'missing', label:'An item is missing' }] : [{ v:'ok', label:'The lines are right' }, { v:'missing', label:'Something is off' }],
+      need: a => a === 'missing' ? 'Tap Start over and add a screenshot that shows every item, or fix the lines below.' : '' });
+  return out;
+}
+function impPlan(){
+  const live = liveSale(), sale = live ? live.id : setting('eventName'), date = impDate();
   const existing = new Map(rows('items').map(i => [String(i.name).trim().toLowerCase(), String(i.name)]));
   const ops = [], newItems = new Map();
-  const on = impLines.filter(l => l.on);
-  if (!on.length) { $('#iErr').textContent = 'Check at least one line to save.'; return; }
-  for (const l of on) {
-    const packs = Number(l.packs), cost = Number(String(l.packCost).replace(/[$,]/g, '')), upp = Number(l.unitsPerPack);
-    const label = l.target || l.newName || l.title;
-    if (!(packs > 0) || !Number.isFinite(packs)) { $('#iErr').textContent = 'Packs needs a number for: ' + label; return; }
-    if (!(cost >= 0) || String(l.packCost).trim() === '') { $('#iErr').textContent = 'Pack cost needs a number for: ' + label; return; }
-    if (!(upp > 0)) { $('#iErr').textContent = 'Units per pack needs a number for: ' + label + '. Check the product title (24-pack = 24).'; return; }
-    let name = l.target;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return { err: 'Add the order date.', ops: [] };
+  for (let i = 0; i < impLines.length; i++) {
+    const e = impEff(i), l = e.l; if (!e.on) continue;
+    const packs = Number(l.packs), cost = cash$(l.packCost), upp = Number(e.upp), label = e.name || l.title;
+    if (!(packs > 0)) return { err: 'Packs needs a number for ' + label + '.', ops: [] };
+    if (String(l.packCost).trim() === '' || !(cost >= 0)) return { err: 'Pack cost needs a number for ' + label + '.', ops: [] };
+    if (!(upp > 0)) return { err: 'Pieces per pack needs a number for ' + label + '.', ops: [] };
+    let name = e.target;
     if (!name) {
-      const nn = String(l.newName || '').trim(); if (!nn) { $('#iErr').textContent = 'Give the new item a name.'; return; }
-      const hit = existing.get(nn.toLowerCase());
-      if (hit) name = hit;
-      else {
-        const price = Number(String(l.price).replace(/[$,]/g, ''));
-        if (String(l.price).trim() === '' || !(price >= 0)) { $('#iErr').textContent = 'Add a sell price for the new item: ' + nn; return; }
-        if (!newItems.has(nn.toLowerCase())) newItems.set(nn.toLowerCase(), { name: nn, price });
+      const nn = e.name; if (!nn) return { err: 'Give the new item a name.', ops: [] };
+      name = existing.get(nn.toLowerCase());
+      if (!name) {
+        if (!priceOk(e.price)) return { err: 'Pick a sell price for ' + nn + '.', ops: [] };
+        if (!newItems.has(nn.toLowerCase())) newItems.set(nn.toLowerCase(), { name: nn, price: cash$(e.price), k: i });
         name = newItems.get(nn.toLowerCase()).name;
       }
     }
-    ops.push({ op:'add', table:'purchases', row:{ id:'pu' + Date.now().toString(36) + Math.floor(Math.random()*1e6), date, store, item: name, packs, packCost: cost, unitsPerPack: upp, source:'Imported', sale, notes: '' } });
+    ops.push({ op:'add', table:'purchases', row:{ id: newId('pu', i), date, store: impStoreVal || 'Amazon', item: name, packs, packCost: cost, unitsPerPack: upp, source:'Imported', sale, notes:'' } });
   }
-  const itemOps = [...newItems.values()].map(n => ({ op:'add', table:'items', row:{ id:'it' + Date.now().toString(36) + Math.floor(Math.random()*1e6), name: n.name, category:'New', price: n.price, unitCost:'', onHand:'', countedAfter:'', notes:'' } }));
-  const btn = $('#impSave'); btn.disabled = true; btn.textContent = 'Saving…';
-  let res;
-  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops: itemOps.concat(ops), atomic: true }); }
-  catch (e) { $('#iErr').textContent = 'Could not reach the tracker. Nothing was saved. Try again.'; btn.disabled = false; btn.textContent = 'Save order'; return; }
-  if (!res.ok || (res.conflicts || []).length) { $('#iErr').textContent = (res.error || 'Nothing was saved because something changed at the same moment.') + ' Try Save again.'; if (res.data) data = res.data; btn.disabled = false; btn.textContent = 'Save order'; return; }
-  data = res.data; closeSheet(); tab = 'orders'; render();
-  toast('Imported ' + ops.length + ' order line' + (ops.length === 1 ? '' : 's') + (itemOps.length ? ' and ' + itemOps.length + ' new item' + (itemOps.length === 1 ? '' : 's') : '') + '.');
+  const itemOps = [...newItems.values()].map(n => ({ op:'add', table:'items', row:{ id: newId('it', n.k), name: n.name, category:'New', price: n.price, unitCost:'', onHand:'', countedAfter:'', notes:'' } }));
+  const list = listJoin([ops.length ? plural(ops.length, 'order line') + ' (' + money(impSum()) + ')' : '', itemOps.length ? plural(itemOps.length, 'new item') : ''].filter(Boolean));
+  return { ops: itemOps.concat(ops), list };
 }
+function updateImpTotal(){ const n = impLines.filter((l, i) => impEff(i).on).length, el = $('#impTotal'); if (el) el.textContent = plural(n, 'line') + ' · ' + money(impSum()); }
+function renderImportReview(){
+  qSet(impQuestions); Q.redraw = renderImportReview;
+  Q.err = () => impPlan().err || '';
+  Q.okText = () => { const p = impPlan(); return p.ops.length ? 'Ready to save ' + esc(p.list) + '.' : 'Every line is left off.'; };
+  Q.nothing = () => { const p = impPlan(); return !p.err && !p.ops.length; };
+  const names = rows('items').map(i => String(i.name)).sort((a, b) => a.localeCompare(b));
+  const line = (l, i) => { const e = impEff(i); return `<div class="imp-line${e.on ? '' : ' off'}" data-line="${i}">
+      <input type="checkbox" data-imp="${i}|on"${e.on ? ' checked' : ''} aria-label="Include this line">
+      <div class="goes">${l.wasNew
+        ? `<b>${esc(!e.on ? 'Left off' : e.target ? 'More ' + e.target : 'New: ' + (e.name || l.title))}</b>${e.on && !e.target && priceOk(e.price) ? ' <span class="muted">sells for ' + money(cash$(e.price)) + '</span>' : ''}`
+        : `<select class="in" data-imp="${i}|target" aria-label="Which item this is">${names.map(n => `<option${n === l.target ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>`}
+        <div class="title">${esc(l.title)}${l.note ? ' · ' + esc(l.note) : ''}</div></div>
+      <div class="n1"><span class="lbl">Packs</span><input class="in numin" data-imp="${i}|packs" value="${esc(l.packs)}" inputmode="numeric" aria-label="Packs"></div>
+      <div><span class="lbl">Pack cost</span><input class="in numin" data-imp="${i}|packCost" value="${esc(l.packCost)}" inputmode="decimal" aria-label="Pack cost"></div>
+      <div><span class="lbl">Per pack</span><input class="in numin${blank(e.upp) ? ' empty' : ''}" data-imp="${i}|unitsPerPack" value="${esc(e.upp)}" inputmode="numeric" aria-label="Pieces per pack"></div></div>`; };
+  reSheet(`${steps(3)}<h3>Check the order</h3>${viewThumbs()}${qPanel()}
+    <details class="more" id="impAll"${impAllOpen || !Q.list.length ? ' open' : ''}><summary>All ${plural(impLines.length, 'line')} from the order. Change anything here.</summary>
+      <div class="imp-head"><div><label class="lbl" for="impDate">Order date</label><input class="in" id="impDate" type="date" value="${esc(impDate())}"></div>
+        <div><label class="lbl" for="impStore">Store</label><input class="in" id="impStore" value="${esc(impStoreVal)}"></div></div>
+      <div class="imp-cols"><span></span><span>Item</span><span>Packs</span><span>Pack cost</span><span>Per pack</span></div>
+      <div id="impLines">${impLines.map(line).join('')}</div>
+      <div class="imp-sum num"><span id="impTotal"></span><span class="muted">${num(impResult.orderTotal) ? 'Total on the screenshot: ' + money(impResult.orderTotal) : ''}</span></div></details>
+    <div id="saveState" aria-live="polite"></div><div class="err" id="iErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>${saveBtn('impSave', 'Save order')}</div>`);
+  updateImpTotal();
+}
+async function saveImport(){
+  if (upBusy || !readyToSave()) return;
+  const p = impPlan();
+  if (!p.ops.length) { closeSheet(); toast('Nothing saved. Every line was left off.'); return; }
+  doSave('impSave', p.ops.concat(learnOps(qLearnPairs())), 'Saved ' + p.list + ' to Orders. The new pieces are added to the counts.', 'orders', renderImportReview);
+}
+
+/* ---------- bank deposit ---------- */
+function depSale(date){ return rows('sales').filter(s => s.date && String(s.date) <= date && daysApart(s.date, date) <= 7).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null; }
+function startDeposit(r){
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '', a = num(r.amount) > 0 ? r2(num(r.amount)) : 0;
+  depData = { date0: dt, amount0: a, what: r.what || 'Cash deposit', note: r.note || '', ed: {} };
+  renderDeposit(); guard(true);
+}
+/* what the deposit works out to: slip amount, date, sale, and the starting cash taken out only here */
+function depEff(){
+  const d = depData, sc = num(setting('startCash') || 150);
+  const date = 'date' in d.ed ? d.ed.date : d.date0 || (act('date') === 'today' ? todayIso() : act('date') === 'pick' ? qv('date', 'd', '') : '');
+  const gross = 'amount' in d.ed ? r2(cash$(d.ed.amount)) : d.amount0 > 0 ? d.amount0 : r2(cash$(qv('amt', 'v', 0)));
+  const sale = date ? depSale(date) : null, forSale = !!(sale && (sale.date === date || act('sale') === 'yes'));
+  const takeOut = forSale && act('start') === 'yes' ? sc : 0;
+  return { date, gross: gross > 0 ? gross : 0, sale, forSale, sc, takeOut, amount: gross > 0 ? r2(gross - takeOut) : 0, note: 'note' in d.ed ? d.ed.note : (d.note || 'From a deposit slip photo') };
+}
+function depQuestions(){
+  const d = depData, out = [], e = depEff();
+  if (!(d.amount0 > 0) && !('amount' in d.ed)) out.push({ id:'amt', text:"What's the deposit amount?", sub:"It wasn't clear on the photo.", opts: [],
+    fields: () => `<input class="in numin" data-qf="amt|v" value="${esc(qv('amt', 'v', ''))}" inputmode="decimal" placeholder="$" aria-label="Deposit amount">`,
+    need: (a, v) => cash$(v.v) > 0 ? '' : 'Type the amount.' });
+  if (!d.date0 && !('date' in d.ed)) out.push({ id:'date', text:'What day was the deposit made?', sub:"The date wasn't clear on the photo.", opts: [{ v:'today', label:'Today', rec: true }, { v:'pick', label:'A different day' }],
+    fields: a => a === 'pick' ? `<input class="in" type="date" data-qf="date|d" value="${esc(qv('date', 'd', ''))}" aria-label="Deposit date">` : '', need: (a, v) => a === 'pick' && !v.d ? 'Pick the date.' : '' });
+  if (e.sale && e.sale.date !== e.date) out.push({ id:'sale', text: `${fdate(e.date, true)} isn't a sale day. Is this the deposit for <b>${esc(e.sale.theme)}</b> on ${fdate(e.sale.date)}?`,
+    opts: [{ v:'yes', label:'Yes, ' + e.sale.theme, rec: true }, { v:'no', label:"No, it's for something else" }] });
+  if (e.forSale && e.gross > e.sc) out.push({ id:'start', text: `Does this ${money(e.gross)} include the ${money(e.sc)} starting cash from the cash box?`, sub:'Store sales are counted without the starting cash.',
+    opts: [{ v:'no', label:"No, it's all sales" }, { v:'yes', label:'Yes, take out ' + money(e.sc) }], learn:'dep:start' });
+  if (e.gross > 0) { const dup = rows('moneyIn').find(m => !blank(m.amount) && [e.gross, e.amount].some(x => Math.abs(num(m.amount) - x) < 0.01) && daysApart(m.date, e.date || todayIso()) <= 7);
+    if (dup) out.push({ id:'dup', text: `${money(dup.amount)} on ${fdate(dup.date)} is already in Money in ("${esc(dup.event)}").`, sub:'This could be the same deposit.',
+      opts: [{ v:'skip', label:"It's the same one, don't add it", rec: true }, { v:'add', label:"It's a different deposit" }] }); }
+  return out;
+}
+function depPlan(){
+  if (act('dup') === 'skip') return { ops: [], say: 'Nothing will be added.' };
+  const e = depEff();
+  if (!e.date) return { ops: [], err: 'Add the deposit date.' };
+  if (!(e.amount > 0)) return { ops: [], err: 'Add the amount.' };
+  const day = e.forSale ? e.sale.date : e.date;
+  const blankRow = rows('moneyIn').find(m => m.date === day && blank(m.amount) && !/cash app/i.test(m.event || ''));
+  const note = [e.note, day !== e.date ? 'deposited ' + fdate(e.date) : '', e.takeOut ? 'slip was ' + money(e.gross) + ', less ' + money(e.takeOut) + ' starting cash' : ''].filter(Boolean).join(' · ');
+  if (blankRow) {
+    const ops = [{ op:'set', table:'moneyIn', id: blankRow.id, field:'amount', prev: blankRow.amount ?? '', value: e.amount }];
+    if (blank(blankRow.notes) || /^enter /i.test(String(blankRow.notes))) ops.push({ op:'set', table:'moneyIn', id: blankRow.id, field:'notes', prev: blankRow.notes ?? '', value: note });
+    return { ops, say: 'Ready to save ' + money(e.amount) + ' into "' + esc(blankRow.event) + '".', what: blankRow.event, amount: e.amount };
+  }
+  if (!isAdmin()) return { ops: [], err: "There's no empty deposit line for " + fdate(day) + ', and only the admin PIN can add a new one. Ask the admin to upload this slip.' };
+  const ev = e.forSale ? e.sale.theme + ' (cash deposit)' : (depData.what || 'Deposit');
+  return { ops: [{ op:'add', table:'moneyIn', row:{ id: newId('mi', 0), date: day, event: ev, amount: e.amount, notes: note } }], say: 'Ready to add ' + money(e.amount) + ' to Money in on ' + fdate(day) + '.', what: ev, amount: e.amount };
+}
+function renderDeposit(){
+  qSet(depQuestions); Q.redraw = renderDeposit;
+  Q.err = () => depPlan().err || '';
+  Q.okText = () => depPlan().say || '';
+  Q.nothing = () => { const p = depPlan(); return !p.err && !p.ops.length; };
+  const e = depEff();
+  reSheet(`${steps(3)}<h3>Check the deposit</h3>${viewThumbs()}${qPanel()}
+    <details class="more"><summary>Change the details</summary><div class="form">
+      <div class="imp-head"><div><label class="lbl" for="dDate">Deposit date</label><input class="in" id="dDate" data-dep="date" type="date" value="${esc(e.date)}"></div>
+      <div><label class="lbl" for="dAmt">Amount on the slip</label><input class="in numin" id="dAmt" data-dep="amount" inputmode="decimal" value="${esc(e.gross || '')}"></div></div>
+      <div><label class="lbl" for="dNote">Notes</label><input class="in" id="dNote" data-dep="note" value="${esc(e.note)}"></div></div></details>
+    <div id="saveState" aria-live="polite"></div><div class="err" id="iErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>${saveBtn('depSave', 'Save deposit')}</div>`);
+}
+async function saveDeposit(){
+  if (upBusy || !readyToSave()) return;
+  const p = depPlan();
+  if (!p.ops.length) { closeSheet(); toast('Nothing added. That deposit is already in Money in.'); return; }
+  doSave('depSave', p.ops.concat(learnOps(qLearnPairs())), 'Saved ' + money(p.amount) + ' to "' + p.what + '" in Money in.', 'money', renderDeposit);
+}
+
+/* ---------- Cash App report (CSV) ---------- */
+const CA_CATS = [['store','Spirit store'],['sponsors','Class sponsors'],['shirts','Spirit shirts'],['other','Other fundraising'],['skip','Leave out']];
+function csvParse(text){
+  const out = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; row.push(cell); out.push(row); row = []; cell = ''; } else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); out.push(row); }
+  return out;
+}
+function guessCat(note){
+  const s = String(note || '').toLowerCase();
+  if (/shirt|\btee|dri ?-?fit|dry ?fit|youth|adult|\b(xs|sm|med|lg|xl|xxl)\b|size/.test(s)) return ['shirts', false];
+  if (/christmas|holiday/.test(s)) return ['other', false];
+  if (/sponsor|face ?paint|painting|paint the school/.test(s)) return ['sponsors', false];
+  if (/spirit|store|🦁|\bss\b|squish|bracelet|necklace|paint kit|hair|pom|glasses|haul|goods/.test(s)) return ['store', false];
+  if (/\b(mrs?|ms|miss)\.?\s|grade|class/.test(s)) return ['sponsors', true];
+  return ['store', true];
+}
+const caShort = id => String(id).slice(0, 12); // short form keeps the "already imported" list inside one sheet cell
+function caSeenSet(){ return new Set(String(setting('cashappSeen') || '').split(',').filter(Boolean).map(caShort)); }
+function startCashApp(text){
+  if (!isAdmin()) return readFailed('Cash App files need the admin PIN. Ask the admin to upload it.', true);
+  const rowsCsv = csvParse(String(text || '').replace(/^\ufeff/, ''));
+  const h = (rowsCsv[0] || []).map(x => x.trim()), ix = k => h.indexOf(k);
+  if (ix('Transaction ID') < 0 || ix('Net Amount') < 0 || ix('Amount') < 0) return readFailed("That file isn't a Cash App report. In Cash App, go to Activity, then Statements, then Export CSV.", true);
+  const seen = caSeenSet();
+  const m = v => Number(String(v || '').replace(/[$,\s]/g, '')) || 0;
+  caPays = rowsCsv.slice(1).filter(r => r.length > 3).map(r => ({ date: String(r[ix('Date')] || '').slice(0, 10), id: r[ix('Transaction ID')], type: r[ix('Transaction Type')], amount: m(r[ix('Amount')]), net: m(r[ix('Net Amount')]), status: r[ix('Status')], note: r[ix('Notes')] || '', from: r[ix('Name of sender/receiver')] || '' }))
+    .filter(p => p.id && p.type === 'P2P' && p.amount > 0 && /complete/i.test(p.status));
+  if (!caPays.length) return readFailed('No money coming in was found in that Cash App file.', true);
+  const salesSorted = rows('sales').filter(s => s.date).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const firstSale = salesSorted.length ? String(salesSorted[0].date) : '', live = liveSale();
+  caPays.forEach(p => {
+    const [c, unsure] = guessCat(p.note); p.guess = c; p.user = ''; p.unsure0 = unsure; p.shirt0 = c === 'shirts';
+    p.dup = seen.has(caShort(p.id)); p.old = !!(firstSale && p.date < firstSale);
+    const s = salesSorted.find(s => String(s.date) >= p.date) || live || salesSorted[salesSorted.length - 1];
+    p.saleDate = s ? String(s.date) : p.date; p.saleName = s ? s.theme : ''; p.early = p.saleDate !== p.date;
+  });
+  caNet = true; caOpen.clear(); qReset();
+  renderCashApp(); guard(true);
+}
+function caCat(p){ const a = act('p' + p.id); return a !== undefined ? a : (p.user || p.guess); }
+function caLabel(cat){ return 'Cash App - ' + CA_CATS.find(c => c[0] === cat)[1].toLowerCase(); }
+function caExisting(date, cat){
+  const l = caLabel(cat).toLowerCase(), list = rows('moneyIn').filter(m => m.date === date);
+  return list.find(m => String(m.event || '').trim().toLowerCase() === l)
+    || (cat === 'store' ? list.find(m => /cash app/i.test(m.event || '') && /spirit store|store/i.test(m.event || '') && !/sponsor|shirt/i.test(m.event || '')) : null)
+    || (cat === 'sponsors' ? list.find(m => /cash app/i.test(m.event || '') && /sponsor/i.test(m.event || '')) : null) || null;
+}
+function caFresh(){ return caPays.filter(p => !p.dup && !p.old); }
+function caIncluded(p){ const c = caCat(p); return c !== 'skip' && !(c === 'shirts' && act('shirts') !== 'on'); }
+function caGroups(){
+  const g = new Map();
+  for (const p of caFresh()) {
+    if (!caIncluded(p)) continue;
+    const cat = caCat(p), k = p.saleDate + '|' + cat; if (!g.has(k)) g.set(k, { key: k, date: p.saleDate, saleName: p.saleName, cat, pays: [], gross: 0, net: 0 });
+    const x = g.get(k); x.pays.push(p); x.gross += p.amount; x.net += p.net;
+  }
+  return [...g.values()].sort((a, b) => b.date.localeCompare(a.date) || a.cat.localeCompare(b.cat));
+}
+function caQuestions(){
+  const out = [], fresh = caFresh(), shirts = fresh.filter(p => p.shirt0);
+  if (shirts.length) out.push({ id:'shirts', text: `<b>${plural(shirts.length, 'payment')}</b> ${shirts.length === 1 ? 'looks' : 'look'} like spirit shirt orders (${money(shirts.reduce((s, p) => s + p.amount, 0))}).`, sub:'Shirt pre-orders are usually kept separate from the store.',
+    opts: [{ v:'off', label:"Leave them off (they won't come up again)", rec: true }, { v:'on', label:'Include them (sold at the store)' }], learn:'ca:shirts', learnBulk: true });
+  for (const p of fresh.filter(p => p.unsure0)) out.push({ id:'p' + p.id, text: `${money(p.amount)} from ${esc(p.from || 'someone')} on ${fdate(p.date)}`, sub: p.note ? 'Their note: "' + esc(p.note) + '"' : 'There is no note on this payment.',
+    opts: CA_CATS.filter(c => c[0] !== 'shirts').map(([k, n]) => ({ v: k, label: n, rec: k === p.guess })), learn: learnKey('ca', p.note ? p.note : 'from ' + p.from), learnBulk: true });
+  for (const g of caGroups()) {
+    const ex = caExisting(g.date, g.cat);
+    if (ex && !blank(ex.amount) && !/cash app import/i.test(ex.notes || '')) {
+      const amt = caNet ? g.net : g.gross;
+      out.push({ id:'rep' + g.key, text: `${fdate(g.date, true)}: <b>${esc(ex.event)}</b> already has <b>${money(ex.amount)}</b> typed in by hand. This report adds up to <b>${money(amt)}</b>.`,
+        opts: [{ v:'cash', label:'Use ' + money(amt) + ' from the report', rec: true }, { v:'keep', label:'Keep ' + money(ex.amount) }, { v:'add', label:'Add them together' }] });
+    }
+  }
+  return out;
+}
+function caPlan(){
+  const ops = [], groups = caGroups();
+  groups.forEach((g, gi) => {
+    const ans = act('rep' + g.key), amt = r2(caNet ? g.net : g.gross);
+    const note = 'Cash App import · ' + plural(g.pays.length, 'payment') + (caNet ? ' after fees' : '');
+    const exRow = caExisting(g.date, g.cat), ex = exRow ? serverRow('moneyIn', exRow.id) : null;
+    if (ex) {
+      if (ans === 'keep') return;
+      const add = ans === 'add' || (!blank(ex.amount) && /cash app import/i.test(ex.notes || ''));
+      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'amount', prev: ex.amount ?? '', value: add ? r2(num(ex.amount) + amt) : amt });
+      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'notes', prev: ex.notes ?? '', value: note });
+    } else ops.push({ op:'add', table:'moneyIn', row:{ id: newId('mi', gi), date: g.date, event: caLabel(g.cat), amount: amt, notes: note } });
+  });
+  const lines = new Set(ops.map(o => o.op === 'add' ? o.row.id : o.id)).size, fresh = caFresh();
+  if (fresh.length) { // every payment in this file has now been decided, so it won't come up again
+    const ids = [...caSeenSet()]; const have = new Set(ids); for (const p of fresh) { const s = caShort(p.id); if (!have.has(s)) { have.add(s); ids.push(s); } }
+    const val = ids.slice(-3500).join(','), seenRow = serverRow('settings', 'cashappSeen');
+    ops.push(seenRow ? { op:'set', table:'settings', id:'cashappSeen', field:'value', prev: seenRow.value ?? '', value: val } : { op:'add', table:'settings', row:{ id:'cashappSeen', value: val } });
+  }
+  return { ops, lines, groups };
+}
+function renderCashApp(){
+  qSet(caQuestions); Q.redraw = renderCashApp;
+  Q.err = () => '';
+  Q.okText = () => { const p = caPlan(); return p.lines ? 'Ready to save ' + plural(p.lines, 'line') + ' to Money in.' : 'Nothing new will go into Money in.'; };
+  Q.nothing = () => !caFresh().length;
+  const fresh = caFresh(), dups = caPays.filter(p => p.dup).length, old = caPays.filter(p => p.old && !p.dup).length;
+  const salesByDate = new Map(rows('sales').map(s => [String(s.date), s]));
+  const catSel = p => `<select class="in" data-ca="${caPays.indexOf(p)}" aria-label="Where this payment goes">${CA_CATS.map(([k, n]) => `<option value="${k}"${caCat(p) === k ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
+  const payRow = p => `<div class="ca-p"><div>${esc(fdate(p.date))} · ${money(p.amount)} · ${esc(p.from)}${p.note ? ' · <i>"' + esc(p.note) + '"</i>' : ''}</div>${catSel(p)}</div>`;
+  const groups = caGroups();
+  const body = groups.map((g, gi) => {
+    const sale = salesByDate.get(g.date), ex = caExisting(g.date, g.cat), ans = act('rep' + g.key), early = g.pays.filter(p => p.early).length;
+    const action = !ex ? 'Adds a new line' : blank(ex.amount) ? 'Fills in "' + ex.event + '"' : ans === 'keep' ? 'Keeps ' + money(ex.amount) + ', nothing added' : ans === 'add' || /cash app import/i.test(ex.notes || '') ? 'Adds to "' + ex.event + '" (now ' + money(ex.amount) + ')' : 'Replaces ' + money(ex.amount) + ' in "' + ex.event + '"';
+    return `<div class="ca-g"><div class="ca-top"><div><b>${esc(fdate(g.date, true))}</b> · ${esc(CA_CATS.find(c => c[0] === g.cat)[1])} ${sale ? '<span class="tag match">' + esc(sale.theme) + ' sale</span>' : ''}
+        <span class="sys">${plural(g.pays.length, 'payment')}${early ? ' (' + early + ' paid ahead of the sale)' : ''} · ${esc(action)}</span></div>
+        <div class="num ca-amt">${money(caNet ? g.net : g.gross)}</div></div>
+      <button class="btn small ghost" type="button" data-cagrp="${gi}" data-cakey="${esc(g.key)}">${caOpen.has(g.key) ? 'Hide' : 'Show'} payments</button>
+      <div id="cag-${gi}"${caOpen.has(g.key) ? '' : ' hidden'}>${g.pays.map(payRow).join('')}</div></div>`;
+  }).join('');
+  const leftOut = fresh.filter(p => !caIncluded(p));
+  const info = [dups ? plural(dups, 'payment') + ' already imported before' : '', old ? plural(old, 'payment') + ' from before the first sale this year' : ''].filter(Boolean);
+  reSheet(`${steps(3)}<h3>Check the Cash App report</h3>
+    ${fresh.length ? qPanel() : `<div class="banner ok"><span class="ico">✓</span><span><b>Nothing new in this file.</b> Every payment in it is already in the tracker.</span></div>`}
+    ${fresh.length ? `<h4 class="sub-h">Goes into Money in</h4>${body || '<p class="muted">Nothing from this file goes into Money in.</p>'}
+      ${leftOut.length ? `<details class="more" id="caLeft"${caOpen.has('left') ? ' open' : ''}><summary>Left out (${leftOut.length}). Change any of these to bring it back.</summary>${leftOut.map(payRow).join('')}</details>` : ''}
+      <label class="chk mt"><input type="checkbox" id="caNet"${caNet ? ' checked' : ''}> Use what landed after Cash App fees (recommended)</label>` : ''}
+    ${info.length ? '<p class="muted small-t">Skipped: ' + esc(info.join(', ')) + '.</p>' : ''}
+    <div id="saveState" aria-live="polite"></div><div class="err" id="iErr" role="alert"></div>
+    <div class="acts">${fresh.length ? '<button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>' + saveBtn('caSave', 'Save to Money in') : '<button class="btn primary" type="button" data-close>Close</button>'}</div>`);
+}
+async function saveCashApp(){
+  if (upBusy || !readyToSave()) return;
+  const p = caPlan();
+  if (!p.ops.length) { closeSheet(); return; }
+  doSave('caSave', p.ops.concat(learnOps(qLearnPairs())), p.lines ? 'Saved ' + plural(p.lines, 'Cash App line') + ' to Money in.' : 'Nothing new went into Money in. These payments are marked as checked, so they will not come up again.', 'money', renderCashApp);
+}
+
 function openCloseout(M){
   if (pendingCount()) { toast('Submit or discard your open changes first.'); return; }
   const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
@@ -1578,36 +2157,58 @@ async function doCloseout(name, date){
 }
 
 let toastTm;
-function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTm); toastTm = setTimeout(() => t.hidden = true, 3800); }
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.toggle('top', !$('#scrim').hidden); t.hidden = false; clearTimeout(toastTm); toastTm = setTimeout(() => t.hidden = true, 3800); }
 function go(t){ tab = t; store.set('css-tab', t); try { history.replaceState(null, '', '#' + t); } catch(e){} render(); window.scrollTo({ top:0 }); }
 
 /* ---------- events ---------- */
 document.addEventListener('input', e => {
-  if (e.target.dataset && e.target.dataset.imp) { const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (l && f !== 'on' && f !== 'target') { l[f] = e.target.value; updateImpTotal(); } return; }
-  if (e.target.dataset && e.target.dataset.cnt) { const [i, f] = e.target.dataset.cnt.split('|'); const l = cntLines[+i]; if (l && f !== 'itemId') { l[f] = e.target.value; if (f === 'before' || f === 'after') { const it = (data.items || []).find(x => x.id === l.itemId); const M = model(); const mi = M.items.find(x => x.id === l.itemId); const sb = mi ? (mi.onHandBlank && !mi.received ? '' : mi.avail) : ''; const bb = blank(l.before) ? sb : num(l.before); const el = document.querySelector('[data-cntsold="' + i + '"]'); if (el) el.innerHTML = '<span class="lbl">Sold</span>' + (blank(l.after) || blank(bb) ? '<span class="blank">·</span>' : Math.max(num(bb) - num(l.after), 0)); } } return; }
+  if (e.target.dataset && e.target.dataset.imp) { const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (l && f !== 'on' && f !== 'target') { l[f] = e.target.value; if (f === 'unitsPerPack') l.uppEdited = true; updateImpTotal(); qRefresh(); } return; }
+  if (e.target.dataset && e.target.dataset.cnt) { const [i, f] = e.target.dataset.cnt.split('|'); const l = cntLines[+i]; if (l && f !== 'itemId') { l.ed[f] = e.target.value; cntSold(+i); qRefresh(); } return; }
+  if (e.target.dataset && e.target.dataset.qf && e.target.tagName !== 'SELECT') { const [id, k] = e.target.dataset.qf.split('|'); qInput(id, k, e.target.value, false); return; }
+  if (e.target.dataset && e.target.dataset.cq) { const [i, f] = e.target.dataset.cq.split('|'); const l = cntLines[+i]; if (l) { l.ed[f] = e.target.value; const r = document.querySelector('[data-cnt="' + i + '|' + f + '"]'); if (r) r.value = e.target.value; cntSold(+i); qRefresh(); } return; }
+  if (e.target.dataset && e.target.dataset.ch && cntResult) { const k = e.target.dataset.ch; if (k.startsWith('cash.')) cntResult.cash[k.slice(5)] = e.target.value; else cntResult[k] = e.target.value; qRefresh(); return; }
+  if (e.target.dataset && e.target.dataset.dep && depData) { depData.ed[e.target.dataset.dep] = e.target.value; qRefresh(); return; }
+  if (e.target.id === 'impDate') { impDateVal = e.target.value; impDateEdited = true; qRefresh(); return; }
+  if (e.target.id === 'impStore') { impStoreVal = e.target.value; return; }
   if (e.target.dataset && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'q') { query = e.target.value; filterItems(); }
 });
 document.addEventListener('change', e => {
   if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'impFiles') { addImpFiles(e.target.files); e.target.value = ''; }
-  if (e.target.dataset && e.target.dataset.ca !== undefined) { const p = caPays[+e.target.dataset.ca]; if (p) { p.cat = e.target.value; p.unsure = false; caOpen.add(p.date + '|' + p.cat); renderCashApp(); } return; }
-  if (e.target.id === 'caNet' || e.target.id === 'caShirts') { renderCashApp(); return; }
+  if (e.target.dataset && e.target.dataset.qf) { const [id, k] = e.target.dataset.qf.split('|'); qSetVal(id, k, e.target.value); return laterRedraw(); }
+  if (e.target.dataset && e.target.dataset.ca !== undefined) { const p = caPays[+e.target.dataset.ca]; if (p) { const qid = 'p' + p.id; if (Q.list.some(q => q.id === qid)) { Q.ans[qid] = e.target.value; Q.manual[qid] = true; delete Q.auto[qid]; delete Q.bulk[qid]; } else p.user = e.target.value; renderCashApp(); } return; }
+  if (e.target.id === 'caNet') { caNet = e.target.checked; renderCashApp(); return; }
+  if (e.target.dataset && (e.target.dataset.dep || e.target.dataset.cq || e.target.dataset.ch)) return laterRedraw();
+  if (e.target.id === 'impDate' || e.target.id === 'impStore') return laterRedraw();
   if (e.target.dataset && e.target.dataset.cnt) {
-    const [i, f] = e.target.dataset.cnt.split('|'); const l = cntLines[+i]; if (!l) return;
-    if (f === 'itemId') { cntSyncInputs(); l.itemId = e.target.value; const keep = ['#cBy1','#cBy2','#cStart','#cEnd','#cApp','#cNotes'].map(k => [k, $(k).value]); cntResult.countedBeforeBy = keep[0][1]; cntResult.countedAfterBy = keep[1][1]; cntResult.cash = { start: keep[2][1], end: keep[3][1], cashApp: keep[4][1] }; cntResult.notes = keep[5][1]; renderCountReview(); }
+    const [i, f] = e.target.dataset.cnt.split('|'), l = cntLines[+i]; if (!l) return;
+    if (f === 'itemId') { const v = e.target.value; l.skipLine = v === '__skip'; if (v !== '__skip') l.itemId = v; l.ed = {}; for (const p of ['u', 'b', 's', 'a', 'nb']) { delete Q.ans[p + i]; delete Q.manual[p + i]; } renderCountReview(); return; }
+    return laterRedraw();
   }
   if (e.target.dataset && e.target.dataset.imp) {
-    const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (!l) return;
-    if (f === 'on') { l.on = e.target.checked; e.target.closest('.imp-line').classList.toggle('off', !l.on); updateImpTotal(); }
-    if (f === 'target') { l.target = e.target.value; const keep = $('#impDate').value, st = $('#impStore').value; renderImportReview(); $('#impDate').value = keep; $('#impStore').value = st; }
+    const [i, f] = e.target.dataset.imp.split('|'), l = impLines[+i]; if (!l) return;
+    if (f === 'on') { l.on = e.target.checked; if (l.on) { if (Q.ans['new' + i] === 'off') { delete Q.ans['new' + i]; Q.manual['new' + i] = true; } if (Q.ans['dup' + i] === 'off') Q.ans['dup' + i] = 'keep'; } renderImportReview(); return; }
+    if (f === 'target') { l.target = e.target.value; renderImportReview(); return; }
+    return laterRedraw();
   }
 });
 document.addEventListener('paste', e => { if ($('#drop') && e.clipboardData) { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); addImpFiles(files); } } });
 document.addEventListener('dragover', e => { const d = e.target.closest && e.target.closest('#drop'); if (d) { e.preventDefault(); d.classList.add('over'); } });
 document.addEventListener('drop', e => { const d = e.target.closest && e.target.closest('#drop'); if (d) { e.preventDefault(); d.classList.remove('over'); addImpFiles(e.dataTransfer.files); } });
+document.addEventListener('toggle', e => { if (e.target.id === 'cntAll') cntAllOpen = e.target.open; if (e.target.id === 'impAll') impAllOpen = e.target.open; if (e.target.id === 'caLeft') { if (e.target.open) caOpen.add('left'); else caOpen.delete('left'); } }, true);
 document.addEventListener('click', e => {
+  const im = e.target.closest && e.target.closest('.thumbs.view img'); if (im) { im.classList.toggle('big'); return; }
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.q !== undefined) return qAnswer(b.dataset.q, b.dataset.qv);
+  if (b.dataset.qset !== undefined) { const [id, k, v] = b.dataset.qset.split('|'); return qInput(id, k, v, true); }
+  if (b.dataset.qchange !== undefined) return qChange(b.dataset.qchange);
+  if (b.id === 'qAll') return qAll();
+  if (b.id === 'rdCancel') { readTok++; upBusy = false; stopReading(); openUpload(true); return toast('Stopped. Nothing was saved.'); }
+  if (b.id === 'rdRetry') return readUpload();
+  if (b.id === 'upMore') return openUpload(true);
+  if (b.id === 'undoUp') return undoUpload();
+  if (b.id === 'doneUp') return closeSheet();
   if (b.dataset.tab) return go(b.dataset.tab);
   if (b.dataset.close !== undefined) return closeSheet();
   if (b.dataset.phase) { phase = b.dataset.phase; store.set('css-phase', phase); showDetails = false; return render(); }
@@ -1655,7 +2256,7 @@ document.addEventListener('click', e => {
   if (b.id === 'upBack') return openUpload();
   if (b.id === 'caSave') return saveCashApp();
   if (b.id === 'depSave') return saveDeposit();
-  if (b.dataset.cagrp !== undefined) { const g = document.getElementById('cag-' + b.dataset.cagrp); if (g) { g.hidden = !g.hidden; if (g.hidden) caOpen.delete(b.dataset.cakey); else caOpen.add(b.dataset.cakey); } return; }
+  if (b.dataset.cagrp !== undefined) { const g = document.getElementById('cag-' + b.dataset.cagrp); if (g) { g.hidden = !g.hidden; if (g.hidden) caOpen.delete(b.dataset.cakey); else caOpen.add(b.dataset.cakey); b.textContent = (g.hidden ? 'Show' : 'Hide') + ' payments'; } return; }
   if (b.id === 'cntSave') return saveCountSheet();
   if (b.id === 'impSave') return saveImport();
   if (b.dataset.imprm !== undefined) { impImgs.splice(+b.dataset.imprm, 1); addImpFiles([]); return; }
@@ -1682,13 +2283,13 @@ document.addEventListener('submit', async e => {
   if (e.target.id === 'closeForm') { const n = $('#nName').value.trim(), d = $('#nDate').value; if (!n || !d) { $('#cErr').textContent = 'Add a name and date.'; return; } doCloseout(n, d); }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !$('#scrim').hidden) closeSheet();
+  if (e.key === 'Escape' && !$('#scrim').hidden && !$('#sheet').dataset.guard) closeSheet();
   if (e.key === 'Enter' && e.target.dataset && e.target.dataset.k && e.target.tagName === 'INPUT') {
     const all = [...document.querySelectorAll('input[data-k]')]; const i = all.indexOf(e.target); if (all[i+1]) { e.preventDefault(); all[i+1].focus(); all[i+1].select(); }
   }
 });
-$('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeSheet(); });
-window.addEventListener('beforeunload', e => { if (pendingCount()) { e.preventDefault(); e.returnValue = ''; } });
+$('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim' && !$('#sheet').dataset.guard) closeSheet(); });
+window.addEventListener('beforeunload', e => { if (pendingCount() || upBusy || $('#sheet').dataset.guard) { e.preventDefault(); e.returnValue = ''; } });
 
 (function(){ const img = $('#logo'); if (!LOGO_URL) return; img.onload = () => { img.hidden = false; $('#paw').setAttribute('hidden',''); }; img.src = LOGO_URL; })();
 openFromCopy(); render(); load();
