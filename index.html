@@ -305,7 +305,8 @@ var VOLUNTEER_CAN = {
   moneyIn: ['amount','notes'],
   cash: ['value']
 };
-var CASH_NUMERIC_IDS = ['start','end'];
+var CASH_NUMERIC_IDS = ['start','end','cashapp'];
+var NONNEGATIVE = ['price','unitCost','onHand','countedAfter','packs','packCost','unitsPerPack'];
 
 function fieldsOf(table) { return SCHEMA[table].cols.map(function (c) { return c[0]; }); }
 function isNumeric(table, field, id) {
@@ -320,7 +321,9 @@ function cleanVal(table, field, v, id) {
     if (s === '') return '';
     if (/^\(.*\)$/.test(s)) s = '-' + s.slice(1, -1);
     var n = Number(s);
-    return isNaN(n) ? '' : n;
+    if (!isFinite(n)) return '';
+    if (n < 0 && NONNEGATIVE.indexOf(field) >= 0) return '';
+    return n;
   }
   return String(v).trim();
 }
@@ -342,7 +345,12 @@ function labelOf(table, row) {
 }
 /* Apply a batch of edits to in-memory tables. Each "set" carries the value the editor started from (prev);
    if someone else changed that value in the meantime, the edit is held back as a conflict instead of overwriting. */
-function applyOps(t, ops, role, who, nowIso) {
+function applyOps(t, ops, role, who, nowIso, atomic) {
+  if (atomic) {
+    // all or nothing: dry-run on a copy first, apply only if every edit is clean
+    var trial = applyOps(JSON.parse(JSON.stringify(t)), ops, role, who, nowIso, false);
+    if (trial.conflicts.length) return { applied: 0, conflicts: trial.conflicts, log: [], rejected: true };
+  }
   var res = { applied: 0, conflicts: [], log: [] };
   for (var i = 0; i < ops.length; i++) {
     var op = ops[i];
@@ -434,11 +442,21 @@ function canEdit(t, f){ if (!auth) return false; if (f === 'id') return false; r
 const isAdmin = () => auth && auth.role === 'admin';
 
 /* ---------- the math (mirrors the original spreadsheet) ---------- */
+function liveSale(){ return rows('sales').find(s => s.link === 'current') || null; }
+function saleLabel(key){ const r = rows('sales').find(s => String(s.id) === String(key)); return r ? r.theme : key; }
+function isCurrentOrder(p, liveId, saleIds, ev){
+  if (blank(p.sale)) return true;
+  const k = String(p.sale);
+  if (saleIds.has(k)) return k === liveId;
+  return k === ev; // older rows that still carry the sale name
+}
 function model(){
   const ev = setting('eventName');
+  const live = liveSale(), liveId = live ? String(live.id) : '';
+  const saleIds = new Set(rows('sales').map(s => String(s.id)));
   const allP = rows('purchases').map(p => {
     const units = num(p.packs) * num(p.unitsPerPack), total = num(p.packs) * num(p.packCost);
-    return { ...p, units, total, cpu: units ? total/units : 0, current: blank(p.sale) || p.sale === ev };
+    return { ...p, units, total, cpu: units ? total/units : 0, current: isCurrentOrder(p, liveId, saleIds, ev) };
   });
   const cur = allP.filter(p => p.current);
   const byItem = {};
@@ -463,6 +481,7 @@ function model(){
   const totalIn = mIn.reduce((s,r) => s + num(r.amount), 0), totalOut = mOut.reduce((s,r) => s + r.amt, 0);
   const cashRow = id => rows('cash').find(r => r.id === id) || { value:'' };
   const start = num(cashRow('start').value), endBlank = blank(cashRow('end').value), end = num(cashRow('end').value);
+  const cashapp = num(cashRow('cashapp').value);
   const taken = endBlank ? null : end - start;
   const sales = rows('sales').map(s => {
     const live = s.link === 'current';
@@ -471,8 +490,10 @@ function model(){
     const profit = sl === null ? null : sl - (spent || 0);
     return { ...s, live, spentV: spent, salesV: sl, profit, total: profit === null ? null : profit + num(s.other) };
   });
-  return { ev, allP, cur, purchTotal, purchUnits, items, T, shelf, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
-           cash: { start, end, endBlank, taken, expected: T.rev, over: taken === null ? null : taken - T.rev }, sales };
+  const itemNames = new Set(items.map(i => String(i.name || '').trim().toLowerCase()));
+  const unmatched = cur.filter(p => !blank(p.item) && !itemNames.has(String(p.item).trim().toLowerCase()));
+  return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
+           cash: { start, end, endBlank, cashapp, taken, expected: T.rev, over: taken === null ? null : taken + cashapp - T.rev }, sales };
 }
 
 function needsList(M){
@@ -484,6 +505,7 @@ function needsList(M){
   const evDate = parseDate(setting('eventDate')); const today = new Date(); today.setHours(0,0,0,0);
   if (M.T.counted < M.T.n) out.push({ t:'count', phase:'after', title:'After-sale counts: ' + M.T.counted + ' of ' + M.T.n + ' items counted', sub: evDate && evDate > today ? 'Do this right after the sale closes' : 'Sold, revenue and profit fill in from these' });
   if (M.cash.endBlank) out.push({ t:'cash', title:'Count the cash box after closing', sub:'Over or short is checked against the item counts' });
+  if (M.unmatched.length) out.push({ t:'orders', title: M.unmatched.length + ' order line' + (M.unmatched.length>1?'s don\'t':' doesn\'t') + ' match an item on the Count tab', sub: M.unmatched.map(p => p.item).slice(0,3).join(', ') + '. Fix the item name so those units get counted (admin)' });
   const nocost = M.items.filter(i => !i.unitCost && i.category !== 'Donated');
   if (nocost.length) out.push({ t:'count', details:true, title: nocost.length + ' item' + (nocost.length>1?'s have':' has') + ' no cost yet', sub: nocost.map(i => i.name).slice(0,3).join(', ') + (nocost.length>3?'…':'') + ' (admin)' });
   return out;
@@ -548,7 +570,7 @@ function calcHTML(M, k){
     return { avail: count(i.avail), sold: i.counted === null ? BL : count(i.sold), rev: i.counted === null ? BL : money(i.rev), flag: flagPill(i.flag) }[b]; }
   if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit) }[b];
   if (a === 'm') return { in: money(M.totalIn), out: money(M.totalOut), net: money(M.net), shelf: money(M.shelf), real: money(M.real) }[b];
-  if (a === 'cash') return { taken: M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken), expected: money(M.cash.expected), over: M.cash.over === null ? BL : money(M.cash.over) }[b];
+  if (a === 'cash') return { taken: M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken), expected: money(M.cash.expected), cashapp: money(M.cash.cashapp), over: M.cash.over === null ? BL : money(M.cash.over) }[b];
   if (a === 'pu') { if (b === 'sum') return c === 'units' ? count(M.purchUnits) : money(M.purchTotal);
     const p = M.allP.find(x => String(x.id) === c); if (!p) return null; return { units: count(p.units), total: money(p.total), cpu: money(p.cpu) }[b]; }
   if (a === 'sh') { const s = M.sales.find(x => String(x.id) === c); if (!s) return null; const v = s[b]; return v === null ? BL : money(v); }
@@ -707,16 +729,18 @@ function vCash(M){
     <div class="card pad form">
       <div><label class="lbl" for="f_cash_start_value">Starting cash in box (change)</label>${field('cash', c('start'), 'value', { ph:'0.00', fmt: money, label:'Starting cash' })}</div>
       <div><label class="lbl" for="f_cash_end_value">Ending cash in box</label>${field('cash', c('end'), 'value', { ph:'Count after closing', fmt: money, label:'Ending cash' })}</div>
+      <div><label class="lbl" for="f_cash_cashapp_value">Cash App total for this sale</label>${field('cash', c('cashapp'), 'value', { ph:'From the Cash App history', fmt: money, label:'Cash App total' })}</div>
       <div><label class="lbl" for="f_cash_countedBy_value">Counted by</label>${field('cash', c('countedBy'), 'value', { ph:'Names', label:'Counted by' })}</div>
       <div><label class="lbl" for="f_cash_notes_value">Notes</label>${field('cash', c('notes'), 'value', { ph:'Anything odd?', label:'Cash notes' })}</div>
     </div>
     <div class="card calc num">
       <div><span>Cash taken in</span><b data-calc="cash:taken">${M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken)}</b></div>
+      <div><span>Plus Cash App</span><b data-calc="cash:cashapp">${money(M.cash.cashapp)}</b></div>
       <div><span>Expected from item counts</span><b data-calc="cash:expected">${money(M.cash.expected)}</b></div>
       <div class="final"><span>Over / (short)</span><b data-calc="cash:over" class="${o === null ? '' : Math.abs(o) < 10 ? 'good' : o < 0 ? 'bad' : 'warn'}">${o === null ? '<span class="blank">·</span>' : money(o)}</b></div>
     </div>
   </div>
-  <p class="foot">A small short is normal (pom pom pairs, miscounts). A big gap usually means an item was missed on the Count tab.</p>`;
+  <p class="foot">Over / (short) = cash taken in + Cash App, compared with what the item counts say sold. A small short is normal (pom pom pairs, miscounts). A big gap usually means an item was missed on the Count tab.</p>`;
 }
 
 function vOrders(M){
@@ -745,7 +769,7 @@ function vOrders(M){
     <tfoot><tr><td colspan="6">Total</td><td class="r num" data-calc="pu:sum:units">${count(M.purchUnits)}</td><td class="r num" data-calc="pu:sum:total">${money(M.purchTotal)}</td><td colspan="${adm ? 3 : 2}"></td></tr></tfoot>
   </table></div>
   ${adm ? '<button class="btn small mt" type="button" data-addrow="purchases">Add order line</button>' : ''}
-  ${past.length ? `<section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Earlier orders</h2><p>${past.length} lines from past sales</p></div><div class="tablewrap"><table><thead><tr><th>Sale</th><th>Date</th><th>Item</th><th class="r">Units</th><th class="r">Total</th></tr></thead><tbody>${past.map(p => `<tr><td>${esc(p.sale)}</td><td>${esc(fdate(p.date))}</td><td>${esc(p.item)}</td><td class="r num">${count(p.units)}</td><td class="r num">${money(p.total)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
+  ${past.length ? `<section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Earlier orders</h2><p>${past.length} lines from past sales</p></div><div class="tablewrap"><table><thead><tr><th>Sale</th><th>Date</th><th>Item</th><th class="r">Units</th><th class="r">Total</th></tr></thead><tbody>${past.map(p => `<tr><td>${esc(saleLabel(p.sale))}</td><td>${esc(fdate(p.date))}</td><td>${esc(p.item)}</td><td class="r num">${count(p.units)}</td><td class="r num">${money(p.total)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
 }
 
 function vHistory(M){
@@ -791,7 +815,7 @@ function renderSavebar(){
   const n = pendingCount();
   $('#savebar').hidden = n === 0;
   $('#saveMsg').textContent = n + ' unsaved change' + (n === 1 ? '' : 's') + (who ? ' by ' + who : '');
-  store.set('css-draft', pending);
+  store.set('css-draft', pending); if (n) store.set('css-draft-who', who);
 }
 
 /* ---------- editing ---------- */
@@ -815,7 +839,7 @@ function newRow(t){
   const ev = setting('eventName');
   const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   const base = { items:{ name:'New item', category:'New', price:'', unitCost:'', onHand:'', countedAfter:'', notes:'' },
-    purchases:{ date: iso, store:'Amazon', item:'', packs:1, packCost:'', unitsPerPack:'', source:'Actual', sale: ev, notes:'' },
+    purchases:{ date: iso, store:'Amazon', item:'', packs:1, packCost:'', unitsPerPack:'', source:'Actual', sale: (liveSale() ? liveSale().id : ev), notes:'' },
     moneyIn:{ date: iso, event:'', amount:'', notes:'' }, moneyOut:{ date: iso, order:'', amount:'', link:'', notes:'' } }[t];
   pending.adds.push({ op:'add', table:t, row:{ id, ...base } });
   if (t === 'items') { showDetails = true; catFilter = 'All'; query = ''; }
@@ -923,13 +947,19 @@ async function saveSaleDetails(vals){
     if (r) { if (normVal('settings','value', r.value, id) !== normVal('settings','value', value, id)) ops.push({ op:'set', table:'settings', id, field:'value', prev: r.value ?? '', value }); }
     else if (value !== '') ops.push({ op:'add', table:'settings', row:{ id, value } });
   }
-  // renaming the sale keeps this sale's orders attached to it
-  const oldName = setting('eventName');
-  if (vals.eventName && vals.eventName !== oldName) for (const pr of (data.purchases || [])) if (pr.sale === oldName) ops.push({ op:'set', table:'purchases', id: pr.id, field:'sale', prev: pr.sale, value: vals.eventName });
+  // orders are tied to the sale's own row, so a rename never detaches them; older rows that carry the name get the row id
+  const oldName = setting('eventName'), live = liveSale();
+  if (live && vals.eventName && vals.eventName !== oldName) {
+    for (const pr of (data.purchases || [])) if (pr.sale === oldName || blank(pr.sale)) ops.push({ op:'set', table:'purchases', id: pr.id, field:'sale', prev: pr.sale ?? '', value: live.id });
+    for (const mo of (data.moneyOut || [])) if (mo.link === 'purchases' && mo.order === oldName + ' orders') ops.push({ op:'set', table:'moneyOut', id: mo.id, field:'order', prev: mo.order, value: vals.eventName + ' orders' });
+    if (serverRow('sales', live.id) && live.theme !== vals.eventName) ops.push({ op:'set', table:'sales', id: live.id, field:'theme', prev: serverRow('sales', live.id).theme ?? '', value: vals.eventName });
+  }
   if (!ops.length) { closeSheet(); return; }
-  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops });
+  let res;
+  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); }
+  catch (e) { $('#sErr').textContent = 'Could not reach the tracker. Nothing was changed. Try again.'; return; }
   if (!res.ok) { $('#sErr').textContent = res.error || 'Could not save.'; return; }
-  if ((res.conflicts || []).length) { $('#sErr').textContent = 'Someone else just changed these. Close and try again.'; data = res.data; render(); return; }
+  if ((res.conflicts || []).length) { data = res.data; render(); $('#sErr').textContent = 'Someone else changed something at the same moment, so nothing was saved. Check the numbers and save again.'; return; }
   data = res.data; closeSheet(); render(); toast('Sale details saved. Everyone sees them now.');
 }
 function openCloseout(M){
@@ -944,6 +974,10 @@ function openCloseout(M){
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Close out and start</button></div></form>`);
 }
 async function doCloseout(name, date){
+  const btn = document.querySelector('#closeForm button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+  try { const fresh = await apiLoad(); if (fresh.ok) data = fresh.data; } catch (e) {}
+  if (pendingCount()) { $('#cErr').textContent = 'Submit or discard your open changes first.'; if (btn) { btn.disabled = false; btn.textContent = 'Close out and start'; } return; }
+  if (setting('eventName') === name) { closeSheet(); render(); toast(name + ' is already the current sale. Nothing changed.'); return; }
   const M = model(), ops = [];
   const set = (table, id, field, value) => { const r = serverRow(table, id); if (r && normVal(table, field, r[field], id) !== normVal(table, field, value, id)) ops.push({ op:'set', table, id, field, prev: r[field] ?? '', value }); };
   for (const i of M.items) {
@@ -952,17 +986,21 @@ async function doCloseout(name, date){
     if (i.costFromOrders) set('items', i.id, 'unitCost', Math.round(i.unitCost * 10000) / 10000);
     if (i.category === 'New' || i.category === 'Restock') set('items', i.id, 'category', 'Carry-over');
   }
+  for (const p of M.cur) if (M.liveId && String(p.sale) !== M.liveId) set('purchases', p.id, 'sale', M.liveId);
   for (const s of M.sales) if (s.live) { set('sales', s.id, 'spent', Math.round(M.purchTotal*100)/100); set('sales', s.id, 'sales', M.T.rev ? Math.round(M.T.rev*100)/100 : ''); set('sales', s.id, 'link', ''); }
   for (const r of M.mOut) if (r.link === 'purchases') { set('moneyOut', r.id, 'amount', Math.round(M.purchTotal*100)/100); set('moneyOut', r.id, 'link', ''); }
-  set('cash', 'end', 'value', ''); set('cash', 'countedBy', 'value', ''); set('cash', 'notes', 'value', '');
+  set('cash', 'end', 'value', ''); set('cash', 'cashapp', 'value', ''); set('cash', 'countedBy', 'value', ''); set('cash', 'notes', 'value', '');
   set('settings', 'eventName', 'value', name); set('settings', 'eventDate', 'value', date); set('settings', 'announcement', 'value', '');
   const sid = Date.now().toString(36);
   ops.push({ op:'add', table:'sales', row:{ id:'sh' + sid, date, theme:name, spent:'', sales:'', other:'', what:'', link:'current' } });
   ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'a', date, event: name + ' (cash deposit)', amount:'', notes:'Enter the deposit' } });
   ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'b', date, event: name + ' (Cash App)', amount:'', notes:'Enter the Cash App total' } });
   ops.push({ op:'add', table:'moneyOut', row:{ id:'mo' + sid, date:'', order: name + ' orders', amount:'', link:'purchases', notes:'Fills in automatically from the Orders tab' } });
-  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops });
-  if (!res.ok) { $('#cErr').textContent = res.error || 'Could not close out.'; return; }
+  let res;
+  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); }
+  catch (e) { $('#cErr').textContent = 'Could not reach the tracker. Reload the page before trying again, in case it went through.'; if (btn) { btn.disabled = false; btn.textContent = 'Close out and start'; } return; }
+  if (!res.ok) { $('#cErr').textContent = res.error || 'Could not close out.'; if (btn) { btn.disabled = false; btn.textContent = 'Close out and start'; } return; }
+  if ((res.conflicts || []).length) { data = res.data; render(); $('#cErr').textContent = 'Someone changed numbers at the same moment, so nothing was closed out. Check the counts and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Close out and start'; } return; }
   data = res.data; closeSheet(); tab = 'overview'; render();
   toast(name + ' is ready. Counts carried forward.');
 }
@@ -1026,6 +1064,8 @@ document.addEventListener('submit', async e => {
     try {
       const res = await apiPost({ action:'auth', pin });
       if (!res.ok) { $('#uErr').textContent = res.error || 'That PIN did not work.'; return; }
+      const draftBy = store.get('css-draft-who', '');
+      if (pendingCount() && draftBy && draftBy !== name) { pending = { sets:{}, adds:[], dels:{} }; store.set('css-draft', pending); setTimeout(() => toast('Cleared unsaved changes left on this device by ' + draftBy + '.'), 4000); }
       auth = { role: res.role, pin }; who = name; store.sset('css-auth', auth); store.set('css-name', name);
       closeSheet(); render(); toast(res.role === 'admin' ? 'Unlocked with full access.' : 'Unlocked. You can enter counts, deposits and the cash box.');
     } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }

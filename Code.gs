@@ -34,7 +34,8 @@ var VOLUNTEER_CAN = {
   moneyIn: ['amount','notes'],
   cash: ['value']
 };
-var CASH_NUMERIC_IDS = ['start','end'];
+var CASH_NUMERIC_IDS = ['start','end','cashapp'];
+var NONNEGATIVE = ['price','unitCost','onHand','countedAfter','packs','packCost','unitsPerPack'];
 
 function fieldsOf(table) { return SCHEMA[table].cols.map(function (c) { return c[0]; }); }
 function isNumeric(table, field, id) {
@@ -49,7 +50,9 @@ function cleanVal(table, field, v, id) {
     if (s === '') return '';
     if (/^\(.*\)$/.test(s)) s = '-' + s.slice(1, -1);
     var n = Number(s);
-    return isNaN(n) ? '' : n;
+    if (!isFinite(n)) return '';
+    if (n < 0 && NONNEGATIVE.indexOf(field) >= 0) return '';
+    return n;
   }
   return String(v).trim();
 }
@@ -71,7 +74,12 @@ function labelOf(table, row) {
 }
 /* Apply a batch of edits to in-memory tables. Each "set" carries the value the editor started from (prev);
    if someone else changed that value in the meantime, the edit is held back as a conflict instead of overwriting. */
-function applyOps(t, ops, role, who, nowIso) {
+function applyOps(t, ops, role, who, nowIso, atomic) {
+  if (atomic) {
+    // all or nothing: dry-run on a copy first, apply only if every edit is clean
+    var trial = applyOps(JSON.parse(JSON.stringify(t)), ops, role, who, nowIso, false);
+    if (trial.conflicts.length) return { applied: 0, conflicts: trial.conflicts, log: [], rejected: true };
+  }
   var res = { applied: 0, conflicts: [], log: [] };
   for (var i = 0; i < ops.length; i++) {
     var op = ops[i];
@@ -177,7 +185,7 @@ function doPost(e) {
   if (role.error) return json({ ok: false, error: role.error });
   if (body.action === 'auth') return json({ ok: true, role: role.role });
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
-  if (body.ops.length > 400) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
+  if (body.ops.length > 1500) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return json({ ok: false, error: 'The tracker is busy saving someone else\'s changes. Try Submit again.' });
@@ -186,7 +194,7 @@ function doPost(e) {
     body.ops.forEach(function (op) { if (op && SCHEMA[op.table] && op.table !== 'log') touched[op.table] = true; });
     Object.keys(touched).forEach(function (t) { tables[t] = readTable(t).rows; });
     var who = String(body.name || 'Someone').slice(0, 40);
-    var res = applyOps(tables, body.ops, role.role, who, new Date().toISOString());
+    var res = applyOps(tables, body.ops, role.role, who, new Date().toISOString(), !!body.atomic);
     if (res.applied) {
       Object.keys(touched).forEach(function (t) { writeTable(t, tables[t]); });
       appendLog(res.log);
@@ -209,17 +217,20 @@ function roleFor(pin) {
   var props = PropertiesService.getScriptProperties();
   var vp = props.getProperty('VOLUNTEER_PIN'), ap = props.getProperty('ADMIN_PIN');
   if (!vp || !ap) return { error: 'PINs are not set yet. In the Google Sheet use Spirit Store > Set PINs.' };
-  var cache = CacheService.getScriptCache(), fails = Number(cache.get('fails') || 0);
-  if (fails >= 30) return { error: 'Too many wrong PINs. Wait 10 minutes and try again.' };
+  var cache = CacheService.getScriptCache();
+  if (Number(cache.get('fails') || 0) >= 30) return { error: 'Too many wrong PINs. Wait 10 minutes and try again.' };
   pin = String(pin || '').trim();
   if (pin && pin === ap) return { role: 'admin' };
   if (pin && pin === vp) return { role: 'volunteer' };
-  cache.put('fails', String(fails + 1), 600);
+  var lock = LockService.getScriptLock();
+  if (lock.tryLock(5000)) { try { cache.put('fails', String(Number(cache.get('fails') || 0) + 1), 600); } finally { lock.releaseLock(); } }
   return { error: 'That PIN did not work.' };
 }
 
+var SHEET_TZ = null;
+function sheetTz() { return SHEET_TZ || (SHEET_TZ = SpreadsheetApp.getActive().getSpreadsheetTimeZone() || Session.getScriptTimeZone()); }
 function fmtCell(v, t) {
-  if (v instanceof Date) return t === 'log' ? v.toISOString() : Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) return t === 'log' ? v.toISOString() : Utilities.formatDate(v, sheetTz(), 'yyyy-MM-dd');
   return v;
 }
 
@@ -227,8 +238,11 @@ function readTable(t) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
   if (!sh) throw new Error('Missing tab "' + SCHEMA[t].tab + '". Run Spirit Store > Set up tabs.');
   var values = sh.getDataRange().getValues();
-  var header = values[0] || [], idx = {};
-  SCHEMA[t].cols.forEach(function (c) { idx[c[0]] = header.indexOf(c[1]); });
+  var header = normHeader(values[0] || []), idx = {};
+  SCHEMA[t].cols.forEach(function (c) {
+    idx[c[0]] = header.indexOf(c[1].toLowerCase());
+    if (idx[c[0]] < 0) throw new Error('The "' + SCHEMA[t].tab + '" tab is missing its "' + c[1] + '" column. Put that header back in row 1.');
+  });
   var rows = [], fixed = false;
   for (var r = 1; r < values.length; r++) {
     var row = {}, any = false;
@@ -244,15 +258,24 @@ function readTable(t) {
   return { rows: rows, sheet: sh, idx: idx, fixed: fixed };
 }
 
+function normHeader(h) { return h.map(function (x) { return String(x).trim().toLowerCase(); }); }
+/* Keep text as text: stop Sheets from turning notes like "10/16" into dates and "=..." into formulas. */
+function sheetSafe(t, field, v, id) {
+  if (typeof v !== 'string' || v === '') return v;
+  if (isNumeric(t, field, id)) return v;
+  if (field === 'date' || (t === 'settings' && String(id) === 'eventDate')) return v;
+  if (/^[=+\-@']/.test(v) || /^[\d\s\/.:,$()%-]+$/.test(v)) return "'" + v;
+  return v;
+}
 function writeTable(t, rows) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
-  var header = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
+  var header = normHeader(sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]);
   var height = Math.max(sh.getLastRow() - 1, rows.length, 1);
   SCHEMA[t].cols.forEach(function (c) {
-    var col = header.indexOf(c[1]) + 1;
-    if (col < 1) return;
+    var col = header.indexOf(c[1].toLowerCase()) + 1;
+    if (col < 1) throw new Error('The "' + SCHEMA[t].tab + '" tab is missing its "' + c[1] + '" column.');
     var out = [];
-    for (var r = 0; r < height; r++) { var v = r < rows.length ? rows[r][c[0]] : ''; out.push([v === undefined || v === null ? '' : v]); }
+    for (var r = 0; r < height; r++) { var v = r < rows.length ? rows[r][c[0]] : ''; v = v === undefined || v === null ? '' : v; out.push([sheetSafe(t, c[0], v, r < rows.length ? rows[r].id : '')]); }
     sh.getRange(2, col, height, 1).setValues(out);
   });
 }
@@ -266,12 +289,19 @@ function appendLog(entries) {
   rng.setValues(rows);
 }
 
+var CASH_ROWS = [['start', 'Starting cash in box (change)'], ['end', 'Ending cash in box'], ['cashapp', 'Cash App total for this sale'], ['countedBy', 'Counted by'], ['notes', 'Notes']];
 function loadAll() {
   var out = {};
   Object.keys(SCHEMA).forEach(function (t) {
     if (t === 'log') return;
     var r = readTable(t);
-    if (r.fixed) writeTable(t, r.rows); // rows typed straight into the sheet get an ID
+    if (t === 'cash') CASH_ROWS.forEach(function (c) {
+      if (!r.rows.some(function (x) { return String(x.id) === c[0]; })) { r.rows.push({ id: c[0], label: c[1], value: '' }); r.fixed = true; }
+    });
+    if (r.fixed) { // rows typed straight into the sheet get an ID; missing cash lines get added
+      var lock = LockService.getScriptLock();
+      if (lock.tryLock(10000)) { try { r = readTable(t); if (t === 'cash') CASH_ROWS.forEach(function (c) { if (!r.rows.some(function (x) { return String(x.id) === c[0]; })) r.rows.push({ id: c[0], label: c[1], value: '' }); }); writeTable(t, r.rows); } finally { lock.releaseLock(); } }
+    }
     out[t] = r.rows;
   });
   out.settings = out.settings.filter(function (s) { return !/pin|code/i.test(String(s.id)); });
