@@ -244,6 +244,27 @@ td .in{min-height:36px;padding:6px 8px}
 .sheet .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .sheet ul{margin:0 0 6px;padding-left:18px}
 .err{color:var(--bad);font-weight:600;font-size:13.5px;min-height:1em}
+.sheet.wide{max-width:920px}
+.drop{position:relative;border:2px dashed var(--input-line);background:var(--input);border-radius:12px;padding:22px 16px;text-align:center;color:var(--muted);font-weight:600}
+.drop.over{border-color:var(--accent)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.thumbs figure{margin:0;position:relative}
+.thumbs img{height:76px;width:auto;border-radius:8px;border:1px solid var(--line);display:block}
+.thumbs button{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);font-weight:800;cursor:pointer;line-height:1}
+details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-top:12px}
+.imp-head{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:6px}
+.imp-line{display:grid;grid-template-columns:26px minmax(0,2.2fr) 74px 96px 86px;gap:8px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
+.imp-line.off{opacity:.45}
+.imp-line .lbl{display:none}
+.imp-line .title{font-size:12.5px;color:var(--muted);margin-top:4px}
+.imp-line .newfields{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;margin-top:8px}
+.imp-line input[type=checkbox]{width:20px;height:20px;margin-top:10px}
+.imp-cols{display:grid;grid-template-columns:26px minmax(0,2.2fr) 74px 96px 86px;gap:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.imp-sum{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 0;font-weight:700}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:6px}
+.tag.match{background:var(--good-soft);color:var(--good)}.tag.new{background:var(--pink-soft);color:var(--pink)}
+@media (max-width:640px){.imp-line .lbl{display:block}.imp-cols{display:none}.imp-line{grid-template-columns:26px repeat(3,minmax(0,1fr))}.imp-line .goes{grid-column:2/-1}.imp-line .n1{grid-column:2}.imp-head{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--band);color:var(--band-ink);padding:10px 16px;border-radius:10px;font-weight:600;z-index:40;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
 .muted{color:var(--muted)}
 .mt{margin-top:12px}
@@ -765,12 +786,12 @@ function vOrders(M){
   return `
   <div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Orders for ${esc(M.ev)}</h2><p>${adm ? 'Item names must match the Count tab so units flow over.' : 'Only the admin PIN can change orders.'}</p></div>
   ${itemsList}
+  ${adm ? '<div class="toolbar"><button class="btn primary" type="button" id="importBtn">Import order from screenshots</button><button class="btn small" type="button" data-addrow="purchases">Add one line by hand</button></div>' : ''}
   <div class="tablewrap"><table>
     <thead><tr><th>Date</th><th>Store</th><th>Item</th><th class="r">Packs</th><th class="r">Pack cost</th><th class="r">Units/pack</th><th class="r">Units</th><th class="r">Total</th><th class="r">Per unit</th><th>Notes</th>${adm ? '<th></th>' : ''}</tr></thead>
     <tbody>${M.cur.map(tr).join('') || '<tr><td colspan="11" class="muted">No orders yet for this sale.</td></tr>'}</tbody>
     <tfoot><tr><td colspan="6">Total</td><td class="r num" data-calc="pu:sum:units">${count(M.purchUnits)}</td><td class="r num" data-calc="pu:sum:total">${money(M.purchTotal)}</td><td colspan="${adm ? 3 : 2}"></td></tr></tfoot>
   </table></div>
-  ${adm ? '<button class="btn small mt" type="button" data-addrow="purchases">Add order line</button>' : ''}
   ${past.length ? `<section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Earlier orders</h2><p>${past.length} lines from past sales</p></div><div class="tablewrap"><table><thead><tr><th>Sale</th><th>Date</th><th>Item</th><th class="r">Units</th><th class="r">Total</th></tr></thead><tbody>${past.map(p => `<tr><td>${esc(saleLabel(p.sale))}</td><td>${esc(fdate(p.date))}</td><td>${esc(p.item)}</td><td class="r num">${count(p.units)}</td><td class="r num">${money(p.total)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
 }
 
@@ -908,7 +929,7 @@ async function submit(){
 }
 
 /* ---------- sheets ---------- */
-function openSheet(html){ $('#sheet').innerHTML = html; $('#scrim').hidden = false; const f = $('#sheet input, #sheet button'); if (f) f.focus(); }
+function openSheet(html, wide){ $('#sheet').classList.toggle('wide', !!wide); $('#sheet').innerHTML = html; $('#scrim').hidden = false; const f = $('#sheet input, #sheet button'); if (f) f.focus(); }
 function closeSheet(){ $('#scrim').hidden = true; $('#sheet').innerHTML = ''; }
 function openUnlock(){
   openSheet(`<h3>Unlock to edit</h3><p>Enter your name so the activity log shows who made each change, then the PIN the PTO gave you.</p>
@@ -998,6 +1019,117 @@ async function savePins(){
   closeSheet(); load(true);
   toast(res.changed && res.changed.length ? 'Saved: ' + res.changed.join(', ') + '.' : 'Nothing needed changing.');
 }
+/* ---------- order import: screenshots or pasted text, read by AI, checked by the admin ---------- */
+let impImgs = [], impResult = null, impLines = [];
+function openImport(){
+  if (!isAdmin()) return;
+  impImgs = []; impResult = null; impLines = [];
+  openSheet(`<h3>Import an order</h3><p>Add screenshots of the Amazon cart or order confirmation. You'll check every line before anything is saved.</p>
+    <div class="drop" id="drop">Tap to choose screenshots, drag them here, or paste one (Ctrl+V)<input type="file" id="impFiles" accept="image/*" multiple aria-label="Choose screenshots"></div>
+    <div class="thumbs" id="thumbs"></div>
+    <details class="paste"><summary>Or paste the order text instead</summary><textarea class="in mt" id="impText" placeholder="Paste the order details here"></textarea></details>
+    <div class="err mt" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="impRead">Read order</button></div>`, true);
+}
+function shrinkImage(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const max = 1800, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      const d = c.toDataURL('image/jpeg', 0.85); URL.revokeObjectURL(url);
+      resolve({ media_type: 'image/jpeg', data: d.split(',')[1], preview: d });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad image')); };
+    img.src = url;
+  });
+}
+async function addImpFiles(files){
+  const list = [...files].filter(f => /^image\//.test(f.type));
+  for (const f of list) { if (impImgs.length >= 8) { $('#iErr').textContent = 'Up to 8 screenshots at a time.'; break; } try { impImgs.push(await shrinkImage(f)); } catch (e) { $('#iErr').textContent = 'One of those files could not be opened as a picture.'; } }
+  const t = $('#thumbs'); if (t) t.innerHTML = impImgs.map((im, i) => `<figure><img src="${im.preview}" alt="Screenshot ${i+1}"><button type="button" data-imprm="${i}" aria-label="Remove screenshot">×</button></figure>`).join('');
+}
+async function readImport(){
+  const text = ($('#impText') || {}).value || '';
+  if (!impImgs.length && !text.trim()) { $('#iErr').textContent = 'Add a screenshot or paste the order text first.'; return; }
+  const btn = $('#impRead'); btn.disabled = true; btn.textContent = 'Reading… (10 to 30 seconds)'; $('#iErr').textContent = '';
+  let res;
+  try { res = await apiPost({ action:'importRead', pin: auth.pin, name: who, images: impImgs.map(i => ({ media_type: i.media_type, data: i.data })), text }); }
+  catch (e) { res = { ok:false, error:'Could not reach the tracker. Check the connection and try again.' }; }
+  if (!res.ok) { $('#iErr').textContent = res.error || 'Could not read the order.'; btn.disabled = false; btn.textContent = 'Read order'; return; }
+  impResult = res.result || { lines: [] };
+  const names = rows('items').map(i => String(i.name));
+  const find = n => { if (!n) return ''; const k = String(n).trim().toLowerCase(); return names.find(x => x.trim().toLowerCase() === k) || ''; };
+  impLines = (impResult.lines || []).map(l => {
+    const target = find(l.match) || find(l.name);
+    return { on: true, title: l.title || l.name || '', target, newName: l.name || l.title || '', price: '', packs: l.packs || 1, packCost: l.packCost ?? '', unitsPerPack: l.unitsPerPack ?? '', note: l.note || '' };
+  });
+  if (!impLines.length) { $('#iErr').textContent = "Couldn't find any items in that. Try a clearer or closer screenshot."; btn.disabled = false; btn.textContent = 'Read order'; return; }
+  renderImportReview();
+}
+function renderImportReview(){
+  const names = rows('items').map(i => String(i.name)).sort((a, b) => a.localeCompare(b));
+  const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  const date = (impResult && /^\d{4}-\d{2}-\d{2}$/.test(impResult.orderDate || '')) ? impResult.orderDate : iso;
+  const line = (l, i) => `<div class="imp-line ${l.on ? '' : 'off'}" data-line="${i}">
+      <input type="checkbox" data-imp="${i}|on" ${l.on ? 'checked' : ''} aria-label="Include this line">
+      <div class="goes"><select class="in" data-imp="${i}|target" aria-label="Which item this is">
+          <option value="">New item</option>${names.map(n => `<option ${n === l.target ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+        <div class="title">${esc(l.title)}${l.target ? '<span class="tag match">Restock of existing item</span>' : '<span class="tag new">New item</span>'}${l.note ? ' · ' + esc(l.note) : ''}</div>
+        ${l.target ? '' : `<div class="newfields"><input class="in" data-imp="${i}|newName" value="${esc(l.newName)}" placeholder="Item name" aria-label="New item name"><input class="in numin" data-imp="${i}|price" value="${esc(l.price)}" inputmode="decimal" placeholder="Sell $" aria-label="Sell price"></div>`}
+      </div>
+      <div class="n1"><span class="lbl">Packs</span><input class="in numin" data-imp="${i}|packs" value="${esc(l.packs)}" inputmode="numeric" aria-label="Packs"></div>
+      <div><span class="lbl">Pack cost</span><input class="in numin" data-imp="${i}|packCost" value="${esc(l.packCost)}" inputmode="decimal" aria-label="Pack cost"></div>
+      <div><span class="lbl">Units / pack</span><input class="in numin ${blank(l.unitsPerPack) ? 'empty' : ''}" data-imp="${i}|unitsPerPack" value="${esc(l.unitsPerPack)}" inputmode="numeric" aria-label="Units per pack"></div>
+    </div>`;
+  openSheet(`<h3>Check the order</h3><p>Green means it's a restock of something you already sell, so the new units add onto it. Pink means a new item: give it a sell price. Uncheck anything you don't want.</p>
+    <div class="imp-head"><div><label class="lbl" for="impDate">Order date</label><input class="in" id="impDate" type="date" value="${date}"></div>
+      <div><label class="lbl" for="impStore">Store</label><input class="in" id="impStore" value="${esc((impResult && impResult.store) || 'Amazon')}"></div></div>
+    <div class="imp-cols"><span></span><span>Item</span><span>Packs</span><span>Pack cost</span><span>Units/pack</span></div>
+    <div id="impLines">${impLines.map(line).join('')}</div>
+    <div class="imp-sum num"><span id="impTotal"></span><span class="muted">${impResult && impResult.orderTotal ? 'Order total on the screenshot: ' + money(impResult.orderTotal) + ' (may include tax or shipping)' : ''}</span></div>
+    <div class="err" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" id="impBack">Start over</button><button class="btn primary" type="button" id="impSave">Save order</button></div>`, true);
+  updateImpTotal();
+}
+function updateImpTotal(){ const t = impLines.filter(l => l.on).reduce((s, l) => s + num(l.packs) * num(l.packCost), 0); const n = impLines.filter(l => l.on).length; const el = $('#impTotal'); if (el) el.textContent = n + ' line' + (n === 1 ? '' : 's') + ' · ' + money(t); }
+async function saveImport(){
+  const date = $('#impDate').value, store = $('#impStore').value.trim() || 'Amazon';
+  const live = liveSale(); const sale = live ? live.id : setting('eventName');
+  const existing = new Map(rows('items').map(i => [String(i.name).trim().toLowerCase(), String(i.name)]));
+  const ops = [], newItems = new Map();
+  const on = impLines.filter(l => l.on);
+  if (!on.length) { $('#iErr').textContent = 'Check at least one line to save.'; return; }
+  for (const l of on) {
+    const packs = Number(l.packs), cost = Number(String(l.packCost).replace(/[$,]/g, '')), upp = Number(l.unitsPerPack);
+    const label = l.target || l.newName || l.title;
+    if (!(packs > 0) || !Number.isFinite(packs)) { $('#iErr').textContent = 'Packs needs a number for: ' + label; return; }
+    if (!(cost >= 0) || String(l.packCost).trim() === '') { $('#iErr').textContent = 'Pack cost needs a number for: ' + label; return; }
+    if (!(upp > 0)) { $('#iErr').textContent = 'Units per pack needs a number for: ' + label + '. Check the product title (24-pack = 24).'; return; }
+    let name = l.target;
+    if (!name) {
+      const nn = String(l.newName || '').trim(); if (!nn) { $('#iErr').textContent = 'Give the new item a name.'; return; }
+      const hit = existing.get(nn.toLowerCase());
+      if (hit) name = hit;
+      else {
+        const price = Number(String(l.price).replace(/[$,]/g, ''));
+        if (String(l.price).trim() === '' || !(price >= 0)) { $('#iErr').textContent = 'Add a sell price for the new item: ' + nn; return; }
+        if (!newItems.has(nn.toLowerCase())) newItems.set(nn.toLowerCase(), { name: nn, price });
+        name = newItems.get(nn.toLowerCase()).name;
+      }
+    }
+    ops.push({ op:'add', table:'purchases', row:{ id:'pu' + Date.now().toString(36) + Math.floor(Math.random()*1e6), date, store, item: name, packs, packCost: cost, unitsPerPack: upp, source:'Imported', sale, notes: '' } });
+  }
+  const itemOps = [...newItems.values()].map(n => ({ op:'add', table:'items', row:{ id:'it' + Date.now().toString(36) + Math.floor(Math.random()*1e6), name: n.name, category:'New', price: n.price, unitCost:'', onHand:'', countedAfter:'', notes:'' } }));
+  const btn = $('#impSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  let res;
+  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops: itemOps.concat(ops), atomic: true }); }
+  catch (e) { $('#iErr').textContent = 'Could not reach the tracker. Nothing was saved. Try again.'; btn.disabled = false; btn.textContent = 'Save order'; return; }
+  if (!res.ok || (res.conflicts || []).length) { $('#iErr').textContent = (res.error || 'Nothing was saved because something changed at the same moment.') + ' Try Save again.'; if (res.data) data = res.data; btn.disabled = false; btn.textContent = 'Save order'; return; }
+  data = res.data; closeSheet(); tab = 'orders'; render();
+  toast('Imported ' + ops.length + ' order line' + (ops.length === 1 ? '' : 's') + (itemOps.length ? ' and ' + itemOps.length + ' new item' + (itemOps.length === 1 ? '' : 's') : '') + '.');
+}
 function openCloseout(M){
   if (pendingCount()) { toast('Submit or discard your open changes first.'); return; }
   const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
@@ -1047,10 +1179,22 @@ function go(t){ tab = t; store.set('css-tab', t); try { history.replaceState(nul
 
 /* ---------- events ---------- */
 document.addEventListener('input', e => {
+  if (e.target.dataset && e.target.dataset.imp) { const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (l && f !== 'on' && f !== 'target') { l[f] = e.target.value; updateImpTotal(); } return; }
   if (e.target.dataset && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'q') { query = e.target.value; filterItems(); }
 });
-document.addEventListener('change', e => { if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target); });
+document.addEventListener('change', e => {
+  if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target);
+  if (e.target.id === 'impFiles') { addImpFiles(e.target.files); e.target.value = ''; }
+  if (e.target.dataset && e.target.dataset.imp) {
+    const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (!l) return;
+    if (f === 'on') { l.on = e.target.checked; e.target.closest('.imp-line').classList.toggle('off', !l.on); updateImpTotal(); }
+    if (f === 'target') { l.target = e.target.value; const keep = $('#impDate').value, st = $('#impStore').value; renderImportReview(); $('#impDate').value = keep; $('#impStore').value = st; }
+  }
+});
+document.addEventListener('paste', e => { if ($('#drop') && e.clipboardData) { const files = [...e.clipboardData.files]; if (files.length) { e.preventDefault(); addImpFiles(files); } } });
+document.addEventListener('dragover', e => { const d = e.target.closest && e.target.closest('#drop'); if (d) { e.preventDefault(); d.classList.add('over'); } });
+document.addEventListener('drop', e => { const d = e.target.closest && e.target.closest('#drop'); if (d) { e.preventDefault(); d.classList.remove('over'); addImpFiles(e.dataTransfer.files); } });
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.tab) return go(b.dataset.tab);
@@ -1092,6 +1236,11 @@ document.addEventListener('click', e => {
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'saleEditBtn') return openSaleEdit();
   if (b.id === 'adminBtn') return openPins();
+  if (b.id === 'importBtn') return openImport();
+  if (b.id === 'impRead') return readImport();
+  if (b.id === 'impBack') return openImport();
+  if (b.id === 'impSave') return saveImport();
+  if (b.dataset.imprm !== undefined) { impImgs.splice(+b.dataset.imprm, 1); addImpFiles([]); return; }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();

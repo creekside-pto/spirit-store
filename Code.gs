@@ -255,6 +255,15 @@ function selfTestAi() {
   return t;
 }
 
+/* Run from the script editor to test reading a real screenshot end to end. */
+function selfTestAiImage() {
+  var blob = UrlFetchApp.fetch('https://raw.githubusercontent.com/creekside-pto/spirit-store/main/sample-order.png').getBlob();
+  var names = readTable('items').rows.map(function (r) { return String(r.name); });
+  var t = aiExtract([{ media_type: 'image/png', data: Utilities.base64Encode(blob.getBytes()) }], '', names);
+  Logger.log(JSON.stringify(t));
+  return t;
+}
+
 function importRead(body, role) {
   if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can import orders.' };
   var images = (Array.isArray(body.images) ? body.images : []).slice(0, 8).filter(function (im) {
