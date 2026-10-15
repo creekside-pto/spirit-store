@@ -263,6 +263,7 @@ td .in{min-height:36px;padding:6px 8px}
     <div class="hdr-right">
       <span class="chip-event" id="eventChip"><span class="dot"></span><span id="eventTxt">Pink Out</span></span>
       <span class="sync num" id="sync">Loading…</span>
+      <button class="btn" id="adminBtn" type="button" hidden>PINs &amp; access</button>
       <button class="btn" id="lockBtn" type="button">Unlock to edit</button>
     </div>
   </div>
@@ -547,6 +548,7 @@ function renderHeader(M){
   const lb = $('#lockBtn');
   lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
   lb.classList.toggle('on', !!auth);
+  $('#adminBtn').hidden = !isAdmin();
   $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
   const needs = M ? needsList(M).length : 0;
   $('#tabs').innerHTML = TABS.map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
@@ -799,7 +801,7 @@ function vHistory(M){
 function logEntry(e){
   const tname = { items:'Count', purchases:'Orders', moneyIn:'Money in', moneyOut:'Money out', sales:'History', cash:'Cash box', settings:'Settings' }[e.table] || e.table;
   const live = (data[e.table] || []).find(r => String(r.id) === String(e.rowId));
-  const what = e.field === '(added)' ? 'added <b>' + esc(e.new) + '</b>' : e.field === '(removed)' ? 'removed <b>' + esc(e.old) + '</b>' :
+  const what = e.field === '(security)' ? esc(e.new) : e.field === '(added)' ? 'added <b>' + esc(e.new) + '</b>' : e.field === '(removed)' ? 'removed <b>' + esc(e.old) + '</b>' :
     'set <b>' + esc(FIELD_NAMES[e.field] || e.field) + '</b>' + (live ? ' for <b>' + esc(labelOf(e.table, live)) + '</b>' : '') + ' from ' + (blank(e.old) ? 'blank' : '<b>' + esc(e.old) + '</b>') + ' to ' + (blank(e.new) ? 'blank' : '<b>' + esc(e.new) + '</b>');
   const canRevert = isAdmin() && e.field && e.field[0] !== '(' && live && normVal(e.table, e.field, live[e.field], e.rowId) === normVal(e.table, e.field, e.new, e.rowId);
   return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${what} <span class="muted">· ${esc(tname)}</span></span>${canRevert ? `<button class="btn small" type="button" data-revert='${esc(JSON.stringify({ t:e.table, id:e.rowId, f:e.field, old:e.old, nw:e.new }))}'>Undo</button>` : '<span></span>'}</div>`;
@@ -962,6 +964,40 @@ async function saveSaleDetails(vals){
   if ((res.conflicts || []).length) { data = res.data; render(); $('#sErr').textContent = 'Someone else changed something at the same moment, so nothing was saved. Check the numbers and save again.'; return; }
   data = res.data; closeSheet(); render(); toast('Sale details saved. Everyone sees them now.');
 }
+function openPins(){
+  if (!isAdmin()) return;
+  openSheet(`<h3>PINs and access</h3><p>Leave a box blank to keep what it is now. Share the volunteer PIN with helpers; keep the admin PIN to yourself.</p>
+    <form id="pinForm" class="form">
+      <div><label class="lbl" for="pV">New volunteer PIN</label><input class="in" id="pV" inputmode="numeric" autocomplete="off" placeholder="Keep current"></div>
+      <div><label class="lbl" for="pA">New admin PIN</label><input class="in" id="pA" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Keep current"></div>
+      <div><label class="lbl" for="pA2">Type the new admin PIN again</label><input class="in" id="pA2" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Only if changing it"></div>
+      <div><span class="lbl">Who can view the numbers</span>
+        <div class="form" style="gap:6px;margin-top:4px">
+          <label><input type="radio" name="vMode" value="keep" checked> Keep as it is now</label>
+          <label><input type="radio" name="vMode" value="clear"> Anyone with the link</label>
+          <label><input type="radio" name="vMode" value="set"> Only people with this access code:</label>
+          <input class="in" id="pC" autocomplete="off" placeholder="New access code">
+        </div></div>
+      <div class="err" id="pErr"></div>
+      <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Save</button></div>
+    </form>`);
+}
+async function savePins(){
+  const v = $('#pV').value.trim(), a = $('#pA').value.trim(), a2 = $('#pA2').value.trim(), code = $('#pC').value.trim();
+  let mode = (document.querySelector('input[name=vMode]:checked') || {}).value || 'keep';
+  if (code && mode === 'keep') mode = 'set';
+  if (a !== a2) { $('#pErr').textContent = 'The two admin PIN boxes don\'t match.'; return; }
+  if (!v && !a && mode === 'keep') { closeSheet(); return; }
+  let res;
+  try { res = await apiPost({ action:'setPins', pin: auth.pin, name: who, newVolunteerPin: v, newAdminPin: a, viewMode: mode, viewCode: code }); }
+  catch (e) { $('#pErr').textContent = 'Could not reach the tracker. Nothing was changed.'; return; }
+  if (!res.ok) { $('#pErr').textContent = res.error || 'Could not save.'; return; }
+  if (a) { auth.pin = a; store.sset('css-auth', auth); }
+  if (mode === 'set') { viewCode = code; store.set('css-code', code); }
+  if (mode === 'clear') { viewCode = ''; store.set('css-code', ''); }
+  closeSheet(); load(true);
+  toast(res.changed && res.changed.length ? 'Saved: ' + res.changed.join(', ') + '.' : 'Nothing needed changing.');
+}
 function openCloseout(M){
   if (pendingCount()) { toast('Submit or discard your open changes first.'); return; }
   const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
@@ -1055,6 +1091,7 @@ document.addEventListener('click', e => {
   if (b.id === 'keepMine') { closeSheet(); submit(); return; }
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'saleEditBtn') return openSaleEdit();
+  if (b.id === 'adminBtn') return openPins();
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();
@@ -1070,6 +1107,7 @@ document.addEventListener('submit', async e => {
       closeSheet(); render(); toast(res.role === 'admin' ? 'Unlocked with full access.' : 'Unlocked. You can enter counts, deposits and the cash box.');
     } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }
   }
+  if (e.target.id === 'pinForm') { savePins(); return; }
   if (e.target.id === 'saleForm') { const n = $('#sName').value.trim(); if (!n) { $('#sErr').textContent = 'Give the sale a name.'; return; } const c = (document.querySelector('input[name=sColor]:checked') || {}).value || 'Pink'; saveSaleDetails({ eventName: n, eventDate: $('#sDate').value, eventColor: c, announcement: $('#sAnn').value.trim() }); return; }
   if (e.target.id === 'codeForm') { viewCode = $('#vCode').value.trim(); store.set('css-code', viewCode); closeSheet(); load(); }
   if (e.target.id === 'closeForm') { const n = $('#nName').value.trim(), d = $('#nDate').value; if (!n || !d) { $('#cErr').textContent = 'Add a name and date.'; return; } doCloseout(n, d); }

@@ -184,6 +184,7 @@ function doPost(e) {
   var role = roleFor(body.pin);
   if (role.error) return json({ ok: false, error: role.error });
   if (body.action === 'auth') return json({ ok: true, role: role.role });
+  if (body.action === 'setPins') return json(setPinsFromWeb(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 1500) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
@@ -203,6 +204,31 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* Admins can change PINs and the access code from the website. The values are never sent back out. */
+function setPinsFromWeb(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can change PINs.' };
+  var props = PropertiesService.getScriptProperties();
+  var vp = String(body.newVolunteerPin || '').trim(), ap = String(body.newAdminPin || '').trim();
+  var curV = props.getProperty('VOLUNTEER_PIN'), curA = props.getProperty('ADMIN_PIN');
+  var nextV = vp || curV, nextA = ap || curA;
+  if (vp && vp.length < 4) return { ok: false, error: 'The volunteer PIN needs at least 4 characters.' };
+  if (ap && ap.length < 4) return { ok: false, error: 'The admin PIN needs at least 4 characters.' };
+  if (nextV === nextA) return { ok: false, error: 'The volunteer and admin PINs have to be different.' };
+  var mode = body.viewMode || 'keep', code = String(body.viewCode || '').trim();
+  if (mode === 'set' && !code) return { ok: false, error: 'Type the new access code, or choose to remove it.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
+  try {
+    var changed = [];
+    if (vp && vp !== curV) { props.setProperty('VOLUNTEER_PIN', vp); changed.push('volunteer PIN'); }
+    if (ap && ap !== curA) { props.setProperty('ADMIN_PIN', ap); changed.push('admin PIN'); }
+    if (mode === 'set') { props.setProperty('VIEW_CODE', code); changed.push('access code'); }
+    if (mode === 'clear' && props.getProperty('VIEW_CODE')) { props.deleteProperty('VIEW_CODE'); changed.push('access code removed'); }
+    if (changed.length) appendLog([{ time: new Date().toISOString(), name: String(body.name || 'Someone').slice(0, 40), role: role, table: 'settings', rowId: 'security', field: '(security)', old: '', 'new': 'Changed: ' + changed.join(', ') }]);
+    return { ok: true, changed: changed };
+  } finally { lock.releaseLock(); }
 }
 
 /* ------------------------------ helpers ------------------------------ */
