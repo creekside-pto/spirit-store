@@ -188,8 +188,9 @@ function doPost(e) {
   if (body.action === 'auth') return json({ ok: true, role: role.role });
   if (body.action === 'setPins') return json(setPinsFromWeb(body, role.role));
   if (body.action === 'importRead') return json(importRead(body, role.role));
+  if (body.action === 'readDoc') return json(readDoc(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
-  if (body.ops.length > 1500) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
+  if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return json({ ok: false, error: 'The tracker is busy saving someone else\'s changes. Try Submit again.' });
@@ -255,6 +256,77 @@ function selfTestAi() {
   return t;
 }
 
+/* One upload for everything: works out what kind of document it is, then reads it. */
+function cleanFiles(body) {
+  return (Array.isArray(body.images) ? body.images : []).slice(0, 8).filter(function (im) {
+    return im && /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(im.media_type) && typeof im.data === 'string' && im.data.length < 12000000;
+  });
+}
+function readDoc(body, role) {
+  if (role !== 'admin' && role !== 'volunteer') return { ok: false, error: 'Unlock with a PIN first.' };
+  var files = cleanFiles(body);
+  if (!files.length) return { ok: false, error: 'Add a photo, screenshot or PDF first.' };
+  var names = (Array.isArray(body.names) ? body.names : []).slice(0, 400).map(function (n) { return String(n).slice(0, 80); });
+  var rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 400).map(function (r) {
+    return { n: Number(r.n) || 0, name: String(r.name || '').slice(0, 80), price: String(r.price || '').slice(0, 12), printedBefore: r.before === '' || r.before === null || r.before === undefined ? null : Number(r.before) };
+  });
+  var prompt = [
+    'You are helping a school PTO spirit store tracker. First decide what these pages are:',
+    '"order" = an online store cart, order confirmation, invoice or receipt for things bought to sell (usually Amazon).',
+    '"countSheet" = the printed "Inventory Count Sheet" with numbered rows that volunteers filled in by hand.',
+    '"deposit" = a bank deposit slip, deposit receipt, or bank record showing money put into the PTO account.',
+    '"other" = anything else.',
+    'Then return ONLY one JSON object, no other text, matching the type:',
+    'For "order": {"type":"order","store":"Amazon","orderDate":"YYYY-MM-DD or empty","orderTotal":number or null,"lines":[{"title":"product title as shown","name":"short clean item name with pack size, e.g. Pink ribbon bracelets (24-pack)","match":"exact existing item name if the same product, else null","packs":integer,"packCost":price of ONE pack,"unitsPerPack":pieces in one pack or null if unclear,"note":""}]}',
+    'Existing store items (exact names, for match): ' + JSON.stringify(names),
+    'Order rules: one line per distinct product; skip Saved for later, recommendations, ads, shipping and tax; never invent products; if only a line total is shown divide by quantity.',
+    'For "countSheet": {"type":"countSheet","countedBeforeBy":"","countedAfterBy":"","cash":{"start":number or null,"end":number or null,"cashApp":number or null},"notes":"","rows":[{"n":row number or null,"name":"item as written","before":number or null,"after":number or null,"sold":number or null,"note":"","unclear":true or false}]}',
+    'Rows printed on the count sheet (n = row number): ' + JSON.stringify(rows),
+    'Count sheet rules: include a row only if something is handwritten on it; for before give the final correct number (a handwritten correction beats a crossed-out printed number); null for blanks; never guess, mark unclear instead; include extra handwritten lines with n = null.',
+    'For "deposit": {"type":"deposit","date":"YYYY-MM-DD or empty","amount":number,"what":"short description, e.g. Cash deposit or Checks","note":""}',
+    'For "other": {"type":"other","what":"one short sentence saying what it looks like"}'
+  ].join('\n');
+  return callClaude(files, prompt);
+}
+
+/* One-time update, Oct 2026: adds the items on the paper count sheet that were not in the tracker yet.
+   Run it from the script editor. Safe to run again: it skips anything already there. */
+function addCountSheetItems() {
+  var want = [
+    { key: /cotton.*tee/i, name: 'Cotton spirit tees (all designs)', price: 20, onHand: 9, notes: 'From the paper count sheet' },
+    { key: /dri.?fit/i, name: 'Dri-fit spirit shirts (all designs)', price: 25, onHand: 3, notes: 'From the paper count sheet' },
+    { key: /\bhat\b/i, name: 'Lion spirit hat', price: 10, onHand: 1, notes: 'From the paper count sheet' },
+    { key: /croc/i, name: 'Croc shoe charms', price: 3, onHand: '', notes: 'Count before opening (more brought in)' },
+    { key: /pink pom ?poms?|pom ?poms?\W+pink/i, name: 'Pink pom poms', price: 2, onHand: '', notes: 'Count, or ask who ordered them. 1 for $2, 2 for $3' }
+  ];
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('The tracker is busy. Try again in a minute.');
+  try {
+    var tables = { items: readTable('items').rows }, ops = [], skipped = [];
+    want.forEach(function (w, i) {
+      if (tables.items.some(function (r) { return w.key.test(String(r.name)); })) { skipped.push(w.name); return; }
+      ops.push({ op: 'add', table: 'items', row: { id: 'it' + Date.now().toString(36) + i, name: w.name, category: 'Carry-over', price: w.price, unitCost: '', onHand: w.onHand, countedAfter: '', notes: w.notes } });
+    });
+    var paint = tables.items.filter(function (r) { return /lion paint kit/i.test(String(r.name)); })[0];
+    if (paint && !String(paint.notes || '').trim()) ops.push({ op: 'set', table: 'items', id: paint.id, field: 'notes', prev: paint.notes, value: 'Recount before the sale (more brought in)' });
+    var res = applyOps(tables, ops, 'admin', 'Count sheet update', new Date().toISOString(), true);
+    if (res.applied) { writeTable('items', tables.items); appendLog(res.log); }
+    var msg = 'Added ' + ops.filter(function (o) { return o.op === 'add'; }).length + ' items' + (skipped.length ? '. Already there: ' + skipped.join(', ') : '') + (res.conflicts.length ? '. Problems: ' + JSON.stringify(res.conflicts) : '');
+    Logger.log(msg);
+    return msg;
+  } finally { lock.releaseLock(); }
+}
+
+/* Run from the script editor to test reading a filled-in count sheet photo end to end. */
+function selfTestCountImage() {
+  var blob = UrlFetchApp.fetch('https://raw.githubusercontent.com/creekside-pto/spirit-store/main/sample-count.png').getBlob();
+  var rows = JSON.parse(UrlFetchApp.fetch('https://raw.githubusercontent.com/creekside-pto/spirit-store/main/sample-count-rows.json').getContentText());
+  var names = readTable('items').rows.map(function (r) { return String(r.name); });
+  var t = readDoc({ images: [{ media_type: 'image/png', data: Utilities.base64Encode(blob.getBytes()) }], names: names, rows: rows }, 'admin');
+  Logger.log(JSON.stringify(t));
+  return t;
+}
+
 /* Run from the script editor to test reading a real screenshot end to end. */
 function selfTestAiImage() {
   var blob = UrlFetchApp.fetch('https://raw.githubusercontent.com/creekside-pto/spirit-store/main/sample-order.png').getBlob();
@@ -276,8 +348,6 @@ function importRead(body, role) {
 }
 
 function aiExtract(images, text, names) {
-  var key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
-  if (!key) return { ok: false, error: "The order reader isn't set up yet. In the Google Sheet: Spirit Store > Set AI key." };
   var instructions = [
     'These are screenshots or text from an Amazon cart, order confirmation, or receipt for a school PTO spirit store.',
     'Existing store items (exact names): ' + JSON.stringify(names),
@@ -285,14 +355,26 @@ function aiExtract(images, text, names) {
     '{"store":"Amazon","orderDate":"YYYY-MM-DD or empty","orderTotal":number or null,"lines":[{"title":"product title as shown","name":"short clean item name with pack size, e.g. Pink ribbon bracelets (24-pack)","match":"exact existing item name if this is the same product, else null","packs":integer quantity ordered,"packCost":price of ONE pack as a number,"unitsPerPack":number of sellable pieces in one pack (24 Pack = 24, 120 pairs = 120, a single item = 1) or null if unclear,"note":"short note if anything is uncertain, else empty"}]}',
     'Rules: one line per distinct product. Skip anything under Saved for later, recommendations, ads, shipping, and tax. Never invent products. If only a line total is shown, divide by quantity to get packCost. Only set match when you are confident it is the same product.'
   ].join('\n');
-  var content = images.map(function (im) { return { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }; });
-  content.push({ type: 'text', text: instructions + (text ? '\n\nOrder text:\n' + text : '') });
+  var r = callClaude(images, instructions + (text ? '\n\nOrder text:\n' + text : ''));
+  if (!r.ok) return r;
+  if (!Array.isArray(r.result.lines)) r.result.lines = [];
+  return r;
+}
+
+function callClaude(images, prompt) {
+  var key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!key) return { ok: false, error: "The AI reader isn't set up yet. In the Google Sheet: Spirit Store > Set AI key." };
+  var content = images.map(function (im) {
+    if (im.media_type === 'application/pdf') return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: im.data } };
+    return { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } };
+  });
+  content.push({ type: 'text', text: prompt });
   var last = '';
   for (var i = 0; i < AI_MODELS.length; i++) {
     var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: 4000, messages: [{ role: 'user', content: content }] })
+      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: 8000, messages: [{ role: 'user', content: content }] })
     });
     var code = resp.getResponseCode(), raw = resp.getContentText();
     if (code === 404 || (code === 400 && /model/i.test(raw) && !/credit/i.test(raw))) { last = raw; continue; }
@@ -302,10 +384,9 @@ function aiExtract(images, text, names) {
     if (code !== 200) return { ok: false, error: 'The AI reader returned an error (' + code + ').' };
     var out = JSON.parse(raw), txt = (out.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('');
     var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-    if (a < 0 || b < a) return { ok: false, error: "Couldn't find any order lines. Try a clearer screenshot." };
+    if (a < 0 || b < a) return { ok: false, error: "Couldn't find anything to read. Try a clearer picture." };
     var result;
-    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return { ok: false, error: "Couldn't read the order. Try again or use a clearer screenshot." }; }
-    if (!Array.isArray(result.lines)) result.lines = [];
+    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return { ok: false, error: "Couldn't read that. Try again or use a clearer picture." }; }
     return { ok: true, result: result, model: AI_MODELS[i] };
   }
   return { ok: false, error: 'No AI model was available. ' + String(last).slice(0, 120) };

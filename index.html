@@ -73,6 +73,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 260px}
 .brand svg{flex:none;width:42px;height:42px}
 .brand h1{font-family:var(--f-display);font-weight:900;font-size:23px;letter-spacing:.02em;line-height:1.05;color:var(--gold);text-transform:uppercase}
+#upBtn{background:#FFFFFF;color:#0C482D;border-color:#FFFFFF;font-weight:800}
 .brand .logo{flex:none;height:60px;width:60px;background:#FFFFFF;border-radius:50%;padding:5px;object-fit:contain;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
 @media (max-width:520px){.brand .logo{height:50px;width:50px}.brand h1{font-size:20px}}
 .brand p{margin:2px 0 0;font-size:13px;opacity:.85;letter-spacing:.02em}
@@ -264,6 +265,17 @@ details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-
 .imp-sum{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 0;font-weight:700}
 .tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:6px}
 .tag.match{background:var(--good-soft);color:var(--good)}.tag.new{background:var(--pink-soft);color:var(--pink)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.cnt-line{display:grid;grid-template-columns:34px minmax(0,2fr) 92px 92px 64px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.cnt-line.unclear{background:var(--warn-soft);border-radius:8px;padding-left:6px;padding-right:6px}
+.cnt-line .n{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+.cnt-line .sys{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
+.cnt-line .sold{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.cnt-cols{display:grid;grid-template-columns:34px minmax(0,2fr) 92px 92px 64px;gap:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.cnt-cols .r{text-align:right}
+.cnt-line .lbl{display:none}
+@media (max-width:640px){.cnt-cols{display:none}.cnt-line{grid-template-columns:28px repeat(3,minmax(0,1fr))}.cnt-line .what{grid-column:2/-1}.cnt-line .b{grid-column:2}.cnt-line .lbl{display:block}.cnt-line .sold{text-align:left}}
+.chk{display:flex;align-items:center;gap:8px;font-weight:600}
 @media (max-width:640px){.imp-line .lbl{display:block}.imp-cols{display:none}.imp-line{grid-template-columns:26px repeat(3,minmax(0,1fr))}.imp-line .goes{grid-column:2/-1}.imp-line .n1{grid-column:2}.imp-head{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--band);color:var(--band-ink);padding:10px 16px;border-radius:10px;font-weight:600;z-index:40;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
 .muted{color:var(--muted)}
@@ -284,6 +296,8 @@ details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-
     <div class="hdr-right">
       <span class="chip-event" id="eventChip"><span class="dot"></span><span id="eventTxt">Pink Out</span></span>
       <span class="sync num" id="sync">Loading…</span>
+      <button class="btn on" id="upBtn" type="button">Upload</button>
+      <button class="btn" id="printBtn" type="button">Print count sheet</button>
       <button class="btn" id="adminBtn" type="button" hidden>PINs &amp; access</button>
       <button class="btn" id="lockBtn" type="button">Unlock to edit</button>
     </div>
@@ -489,14 +503,14 @@ function model(){
     const b = byItem[String(i.name||'').trim().toLowerCase()];
     const received = b ? b.units : 0;
     const unitCost = b && b.units ? b.cost / b.units : num(i.unitCost);
-    const onHand = num(i.onHand), avail = onHand + received;
+    const onHandBlank = blank(i.onHand), onHand = num(i.onHand), avail = onHand + received;
     const counted = blank(i.countedAfter) ? null : num(i.countedAfter);
     const sold = counted === null ? 0 : Math.max(avail - counted, 0);
     const rev = sold * num(i.price), cos = sold * unitCost;
     const flag = counted === null ? '' : counted === 0 ? 'SOLD OUT' : counted <= 10 ? 'Low' : '';
     T.onHand += onHand; T.received += received; T.avail += avail; T.sold += sold; T.rev += rev; T.cos += cos; T.profit += rev - cos;
     T.shelfAll += unitCost * avail; T.n++; if (counted !== null) T.counted++;
-    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, avail, counted, sold, rev, cos, profit: rev - cos, flag };
+    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, onHandBlank, avail, counted, sold, rev, cos, profit: rev - cos, flag };
   });
   const shelf = T.shelfAll - T.cos;
   const mIn = rows('moneyIn'), mOut = rows('moneyOut').map(r => ({ ...r, amt: r.link === 'purchases' ? purchTotal : num(r.amount) }));
@@ -522,7 +536,7 @@ function needsList(M){
   const out = [];
   for (const r of M.mIn) if (blank(r.amount)) out.push({ t:'money', id:'moneyIn|'+r.id, title:'Enter amount: ' + r.event, sub: fdate(r.date, true) + (r.notes ? ' · ' + r.notes : '') });
   for (const r of M.mOut) if (r.link !== 'purchases' && blank(r.amount)) out.push({ t:'money', id:'moneyOut|'+r.id, title:'Enter cost: ' + r.order, sub: r.notes || 'Money out' });
-  const uncounted = M.items.filter(i => blank(i.onHand) && !i.received);
+  const uncounted = M.items.filter(i => i.onHandBlank && !i.received);
   if (uncounted.length) out.push({ t:'count', phase:'before', title:'Count what is on hand: ' + uncounted.map(i => i.name).slice(0,3).join(', ') + (uncounted.length > 3 ? ' and ' + (uncounted.length-3) + ' more' : ''), sub:'Before the sale' });
   const evDate = parseDate(setting('eventDate')); const today = new Date(); today.setHours(0,0,0,0);
   if (M.T.counted < M.T.n) out.push({ t:'count', phase:'after', title:'After-sale counts: ' + M.T.counted + ' of ' + M.T.n + ' items counted', sub: evDate && evDate > today ? 'Do this right after the sale closes' : 'Sold, revenue and profit fill in from these' });
@@ -786,7 +800,7 @@ function vOrders(M){
   return `
   <div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Orders for ${esc(M.ev)}</h2><p>${adm ? 'Item names must match the Count tab so units flow over.' : 'Only the admin PIN can change orders.'}</p></div>
   ${itemsList}
-  ${adm ? '<div class="toolbar"><button class="btn primary" type="button" id="importBtn">Import order from screenshots</button><button class="btn small" type="button" data-addrow="purchases">Add one line by hand</button></div>' : ''}
+  ${adm ? '<div class="toolbar"><button class="btn small" type="button" data-addrow="purchases">Add one line by hand</button><span class="muted" style="font-size:13px">Or tap Upload at the top and drop in Amazon screenshots.</span></div>' : ''}
   <div class="tablewrap"><table>
     <thead><tr><th>Date</th><th>Store</th><th>Item</th><th class="r">Packs</th><th class="r">Pack cost</th><th class="r">Units/pack</th><th class="r">Units</th><th class="r">Total</th><th class="r">Per unit</th><th>Notes</th>${adm ? '<th></th>' : ''}</tr></thead>
     <tbody>${M.cur.map(tr).join('') || '<tr><td colspan="11" class="muted">No orders yet for this sale.</td></tr>'}</tbody>
@@ -1019,18 +1033,370 @@ async function savePins(){
   closeSheet(); load(true);
   toast(res.changed && res.changed.length ? 'Saved: ' + res.changed.join(', ') + '.' : 'Nothing needed changing.');
 }
-/* ---------- order import: screenshots or pasted text, read by AI, checked by the admin ---------- */
-let impImgs = [], impResult = null, impLines = [];
-function openImport(){
-  if (!isAdmin()) return;
-  impImgs = []; impResult = null; impLines = [];
-  openSheet(`<h3>Import an order</h3><p>Add screenshots of the Amazon cart or order confirmation. You'll check every line before anything is saved.</p>
-    <div class="drop" id="drop">Tap to choose screenshots, drag them here, or paste one (Ctrl+V)<input type="file" id="impFiles" accept="image/*" multiple aria-label="Choose screenshots"></div>
-    <div class="thumbs" id="thumbs"></div>
-    <details class="paste"><summary>Or paste the order text instead</summary><textarea class="in mt" id="impText" placeholder="Paste the order details here"></textarea></details>
-    <div class="err mt" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="impRead">Read order</button></div>`, true);
+/* ---------- printable count sheet (PDF) ---------- */
+const TIERS = [[10,'Spirit wear & extras'],[4,'$5 & $4'],[3,'$3 items'],[2,'$2 items'],[1,'$1 items'],[0,'Under $1']];
+function priceLabel(p){ p = num(p); return p < 1 && p > 0 ? Math.round(p*100) + '¢' : '$' + (Number.isInteger(p) ? p : p.toFixed(2)); }
+function sheetRows(M, hideZero){
+  const groups = TIERS.map(t => ({ label: t[1], min: t[0], items: [] }));
+  for (const i of M.items) {
+    const unknown = i.onHandBlank && !i.received;
+    if (hideZero && !unknown && i.avail === 0) continue;
+    const g = groups.find(g => num(i.price) >= g.min) || groups[groups.length - 1];
+    const note = [unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
+    g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before: unknown ? '' : i.avail, note });
+  }
+  let n = 0;
+  for (const g of groups) { g.items.sort((a, b) => String(a.name).localeCompare(String(b.name))); for (const it of g.items) it.n = ++n; }
+  return groups.filter(g => g.items.length);
 }
+function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector('script[src="' + src + '"]')) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load')); document.head.appendChild(s); }); }
+function openSheetExport(){
+  let rem = ''; try { rem = localStorage.getItem('css-sheet-reminder') || ''; } catch (e) {}
+  openSheet(`<h3>Print count sheet</h3><p>Makes a PDF with today's numbers. BEFORE is filled in from leftovers plus this sale's orders. Print it, take it to the sale, write the AFTER counts by hand, then upload a photo of it here.</p>
+    <form id="sheetForm" class="form">
+      <label class="chk"><input type="checkbox" id="shHide" checked> Leave off items with none left</label>
+      <div><label class="lbl" for="shRem">Reminder at the top (optional)</label><textarea class="in" id="shRem" placeholder="Example: Count the croc charms and lion paint kits before opening.">${esc(rem)}</textarea></div>
+      <div class="err" id="shErr"></div>
+      <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Download PDF</button></div>
+    </form>`);
+}
+async function exportCountSheet(hideZero, reminder){
+  try { localStorage.setItem('css-sheet-reminder', reminder); } catch (e) {}
+  const btn = document.querySelector('#sheetForm button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Making PDF…'; }
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  } catch (e) { $('#shErr').textContent = 'Could not load the PDF maker. Check the connection and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } return; }
+  const M = model(), groups = sheetRows(M, hideZero);
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const W = doc.internal.pageSize.getWidth(), GREEN = [12,72,45], LIGHT = [226,239,231];
+  let logo = null; try { const b = await fetch('lion.png').then(r => r.ok && /^image\//.test(r.headers.get('content-type') || '') ? r.blob() : null); if (b) logo = await new Promise(r => { const img = new Image(), u = URL.createObjectURL(b); img.onload = () => { const c = document.createElement('canvas'); c.width = 120; c.height = Math.round(120 * img.naturalHeight / img.naturalWidth); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); r(c.toDataURL('image/png')); }; img.onerror = () => r(null); img.src = u; }); } catch (e) {}
+  let y = 40;
+  if (logo) doc.addImage(logo, 'PNG', 40, y - 8, 30, 36);
+  doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...GREEN);
+  doc.text('Creekside Spirit Store · Inventory Count Sheet', logo ? 80 : 40, y + 6);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(60);
+  const printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  doc.text((setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '') + '   ·   printed ' + printed, logo ? 80 : 40, y + 22);
+  y += 48; doc.setTextColor(20); doc.setFontSize(10.5);
+  doc.text('Counted BEFORE by: ________________________', 40, y); doc.text('Counted AFTER by: ________________________', W/2 + 6, y);
+  y += 14;
+  if (reminder) {
+    const lines = doc.splitTextToSize('REMINDER: ' + reminder, W - 92);
+    doc.setFillColor(255, 243, 205); doc.rect(40, y, W - 80, lines.length * 13 + 10, 'F');
+    doc.setFont('helvetica','bold'); doc.setTextColor(150, 30, 30); doc.text(lines, 46, y + 15); y += lines.length * 13 + 16;
+  }
+  doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(90);
+  const help = doc.splitTextToSize('BEFORE is filled in from the leftover count plus this sale\'s orders. Check it while unpacking; cross out anything wrong and write the right number. Blank BEFORE boxes need to be counted. After the sale, write what is LEFT in the AFTER column, then take a photo of each page and tap Upload at the top of the tracker.', W - 80);
+  doc.text(help, 40, y + 4); y += help.length * 10 + 6;
+  const body = [];
+  for (const g of groups) {
+    body.push([{ content: g.label.toUpperCase(), colSpan: 7, styles: { fillColor: LIGHT, textColor: GREEN, fontStyle: 'bold', fontSize: 9, halign: 'left' } }]);
+    for (const it of g.items) body.push([String(it.n), it.name, it.price, it.before === '' ? '' : String(it.before), '', '', it.note]);
+  }
+  doc.autoTable({ startY: y, head: [['#','Item','Price','BEFORE','AFTER','SOLD','Notes']], body, theme:'grid', margin:{ left:40, right:40 },
+    styles:{ fontSize:9.5, cellPadding:{ top:5, bottom:5, left:4, right:4 }, minCellHeight:22, valign:'middle', lineColor:[150,160,155], lineWidth:0.6, textColor:20 },
+    headStyles:{ fillColor:GREEN, textColor:255, fontStyle:'bold', halign:'center' },
+    columnStyles:{ 0:{ cellWidth:24, halign:'center', textColor:110 }, 1:{ cellWidth:'auto' }, 2:{ cellWidth:40, halign:'center' }, 3:{ cellWidth:52, halign:'center', fontStyle:'bold', fontSize:11 }, 4:{ cellWidth:52 }, 5:{ cellWidth:44 }, 6:{ cellWidth:120, fontSize:7.5, textColor:100, fontStyle:'italic' } } });
+  y = doc.lastAutoTable.finalY + 22;
+  if (y > doc.internal.pageSize.getHeight() - 110) { doc.addPage(); y = 50; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...GREEN); doc.text('Cash box', 40, y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(20); y += 20;
+  doc.text('Starting cash: $__________', 40, y); doc.text('Ending cash: $__________', 220, y); doc.text('Cash App total: $__________', 400, y);
+  y += 24; doc.text('Notes: ______________________________________________________________________________', 40, y);
+  const pages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Page ' + i + ' of ' + pages + '   ·   Creekside Lions PTO', W / 2, doc.internal.pageSize.getHeight() - 20, { align:'center' }); }
+  const fname = 'Count sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf';
+  doc.save(fname);
+  closeSheet(); toast('Count sheet downloaded. Print it and take it to the sale.');
+}
+
+/* ---------- one Upload for everything ---------- */
+let upCsv = null;
+function openUpload(){
+  if (!auth) { openUnlock(); setTimeout(() => toast('Unlock first, then tap Upload.'), 300); return; }
+  impImgs = []; upCsv = null; impResult = null; impLines = []; cntResult = null; cntLines = [];
+  openSheet(`<h3>Upload</h3><p>Drop in any of these and the tracker works out which it is. You'll check everything before it saves.</p>
+    <ul class="muted" style="margin:0 0 12px;padding-left:18px;font-size:14px;line-height:1.6">
+      <li><b>Amazon order</b> screenshots or PDF: adds the items and costs to Orders${isAdmin() ? '' : ' (admin)'}</li>
+      <li><b>Filled count sheet</b> photos: fills in the after-sale counts and cash box</li>
+      <li><b>Cash App report</b> (the CSV from Cash App > Activity > Export): adds Cash App money to Money In${isAdmin() ? '' : ' (admin)'}</li>
+      <li><b>Bank deposit slip</b> photo: adds the deposit to Money In${isAdmin() ? '' : ' (admin)'}</li>
+    </ul>
+    <div class="drop" id="drop">Tap to take a photo or choose files, drag them here, or paste<input type="file" id="impFiles" accept="image/*,application/pdf,.pdf,.csv,text/csv" multiple aria-label="Choose files"></div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="err mt" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="upRead">Read it</button></div>`, true);
+}
+function fileToBase64(file){ return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); }); }
+async function readUpload(){
+  if (upCsv) return startCashApp(upCsv.text, upCsv.name);
+  if (!impImgs.length) { $('#iErr').textContent = 'Add a photo, screenshot, PDF or Cash App report first.'; return; }
+  const btn = $('#upRead'); btn.disabled = true; btn.textContent = 'Reading… (10 to 40 seconds)'; $('#iErr').textContent = '';
+  const M = model(), rowsAll = sheetRows(M, false).flatMap(g => g.items);
+  let res;
+  try { res = await apiPost({ action:'readDoc', pin: auth.pin, name: who, images: impImgs.map(i => ({ media_type: i.media_type, data: i.data })), names: M.items.map(i => String(i.name)), rows: rowsAll.map(r => ({ n: r.n, name: r.name, price: r.price, before: r.before })) }); }
+  catch (e) { res = { ok:false, error:'Could not reach the tracker. Check the connection and try again.' }; }
+  const fail = m => { $('#iErr').textContent = m; btn.disabled = false; btn.textContent = 'Read it'; };
+  if (!res.ok) return fail(res.error || 'Could not read that.');
+  const r = res.result || {};
+  if (r.type === 'order') {
+    if (!isAdmin()) return fail('That looks like an order. Only the admin PIN can add orders.');
+    impResult = r; return buildImportLines();
+  }
+  if (r.type === 'countSheet') { cntResult = r; return buildCountLines(M, rowsAll); }
+  if (r.type === 'deposit') {
+    if (!isAdmin()) return fail('That looks like a bank deposit. Only the admin PIN can add money in.');
+    return renderDeposit(r);
+  }
+  return fail("That doesn't look like an order, a count sheet or a deposit" + (r.what ? ' (it looks like: ' + r.what + ')' : '') + '. Try a clearer photo, or a different file.');
+}
+
+/* ---------- bank deposit ---------- */
+let depData = null;
+function renderDeposit(r){
+  depData = r;
+  const sales = rows('sales').slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '';
+  const sameDay = sales.find(s => s.date === date);
+  openSheet(`<h3>Bank deposit</h3><p>Check it, then save. It goes on the Money tab under Money in.</p>
+    <div class="form">
+      <div class="imp-head"><div><label class="lbl" for="dDate">Deposit date</label><input class="in" id="dDate" type="date" value="${esc(date)}"></div>
+      <div><label class="lbl" for="dAmt">Amount</label><input class="in numin" id="dAmt" inputmode="decimal" value="${esc(r.amount ?? '')}"></div></div>
+      <div><label class="lbl" for="dWhat">What it's for</label><input class="in" id="dWhat" value="${esc((sameDay ? sameDay.theme + ' ' : '') + (r.what || 'Cash deposit'))}"></div>
+      <p class="muted" style="margin:0;font-size:13px">Spirit store deposits are counted net of the $${esc(setting('startCash') || 150)} starting cash, so take that out if this deposit includes it.</p>
+      <div><label class="lbl" for="dNote">Notes</label><input class="in" id="dNote" value="${esc(r.note || 'From a deposit slip photo')}"></div>
+    </div>
+    <div class="err" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="depSave">Save deposit</button></div>`);
+}
+async function saveDeposit(){
+  const date = $('#dDate').value, amt = Number(String($('#dAmt').value).replace(/[$,]/g, '')), what = $('#dWhat').value.trim();
+  if (!date) { $('#iErr').textContent = 'Add the deposit date.'; return; }
+  if (!(amt > 0)) { $('#iErr').textContent = 'Add the amount.'; return; }
+  const blankRow = rows('moneyIn').find(m => m.date === date && blank(m.amount) && !/cash app/i.test(m.event || ''));
+  const ops = blankRow
+    ? [{ op:'set', table:'moneyIn', id: blankRow.id, field:'amount', prev:'', value: amt }].concat(blankRow.notes ? [] : [{ op:'set', table:'moneyIn', id: blankRow.id, field:'notes', prev: blankRow.notes ?? '', value: $('#dNote').value }])
+    : [{ op:'add', table:'moneyIn', row:{ id:'mi' + Date.now().toString(36), date, event: what || 'Deposit', amount: amt, notes: $('#dNote').value } }];
+  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }).catch(() => ({ ok:false, error:'Could not reach the tracker.' }));
+  if (!res.ok || (res.conflicts || []).length) { $('#iErr').textContent = (res.error || 'Nothing saved; something changed at the same moment.') + ' Try again.'; if (res.data) data = res.data; return; }
+  data = res.data; closeSheet(); tab = 'money'; render(); toast(blankRow ? 'Filled in ' + blankRow.event + ': ' + money(amt) + '.' : 'Added ' + money(amt) + ' to Money in.');
+}
+
+/* ---------- Cash App report (CSV) ---------- */
+let caPays = []; const caOpen = new Set();
+const CA_CATS = [['store','Spirit store'],['sponsors','Class sponsors'],['shirts','Spirit shirts'],['other','Other fundraising'],['skip','Leave out']];
+function csvParse(text){
+  const out = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; row.push(cell); out.push(row); row = []; cell = ''; } else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); out.push(row); }
+  return out.filter(r => r.length > 1);
+}
+function guessCat(note){
+  const s = String(note || '').toLowerCase();
+  if (/shirt|\btee|dri ?-?fit|dry ?fit|youth|adult|\b(xs|sm|med|lg|xl|xxl)\b|size/.test(s)) return ['shirts', false];
+  if (/christmas|holiday/.test(s)) return ['other', false];
+  if (/sponsor|face ?paint|painting|paint the school/.test(s)) return ['sponsors', false];
+  if (/spirit|store|🦁|\bss\b|squish|bracelet|necklace|paint kit|hair|pom|glasses|haul|goods/.test(s)) return ['store', false];
+  if (/\b(mrs?|ms|miss)\.?\s|grade|class/.test(s)) return ['sponsors', true];
+  return ['store', true];
+}
+function startCashApp(text, name){
+  if (!isAdmin()) { $('#iErr').textContent = 'Cash App reports need the admin PIN.'; return; }
+  const rowsCsv = csvParse(text.replace(/^\ufeff/, ''));
+  const h = (rowsCsv[0] || []).map(x => x.trim());
+  const ix = k => h.indexOf(k);
+  if (ix('Transaction ID') < 0 || ix('Net Amount') < 0 || ix('Amount') < 0) { $('#iErr').textContent = "That CSV isn't a Cash App report. In Cash App: Activity > Statements > Export CSV."; return; }
+  const seen = new Set(String(setting('cashappSeen') || '').split(',').filter(Boolean));
+  const salesByDate = new Map(rows('sales').map(s => [String(s.date), s]));
+  const m = v => Number(String(v || '').replace(/[$,\s]/g, '')) || 0;
+  caPays = rowsCsv.slice(1).map(r => ({ date: String(r[ix('Date')] || '').slice(0, 10), id: r[ix('Transaction ID')], type: r[ix('Transaction Type')], amount: m(r[ix('Amount')]), net: m(r[ix('Net Amount')]), fee: m(r[ix('Fee')]), status: r[ix('Status')], note: r[ix('Notes')] || '', from: r[ix('Name of sender/receiver')] || '' }))
+    .filter(p => p.type === 'P2P' && p.amount > 0 && /complete/i.test(p.status));
+  const firstSale = rows('sales').map(s => s.date).filter(Boolean).sort()[0] || '';
+  const salesSorted = rows('sales').filter(s => s.date).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const live = liveSale();
+  caPays.forEach(p => {
+    const [c, unsure] = guessCat(p.note); p.cat = c; p.unsure = unsure; p.dup = seen.has(p.id); p.old = !!(firstSale && p.date < firstSale);
+    const s = salesSorted.find(s => String(s.date) >= p.date) || live || salesSorted[salesSorted.length - 1];
+    p.saleDate = s ? String(s.date) : p.date; p.saleName = s ? s.theme : ''; p.early = p.saleDate !== p.date;
+  });
+  if (!caPays.length) { $('#iErr').textContent = 'No incoming Cash App payments found in that report.'; return; }
+  renderCashApp();
+}
+function caLabel(cat){ return 'Cash App - ' + CA_CATS.find(c => c[0] === cat)[1].toLowerCase(); }
+function caExisting(date, cat){
+  const l = caLabel(cat).toLowerCase(), list = rows('moneyIn').filter(m => m.date === date);
+  return list.find(m => String(m.event || '').trim().toLowerCase() === l)
+    || (cat === 'store' ? list.find(m => /cash app/i.test(m.event || '') && /spirit store|store/i.test(m.event || '') && !/sponsor|shirt/i.test(m.event || '')) : null)
+    || (cat === 'sponsors' ? list.find(m => /cash app/i.test(m.event || '') && /sponsor/i.test(m.event || '')) : null) || null;
+}
+function caGroups(includeShirts){
+  const g = new Map();
+  for (const p of caPays) {
+    if (p.dup || p.cat === 'skip' || p.old || (p.cat === 'shirts' && !includeShirts)) continue;
+    const k = p.saleDate + '|' + p.cat; if (!g.has(k)) g.set(k, { date: p.saleDate, saleName: p.saleName, cat: p.cat, pays: [], gross: 0, net: 0 });
+    const x = g.get(k); x.pays.push(p); x.gross += p.amount; x.net += p.net;
+  }
+  return [...g.values()].sort((a, b) => b.date.localeCompare(a.date) || a.cat.localeCompare(b.cat));
+}
+function renderCashApp(){
+  const useNet = ($('#caNet') ? $('#caNet').checked : true), withShirts = ($('#caShirts') ? $('#caShirts').checked : false);
+  const shirtCount = caPays.filter(p => p.cat === 'shirts' && !p.dup && !p.old).length;
+  const dups = caPays.filter(p => p.dup).length, old = caPays.filter(p => p.old && !p.dup).length;
+  const salesByDate = new Map(rows('sales').map(s => [String(s.date), s]));
+  const groups = caGroups(withShirts);
+  const catSel = (p, i) => `<select class="in" data-ca="${i}" aria-label="Category">${CA_CATS.map(([k, n]) => `<option value="${k}" ${p.cat === k ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
+  const body = groups.map((g, gi) => {
+    const sale = salesByDate.get(g.date);
+    const existing = caExisting(g.date, g.cat);
+    const unsure = g.pays.filter(p => p.unsure).length, early = g.pays.filter(p => p.early).length;
+    const action = existing ? (blank(existing.amount) ? 'Fills in the blank "' + existing.event + '" line' : (/cash app import/i.test(existing.notes || '') ? 'Adds to "' + existing.event + '" (now ' + money(existing.amount) + ')' : 'Replaces "' + existing.event + '" (now ' + money(existing.amount) + ', typed by hand)')) : 'Adds a new line';
+    return `<div class="cnt-line" style="grid-template-columns:minmax(0,1fr) auto">
+      <div><b>${esc(fdate(g.date, true))}</b> · ${esc(CA_CATS.find(c => c[0] === g.cat)[1])} ${sale ? '<span class="tag match">' + esc(sale.theme) + ' sale</span>' : '<span class="tag">Not a sale day</span>'} ${unsure ? '<span class="tag warn">' + unsure + ' to check</span>' : ''}
+        <span class="sys">${g.pays.length} payment${g.pays.length === 1 ? '' : 's'}${early ? ' (' + early + ' paid ahead of the sale)' : ''} · ${esc(action)} · <button class="btn small ghost" type="button" data-cagrp="${gi}" data-cakey="${esc(g.date + '|' + g.cat)}" style="min-height:24px;padding:0 6px">Show payments</button></span>
+        <div id="cag-${gi}" ${caOpen.has(g.date + '|' + g.cat) ? '' : 'hidden'}>${g.pays.map(p => { const i = caPays.indexOf(p); return `<div class="imp-line" style="grid-template-columns:minmax(0,1fr) 150px;padding:6px 0"><div style="font-size:13px">${esc(fdate(p.date))} · ${money(p.amount)} · ${esc(p.from)} · <i>"${esc(p.note)}"</i>${p.unsure ? ' <span class="tag warn">best guess</span>' : ''}</div>${catSel(p, i)}</div>`; }).join('')}</div></div>
+      <div class="num" style="font-weight:800;font-size:16px">${money(useNet ? g.net : g.gross)}</div></div>`;
+  }).join('');
+  openSheet(`<h3>Cash App report</h3><p>Payments are grouped by day and type. Open a group to see each payment and move any that are in the wrong group. Yellow means a best guess, so check those.</p>
+    <label class="chk"><input type="checkbox" id="caNet" ${useNet ? 'checked' : ''}> Use what actually landed after Cash App fees (recommended)</label>
+    ${shirtCount ? `<label class="chk mt"><input type="checkbox" id="caShirts" ${withShirts ? 'checked' : ''}> Include ${shirtCount} spirit shirt payment${shirtCount === 1 ? '' : 's'}</label>` : ''}
+    <p class="muted" style="font-size:13px;margin:6px 0 0">${[dups ? dups + ' payment' + (dups === 1 ? ' was' : 's were') + ' already imported before and are skipped' : '', old ? old + ' older payment' + (old === 1 ? '' : 's') + ' from before this year\'s first sale are left out' : '', shirtCount && !withShirts ? 'Spirit shirt payments are left out unless you tick the box above' : ''].filter(Boolean).join('. ')}.</p>
+    <div>${body || '<div class="empty-state">Nothing new to add from this report.</div>'}</div>
+    <div class="err" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button>${body ? '<button class="btn primary" type="button" id="caSave">Save to Money in</button>' : ''}</div>`, true);
+}
+async function saveCashApp(){
+  const useNet = $('#caNet').checked, withShirts = $('#caShirts') ? $('#caShirts').checked : false;
+  const groups = caGroups(withShirts);
+  const ops = []; const r2 = v => Math.round(v * 100) / 100;
+  for (const g of groups) {
+    const label = caLabel(g.cat);
+    const amt = r2(useNet ? g.net : g.gross);
+    const note = 'Cash App import · ' + g.pays.length + ' payment' + (g.pays.length === 1 ? '' : 's') + (useNet ? ' after fees' : '');
+    const exRow = caExisting(g.date, g.cat), ex = exRow ? serverRow('moneyIn', exRow.id) : null;
+    if (ex) {
+      const add = !blank(ex.amount) && /cash app import/i.test(ex.notes || '');
+      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'amount', prev: ex.amount ?? '', value: add ? r2(num(ex.amount) + amt) : amt });
+      ops.push({ op:'set', table:'moneyIn', id: ex.id, field:'notes', prev: ex.notes ?? '', value: note });
+    } else ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + Date.now().toString(36) + Math.floor(Math.random()*1e6), date: g.date, event: label, amount: amt, notes: note } });
+  }
+  const ids = new Set(String(setting('cashappSeen') || '').split(',').filter(Boolean));
+  for (const g of groups) for (const p of g.pays) ids.add(p.id);
+  const seenRow = serverRow('settings', 'cashappSeen'); const val = [...ids].join(',');
+  ops.push(seenRow ? { op:'set', table:'settings', id:'cashappSeen', field:'value', prev: seenRow.value ?? '', value: val } : { op:'add', table:'settings', row:{ id:'cashappSeen', value: val } });
+  const btn = $('#caSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }).catch(() => ({ ok:false, error:'Could not reach the tracker. Nothing was saved.' }));
+  if (!res.ok || (res.conflicts || []).length) { if (res.data) data = res.data; $('#iErr').textContent = (res.error || 'Nothing saved; something changed at the same moment.') + ' Try again.'; btn.disabled = false; btn.textContent = 'Save to Money in'; return; }
+  data = res.data; closeSheet(); tab = 'money'; render(); toast('Cash App saved: ' + groups.length + ' line' + (groups.length === 1 ? '' : 's') + ' on Money in.');
+}
+
+/* ---------- filled count sheet: AI reads the handwriting, a person checks it ---------- */
+let cntResult = null, cntLines = [];
+function buildCountLines(M, rowsAll){
+  const btn = $('#upRead');
+  const byName = new Map(M.items.map(i => [String(i.name).trim().toLowerCase(), i]));
+  const byN = new Map(rowsAll.map(r => [r.n, r.id]));
+  cntLines = (cntResult.rows || []).map(r => {
+    let item = r.name ? byName.get(String(r.name).trim().toLowerCase()) : null;
+    if (!item && r.n && byN.has(Number(r.n))) item = M.items.find(i => i.id === byN.get(Number(r.n)));
+    if (!item && r.name) { const k = String(r.name).toLowerCase(); item = M.items.find(i => String(i.name).toLowerCase().includes(k) || k.includes(String(i.name).toLowerCase().replace(/\s*\(.*\)$/, ''))) || null; }
+    return { on: true, itemId: item ? item.id : '', n: r.n || '', name: r.name || '', before: r.before ?? '', after: r.after ?? '', sold: r.sold ?? '', note: r.note || '', unclear: !!r.unclear, newPrice: '' };
+  });
+  if (!cntLines.length) { $('#iErr').textContent = "Couldn't find any handwritten counts. Try a clearer photo of the whole page."; if (btn) { btn.disabled = false; btn.textContent = 'Read it'; } return; }
+  renderCountReview();
+}
+function renderCountReview(){
+  const M = model(), itemById = new Map(M.items.map(i => [i.id, i]));
+  const names = M.items.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const cash = (cntResult && cntResult.cash) || {};
+  const line = (l, i) => {
+    const it = itemById.get(l.itemId);
+    const sysBefore = it ? (it.onHandBlank && !it.received ? '' : it.avail) : '';
+    const b = blank(l.before) ? sysBefore : num(l.before), a = blank(l.after) ? null : num(l.after);
+    const sold = a === null || blank(b) ? '' : Math.max(num(b) - a, 0);
+    const flags = [];
+    if (l.unclear) flags.push('<span class="tag warn">Hard to read, check it</span>');
+    if (it && !blank(l.before) && num(l.before) !== num(sysBefore)) flags.push('<span class="tag warn">Before changed from ' + (blank(sysBefore) ? 'blank' : sysBefore) + '</span>');
+    if (!blank(l.sold) && sold !== '' && num(l.sold) !== sold) flags.push('<span class="tag warn">Sheet says ' + num(l.sold) + ' sold</span>');
+    if (a !== null && !blank(b) && a > num(b)) flags.push('<span class="tag warn">After is more than before</span>');
+    if (!it) flags.push('<span class="tag new">Not in the tracker</span>');
+    return `<div class="cnt-line ${l.unclear ? 'unclear' : ''}" data-line="${i}">
+      <span class="n">${esc(l.n || '+')}</span>
+      <div class="what"><select class="in" data-cnt="${i}|itemId" aria-label="Which item">
+          <option value="">${isAdmin() ? 'Add as a new item' : 'Skip this line'}</option>${names.map(n => `<option value="${esc(n.id)}" ${n.id === l.itemId ? 'selected' : ''}>${esc(n.name)}</option>`).join('')}
+          ${isAdmin() ? '<option value="__skip">Skip this line</option>' : ''}</select>
+        <span class="sys">Sheet: ${esc(l.name)}${l.note ? ' · "' + esc(l.note) + '"' : ''} ${flags.join(' ')}</span>
+        ${!l.itemId && isAdmin() ? `<div class="newfields"><input class="in" data-cnt="${i}|name" value="${esc(l.name)}" aria-label="New item name"><input class="in numin" data-cnt="${i}|newPrice" value="${esc(l.newPrice)}" inputmode="decimal" placeholder="Sell $" aria-label="Sell price"></div>` : ''}
+      </div>
+      <div class="b"><span class="lbl">Before</span><input class="in numin" data-cnt="${i}|before" value="${esc(blank(l.before) ? sysBefore : l.before)}" inputmode="numeric" aria-label="Before count"></div>
+      <div><span class="lbl">After</span><input class="in numin ${blank(l.after) ? 'empty' : ''}" data-cnt="${i}|after" value="${esc(l.after)}" inputmode="numeric" aria-label="After count"></div>
+      <div class="sold" data-cntsold="${i}"><span class="lbl">Sold</span>${sold === '' ? '<span class="blank">·</span>' : sold}</div>
+    </div>`;
+  };
+  openSheet(`<h3>Check the count sheet</h3><p>Yellow rows were hard to read or don't add up; take a second look at those. Fix any number by typing over it. Rows that weren't written on stay as they are.</p>
+    <div class="imp-head"><div><label class="lbl" for="cBy1">Counted before by</label><input class="in" id="cBy1" value="${esc(cntResult.countedBeforeBy || '')}"></div>
+      <div><label class="lbl" for="cBy2">Counted after by</label><input class="in" id="cBy2" value="${esc(cntResult.countedAfterBy || '')}"></div>
+      <div><label class="lbl" for="cStart">Starting cash</label><input class="in numin" id="cStart" inputmode="decimal" value="${esc(cash.start ?? '')}"></div>
+      <div><label class="lbl" for="cEnd">Ending cash</label><input class="in numin" id="cEnd" inputmode="decimal" value="${esc(cash.end ?? '')}"></div>
+      <div><label class="lbl" for="cApp">Cash App total</label><input class="in numin" id="cApp" inputmode="decimal" value="${esc(cash.cashApp ?? '')}"></div>
+      <div><label class="lbl" for="cNotes">Notes</label><input class="in" id="cNotes" value="${esc(cntResult.notes || '')}"></div></div>
+    <div class="cnt-cols"><span>#</span><span>Item</span><span>Before</span><span>After</span><span class="r">Sold</span></div>
+    <div>${cntLines.map(line).join('')}</div>
+    <div class="err" id="iErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="cntSave">Save counts</button></div>`, true);
+}
+function cntSyncInputs(){ document.querySelectorAll('[data-cnt]').forEach(el => { const [i, f] = el.dataset.cnt.split('|'); const l = cntLines[+i]; if (l && f !== 'itemId') l[f] = el.value; }); }
+async function saveCountSheet(){
+  cntSyncInputs();
+  const M = model(), itemById = new Map(M.items.map(i => [i.id, i]));
+  const ops = [], seen = new Set();
+  const setOp = (table, id, field, value) => { const r = serverRow(table, id); if (!r) return; if (normVal(table, field, r[field], id) === normVal(table, field, value, id)) return; ops.push({ op:'set', table, id, field, prev: r[field] ?? '', value }); };
+  for (const l of cntLines) {
+    if (l.itemId === '__skip') continue;
+    const it = itemById.get(l.itemId);
+    const before = String(l.before).trim(), after = String(l.after).trim();
+    if (before !== '' && !(Number(before) >= 0)) { $('#iErr').textContent = 'Before needs a number for: ' + (it ? it.name : l.name); return; }
+    if (after !== '' && !(Number(after) >= 0)) { $('#iErr').textContent = 'After needs a number for: ' + (it ? it.name : l.name); return; }
+    if (it) {
+      if (seen.has(it.id)) { $('#iErr').textContent = it.name + ' is on two lines. Pick a different item or skip one.'; return; }
+      seen.add(it.id);
+      const sysBefore = it.onHandBlank && !it.received ? '' : it.avail;
+      if (before !== '' && Number(before) !== num(sysBefore)) {
+        const onHand = Number(before) - it.received;
+        if (onHand < 0) { $('#iErr').textContent = it.name + ': before (' + before + ') is less than the ' + it.received + ' that arrived in this sale\'s orders. Fix before, or fix the order.'; return; }
+        setOp('items', it.id, 'onHand', onHand);
+      }
+      if (after !== '') setOp('items', it.id, 'countedAfter', Number(after));
+    } else if (isAdmin()) {
+      const nm = String(l.name || '').trim(), price = Number(String(l.newPrice).replace(/[$,]/g, ''));
+      if (!nm) continue;
+      if (String(l.newPrice).trim() === '' || !(price >= 0)) { $('#iErr').textContent = 'Add a sell price for the new item "' + nm + '", or choose Skip this line.'; return; }
+      ops.push({ op:'add', table:'items', row:{ id:'it' + Date.now().toString(36) + Math.floor(Math.random()*1e6), name: nm, category:'Carry-over', price, unitCost:'', onHand: before === '' ? '' : Number(before), countedAfter: after === '' ? '' : Number(after), notes:'Added from a count sheet' } });
+    }
+  }
+  const v = id => $(id).value.trim();
+  const by = [v('#cBy1') && 'before: ' + v('#cBy1'), v('#cBy2') && 'after: ' + v('#cBy2')].filter(Boolean).join(' · ');
+  if (v('#cStart') !== '') setOp('cash', 'start', 'value', v('#cStart'));
+  if (v('#cEnd') !== '') setOp('cash', 'end', 'value', v('#cEnd'));
+  if (v('#cApp') !== '') setOp('cash', 'cashapp', 'value', v('#cApp'));
+  if (by) setOp('cash', 'countedBy', 'value', by);
+  if (v('#cNotes')) setOp('cash', 'notes', 'value', v('#cNotes'));
+  if (!ops.length) { closeSheet(); toast('Nothing new to save. The tracker already matches the sheet.'); return; }
+  const btn = $('#cntSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  let res;
+  try { res = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); }
+  catch (e) { $('#iErr').textContent = 'Could not reach the tracker. Nothing was saved. Try again.'; btn.disabled = false; btn.textContent = 'Save counts'; return; }
+  if (!res.ok || (res.conflicts || []).length) { if (res.data) data = res.data; $('#iErr').textContent = (res.error || 'Someone changed a count at the same moment, so nothing was saved.') + ' Tap Save counts again.'; btn.disabled = false; btn.textContent = 'Save counts'; return; }
+  data = res.data; closeSheet(); tab = 'overview'; render();
+  toast('Count sheet saved: ' + ops.length + ' update' + (ops.length === 1 ? '' : 's') + '. Sales and profit are updated.');
+}
+
+/* ---------- order import: screenshots or PDF, read by AI, checked by the admin ---------- */
+let impImgs = [], impResult = null, impLines = [];
 function shrinkImage(file){
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -1046,26 +1412,27 @@ function shrinkImage(file){
   });
 }
 async function addImpFiles(files){
-  const list = [...files].filter(f => /^image\//.test(f.type));
-  for (const f of list) { if (impImgs.length >= 8) { $('#iErr').textContent = 'Up to 8 screenshots at a time.'; break; } try { impImgs.push(await shrinkImage(f)); } catch (e) { $('#iErr').textContent = 'One of those files could not be opened as a picture.'; } }
-  const t = $('#thumbs'); if (t) t.innerHTML = impImgs.map((im, i) => `<figure><img src="${im.preview}" alt="Screenshot ${i+1}"><button type="button" data-imprm="${i}" aria-label="Remove screenshot">×</button></figure>`).join('');
+  for (const f of [...files]) {
+    const nm = String(f.name || '').toLowerCase();
+    if (/\.csv$/.test(nm) || /csv/.test(f.type)) { upCsv = { name: f.name, text: await f.text() }; continue; }
+    if (impImgs.length >= 8) { $('#iErr').textContent = 'Up to 8 files at a time.'; break; }
+    if (f.type === 'application/pdf' || /\.pdf$/.test(nm)) { if (f.size > 8e6) { $('#iErr').textContent = 'That PDF is too big. Use a screenshot instead.'; continue; } impImgs.push({ media_type:'application/pdf', data: await fileToBase64(f), preview: '', label: f.name }); continue; }
+    if (/^image\//.test(f.type)) { try { impImgs.push(await shrinkImage(f)); } catch (e) { $('#iErr').textContent = 'One of those files could not be opened as a picture.'; } }
+    else $('#iErr').textContent = 'Use photos, screenshots, PDFs or a Cash App CSV.';
+  }
+  const t = $('#thumbs'); if (!t) return;
+  t.innerHTML = impImgs.map((im, i) => `<figure>${im.preview ? `<img src="${im.preview}" alt="File ${i+1}">` : `<div class="drop" style="height:76px;padding:10px;display:grid;place-items:center;font-size:12px">PDF<br>${esc(im.label || '')}</div>`}<button type="button" data-imprm="${i}" aria-label="Remove file">×</button></figure>`).join('')
+    + (upCsv ? `<figure><div class="drop" style="height:76px;padding:10px;display:grid;place-items:center;font-size:12px">CSV<br>${esc(upCsv.name)}</div><button type="button" data-csvrm="1" aria-label="Remove file">×</button></figure>` : '');
 }
-async function readImport(){
-  const text = ($('#impText') || {}).value || '';
-  if (!impImgs.length && !text.trim()) { $('#iErr').textContent = 'Add a screenshot or paste the order text first.'; return; }
-  const btn = $('#impRead'); btn.disabled = true; btn.textContent = 'Reading… (10 to 30 seconds)'; $('#iErr').textContent = '';
-  let res;
-  try { res = await apiPost({ action:'importRead', pin: auth.pin, name: who, images: impImgs.map(i => ({ media_type: i.media_type, data: i.data })), text }); }
-  catch (e) { res = { ok:false, error:'Could not reach the tracker. Check the connection and try again.' }; }
-  if (!res.ok) { $('#iErr').textContent = res.error || 'Could not read the order.'; btn.disabled = false; btn.textContent = 'Read order'; return; }
-  impResult = res.result || { lines: [] };
+function buildImportLines(){
+  const btn = $('#upRead');
   const names = rows('items').map(i => String(i.name));
   const find = n => { if (!n) return ''; const k = String(n).trim().toLowerCase(); return names.find(x => x.trim().toLowerCase() === k) || ''; };
   impLines = (impResult.lines || []).map(l => {
     const target = find(l.match) || find(l.name);
     return { on: true, title: l.title || l.name || '', target, newName: l.name || l.title || '', price: '', packs: l.packs || 1, packCost: l.packCost ?? '', unitsPerPack: l.unitsPerPack ?? '', note: l.note || '' };
   });
-  if (!impLines.length) { $('#iErr').textContent = "Couldn't find any items in that. Try a clearer or closer screenshot."; btn.disabled = false; btn.textContent = 'Read order'; return; }
+  if (!impLines.length) { $('#iErr').textContent = "Couldn't find any items in that. Try a clearer or closer screenshot."; if (btn) { btn.disabled = false; btn.textContent = 'Read it'; } return; }
   renderImportReview();
 }
 function renderImportReview(){
@@ -1090,7 +1457,7 @@ function renderImportReview(){
     <div id="impLines">${impLines.map(line).join('')}</div>
     <div class="imp-sum num"><span id="impTotal"></span><span class="muted">${impResult && impResult.orderTotal ? 'Order total on the screenshot: ' + money(impResult.orderTotal) + ' (may include tax or shipping)' : ''}</span></div>
     <div class="err" id="iErr"></div>
-    <div class="acts"><button class="btn ghost" type="button" id="impBack">Start over</button><button class="btn primary" type="button" id="impSave">Save order</button></div>`, true);
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="upBack">Start over</button><button class="btn primary" type="button" id="impSave">Save order</button></div>`, true);
   updateImpTotal();
 }
 function updateImpTotal(){ const t = impLines.filter(l => l.on).reduce((s, l) => s + num(l.packs) * num(l.packCost), 0); const n = impLines.filter(l => l.on).length; const el = $('#impTotal'); if (el) el.textContent = n + ' line' + (n === 1 ? '' : 's') + ' · ' + money(t); }
@@ -1180,12 +1547,19 @@ function go(t){ tab = t; store.set('css-tab', t); try { history.replaceState(nul
 /* ---------- events ---------- */
 document.addEventListener('input', e => {
   if (e.target.dataset && e.target.dataset.imp) { const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (l && f !== 'on' && f !== 'target') { l[f] = e.target.value; updateImpTotal(); } return; }
+  if (e.target.dataset && e.target.dataset.cnt) { const [i, f] = e.target.dataset.cnt.split('|'); const l = cntLines[+i]; if (l && f !== 'itemId') { l[f] = e.target.value; if (f === 'before' || f === 'after') { const it = (data.items || []).find(x => x.id === l.itemId); const M = model(); const mi = M.items.find(x => x.id === l.itemId); const sb = mi ? (mi.onHandBlank && !mi.received ? '' : mi.avail) : ''; const bb = blank(l.before) ? sb : num(l.before); const el = document.querySelector('[data-cntsold="' + i + '"]'); if (el) el.innerHTML = '<span class="lbl">Sold</span>' + (blank(l.after) || blank(bb) ? '<span class="blank">·</span>' : Math.max(num(bb) - num(l.after), 0)); } } return; }
   if (e.target.dataset && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'q') { query = e.target.value; filterItems(); }
 });
 document.addEventListener('change', e => {
   if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'impFiles') { addImpFiles(e.target.files); e.target.value = ''; }
+  if (e.target.dataset && e.target.dataset.ca !== undefined) { const p = caPays[+e.target.dataset.ca]; if (p) { p.cat = e.target.value; p.unsure = false; caOpen.add(p.date + '|' + p.cat); renderCashApp(); } return; }
+  if (e.target.id === 'caNet' || e.target.id === 'caShirts') { renderCashApp(); return; }
+  if (e.target.dataset && e.target.dataset.cnt) {
+    const [i, f] = e.target.dataset.cnt.split('|'); const l = cntLines[+i]; if (!l) return;
+    if (f === 'itemId') { cntSyncInputs(); l.itemId = e.target.value; const keep = ['#cBy1','#cBy2','#cStart','#cEnd','#cApp','#cNotes'].map(k => [k, $(k).value]); cntResult.countedBeforeBy = keep[0][1]; cntResult.countedAfterBy = keep[1][1]; cntResult.cash = { start: keep[2][1], end: keep[3][1], cashApp: keep[4][1] }; cntResult.notes = keep[5][1]; renderCountReview(); }
+  }
   if (e.target.dataset && e.target.dataset.imp) {
     const [i, f] = e.target.dataset.imp.split('|'); const l = impLines[+i]; if (!l) return;
     if (f === 'on') { l.on = e.target.checked; e.target.closest('.imp-line').classList.toggle('off', !l.on); updateImpTotal(); }
@@ -1236,11 +1610,17 @@ document.addEventListener('click', e => {
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'saleEditBtn') return openSaleEdit();
   if (b.id === 'adminBtn') return openPins();
-  if (b.id === 'importBtn') return openImport();
-  if (b.id === 'impRead') return readImport();
-  if (b.id === 'impBack') return openImport();
+  if (b.id === 'printBtn') return openSheetExport();
+  if (b.id === 'upBtn') return openUpload();
+  if (b.id === 'upRead') return readUpload();
+  if (b.id === 'upBack') return openUpload();
+  if (b.id === 'caSave') return saveCashApp();
+  if (b.id === 'depSave') return saveDeposit();
+  if (b.dataset.cagrp !== undefined) { const g = document.getElementById('cag-' + b.dataset.cagrp); if (g) { g.hidden = !g.hidden; if (g.hidden) caOpen.delete(b.dataset.cakey); else caOpen.add(b.dataset.cakey); } return; }
+  if (b.id === 'cntSave') return saveCountSheet();
   if (b.id === 'impSave') return saveImport();
   if (b.dataset.imprm !== undefined) { impImgs.splice(+b.dataset.imprm, 1); addImpFiles([]); return; }
+  if (b.dataset.csvrm !== undefined) { upCsv = null; addImpFiles([]); return; }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();
@@ -1257,6 +1637,7 @@ document.addEventListener('submit', async e => {
     } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }
   }
   if (e.target.id === 'pinForm') { savePins(); return; }
+  if (e.target.id === 'sheetForm') { exportCountSheet($('#shHide').checked, $('#shRem').value.trim()); return; }
   if (e.target.id === 'saleForm') { const n = $('#sName').value.trim(); if (!n) { $('#sErr').textContent = 'Give the sale a name.'; return; } const c = (document.querySelector('input[name=sColor]:checked') || {}).value || 'Pink'; saveSaleDetails({ eventName: n, eventDate: $('#sDate').value, eventColor: c, announcement: $('#sAnn').value.trim() }); return; }
   if (e.target.id === 'codeForm') { viewCode = $('#vCode').value.trim(); store.set('css-code', viewCode); closeSheet(); load(); }
   if (e.target.id === 'closeForm') { const n = $('#nName').value.trim(), d = $('#nDate').value; if (!n || !d) { $('#cErr').textContent = 'Add a name and date.'; return; } doCloseout(n, d); }
