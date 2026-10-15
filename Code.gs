@@ -126,6 +126,8 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Spirit Store')
     .addItem('Set PINs', 'setPins')
     .addItem('Require an access code to view (optional)', 'setViewCode')
+    .addItem('Set AI key (for importing order screenshots)', 'setAiKey')
+    .addItem('Test the AI order reader', 'selfTestAi')
     .addSeparator()
     .addItem('Rebuild any missing tabs', 'setupTabs')
     .addToUi();
@@ -185,6 +187,7 @@ function doPost(e) {
   if (role.error) return json({ ok: false, error: role.error });
   if (body.action === 'auth') return json({ ok: true, role: role.role });
   if (body.action === 'setPins') return json(setPinsFromWeb(body, role.role));
+  if (body.action === 'importRead') return json(importRead(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 1500) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
@@ -229,6 +232,74 @@ function setPinsFromWeb(body, role) {
     if (changed.length) appendLog([{ time: new Date().toISOString(), name: String(body.name || 'Someone').slice(0, 40), role: role, table: 'settings', rowId: 'security', field: '(security)', old: '', 'new': 'Changed: ' + changed.join(', ') }]);
     return { ok: true, changed: changed };
   } finally { lock.releaseLock(); }
+}
+
+/* ------------------------------ AI order reader ------------------------------ */
+var AI_MODELS = ['claude-sonnet-5-5', 'claude-sonnet-4-5', 'claude-haiku-5-5'];
+
+function setAiKey() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('AI key', 'Paste the Anthropic API key (it starts with sk-ant-). It is stored inside this script only and never shown on the website.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var key = r.getResponseText().trim();
+  if (!/^sk-ant-/.test(key)) { ui.alert('That does not look like an Anthropic API key. Nothing was saved.'); return; }
+  PropertiesService.getScriptProperties().setProperty('ANTHROPIC_API_KEY', key);
+  var test = aiExtract([], 'Amazon order placed October 1, 2026. Pink ribbon bracelets, 24 Pack. Qty: 2. $11.99 each. Order total $23.98', ['Pink ribbon bracelets (24-pack)']);
+  ui.alert(test.ok ? 'AI key saved and tested. The order reader works.' : 'Key saved, but the test failed: ' + test.error);
+}
+
+function selfTestAi() {
+  var t = aiExtract([], 'Amazon order placed October 1, 2026. Halloween pumpkin squishies 12 Pack, Qty 3, $18.99. Glow sticks bulk 50 pack, Qty 2, $12.50 each.', ['Halloween pumpkin squishies (12-pack)']);
+  Logger.log(JSON.stringify(t));
+  try { SpreadsheetApp.getUi().alert(t.ok ? 'The order reader works. It found ' + t.result.lines.length + ' lines.' : 'Problem: ' + t.error); } catch (e) {}
+  return t;
+}
+
+function importRead(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can import orders.' };
+  var images = (Array.isArray(body.images) ? body.images : []).slice(0, 8).filter(function (im) {
+    return im && /^image\/(jpeg|png|webp|gif)$/.test(im.media_type) && typeof im.data === 'string' && im.data.length < 8000000;
+  });
+  var text = String(body.text || '').slice(0, 20000);
+  if (!images.length && !text.trim()) return { ok: false, error: 'Add a screenshot or paste the order text first.' };
+  var names = readTable('items').rows.map(function (r) { return String(r.name); });
+  return aiExtract(images, text, names);
+}
+
+function aiExtract(images, text, names) {
+  var key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!key) return { ok: false, error: "The order reader isn't set up yet. In the Google Sheet: Spirit Store > Set AI key." };
+  var instructions = [
+    'These are screenshots or text from an Amazon cart, order confirmation, or receipt for a school PTO spirit store.',
+    'Existing store items (exact names): ' + JSON.stringify(names),
+    'Return ONLY a JSON object, no other text, shaped like:',
+    '{"store":"Amazon","orderDate":"YYYY-MM-DD or empty","orderTotal":number or null,"lines":[{"title":"product title as shown","name":"short clean item name with pack size, e.g. Pink ribbon bracelets (24-pack)","match":"exact existing item name if this is the same product, else null","packs":integer quantity ordered,"packCost":price of ONE pack as a number,"unitsPerPack":number of sellable pieces in one pack (24 Pack = 24, 120 pairs = 120, a single item = 1) or null if unclear,"note":"short note if anything is uncertain, else empty"}]}',
+    'Rules: one line per distinct product. Skip anything under Saved for later, recommendations, ads, shipping, and tax. Never invent products. If only a line total is shown, divide by quantity to get packCost. Only set match when you are confident it is the same product.'
+  ].join('\n');
+  var content = images.map(function (im) { return { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }; });
+  content.push({ type: 'text', text: instructions + (text ? '\n\nOrder text:\n' + text : '') });
+  var last = '';
+  for (var i = 0; i < AI_MODELS.length; i++) {
+    var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: 4000, messages: [{ role: 'user', content: content }] })
+    });
+    var code = resp.getResponseCode(), raw = resp.getContentText();
+    if (code === 404 || (code === 400 && /model/i.test(raw) && !/credit/i.test(raw))) { last = raw; continue; }
+    if (code === 401 || code === 403) return { ok: false, error: 'The AI key was rejected. Set a new one: Spirit Store > Set AI key.' };
+    if (code === 429 || code === 529 || code >= 500) return { ok: false, error: 'The AI service is busy right now. Try again in a minute.' };
+    if (code === 400 && /credit/i.test(raw)) return { ok: false, error: 'The AI account is out of credit. Add credit in the Claude Console.' };
+    if (code !== 200) return { ok: false, error: 'The AI reader returned an error (' + code + ').' };
+    var out = JSON.parse(raw), txt = (out.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('');
+    var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+    if (a < 0 || b < a) return { ok: false, error: "Couldn't find any order lines. Try a clearer screenshot." };
+    var result;
+    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return { ok: false, error: "Couldn't read the order. Try again or use a clearer screenshot." }; }
+    if (!Array.isArray(result.lines)) result.lines = [];
+    return { ok: true, result: result, model: AI_MODELS[i] };
+  }
+  return { ok: false, error: 'No AI model was available. ' + String(last).slice(0, 120) };
 }
 
 /* ------------------------------ helpers ------------------------------ */
