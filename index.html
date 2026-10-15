@@ -23,7 +23,11 @@
 <meta name="apple-mobile-web-app-title" content="Spirit Store">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Figtree:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Figtree:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 /* Brand: Livingston ISD green #0C482D and white, taken from the district site and logo. Pink is only for the Pink Out event chip.
    Layout: green band header, tab strip, one working column (max 1080px). Yellow-tinted boxes are the inputs, same rule as the old spreadsheet. */
@@ -70,6 +74,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .pride .paw:nth-child(2){transform:rotate(15deg) translateY(-4px)}
 .pride .paw:nth-child(4){transform:rotate(-15deg) translateY(-4px)}
 .band .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding-block:14px}
+.band{padding-top:env(safe-area-inset-top,0px)}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--band);z-index:6}
 .brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 260px}
 .brand svg{flex:none;width:42px;height:42px}
 .brand h1{font-family:var(--f-display);font-weight:900;font-size:23px;letter-spacing:.02em;line-height:1.05;color:var(--gold);text-transform:uppercase}
@@ -584,7 +590,7 @@ function renderHeader(M){
   lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
   lb.classList.toggle('on', !!auth);
   $('#adminBtn').hidden = !isAdmin();
-  $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
+  $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : refreshing ? 'Updating…' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
   const needs = M ? needsList(M).length : 0;
   $('#tabs').innerHTML = TABS.map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
   $('#demoWrap').innerHTML = DEMO ? '<div class="notice"><b>Preview mode.</b> Not connected to the shared Google Sheet yet, so changes stay on this device only. Try it: Unlock with PIN <b>1234</b> (volunteer) or <b>0000</b> (admin).</div>' : '';
@@ -592,6 +598,7 @@ function renderHeader(M){
 
 function render(){
   if (!data) { $('#view').innerHTML = '<div class="empty-state">' + (loadError ? esc(loadError) : 'Loading the latest numbers…') + '</div>'; renderHeader(null); return; }
+  keepCopy();
   const M = model();
   renderHeader(M);
   const v = { overview: vOverview, count: vCount, money: vMoney, cash: vCash, orders: vOrders, history: vHistory, activity: vActivity }[tab] || vOverview;
@@ -644,7 +651,7 @@ function vOverview(M){
         <div class="term"><span>Spent</span><b>${money(M.totalOut)}</b></div><span class="op">+</span>
         <div class="term"><span>Stock on shelf</span><b>${money(M.shelf)}</b></div>
       </div>
-      <p class="foot">Stock on shelf is valued at what we paid. Spirit shirts are not included. Cash deposits are net of the $${esc(setting('startCash') || 150)} starting cash.</p>
+      <p class="foot">Stock on shelf is valued at what we paid; anything without a cost entered (like spirit shirts) counts as $0. Cash deposits are net of the $${esc(setting('startCash') || 150)} starting cash.</p>
     </div>
     <div class="event">
       <div class="event-h"><div><div class="eyebrow">This sale</div>
@@ -907,16 +914,32 @@ async function apiPost(body){
   const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ ...body, code: viewCode }) });
   return r.json();
 }
+/* The last numbers are kept on this device so the page opens instantly; fresh numbers replace them a moment later. */
+let refreshing = false, keptRef = null;
+function keepCopy(){
+  if (DEMO || !data || data === keptRef) return;
+  keptRef = data;
+  try { localStorage.setItem('css-copy', JSON.stringify({ at: (lastSync || new Date()).toISOString(), data })); } catch (e) {}
+}
+function dropCopy(){ keptRef = null; try { localStorage.removeItem('css-copy'); } catch (e) {} }
+function openFromCopy(){
+  if (DEMO) return;
+  try {
+    const c = JSON.parse(localStorage.getItem('css-copy') || 'null');
+    if (c && c.data && Array.isArray(c.data.items)) { data = keptRef = c.data; lastSync = new Date(c.at); refreshing = true; }
+  } catch (e) {}
+}
 async function load(quiet){
   try {
     const res = await apiLoad();
-    if (!res.ok && res.error === 'code') { loadError = ''; askCode(); return; }
+    if (!res.ok && res.error === 'code') { loadError = ''; refreshing = false; if (data) { data = null; dropCopy(); render(); } askCode(); return; }
     if (!res.ok) throw new Error(res.error || 'Could not load');
-    data = res.data; lastSync = new Date(); loadError = '';
+    data = res.data; lastSync = new Date(); loadError = ''; refreshing = false;
     const a = document.activeElement;
     if (quiet && a && a.dataset && a.dataset.k) { renderHeader(model()); return; }
     render();
   } catch (e) {
+    refreshing = false;
     loadError = 'Offline · showing last numbers';
     if (!data) loadError = 'Could not reach the tracker. Check the connection and refresh.';
     render();
@@ -1107,8 +1130,22 @@ async function exportCountSheet(hideZero, reminder){
   const pages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Page ' + i + ' of ' + pages + '   ·   Creekside Lions PTO', W / 2, doc.internal.pageSize.getHeight() - 20, { align:'center' }); }
   const fname = 'Count sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf';
+  const phone = window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(pointer: coarse)').matches) || navigator.standalone === true;
+  let file = null;
+  try { file = new File([doc.output('blob')], fname, { type:'application/pdf' }); } catch (e) {}
+  if (phone && file && navigator.canShare && navigator.canShare({ files:[file] })) {
+    sheetPdf = { file, doc, fname };
+    openSheet(`<h3>Count sheet ready</h3><p>Tap <b>Share or print</b>, then choose Print, save it to Files, or text it to whoever is printing.</p>
+      <div class="acts"><button class="btn ghost" type="button" id="shSave">Download instead</button><button class="btn primary" type="button" id="shShare">Share or print</button></div>`);
+    return;
+  }
   doc.save(fname);
   closeSheet(); toast('Count sheet downloaded. Print it and take it to the sale.');
+}
+let sheetPdf = null;
+async function shareSheet(){
+  try { await navigator.share({ files:[sheetPdf.file], title: sheetPdf.fname }); closeSheet(); toast('Count sheet sent. Print it and take it to the sale.'); }
+  catch (e) { if (e && e.name !== 'AbortError') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); toast('Count sheet downloaded.'); } }
 }
 
 /* ---------- one Upload for everything ---------- */
@@ -1263,7 +1300,7 @@ function renderCashApp(){
   }).join('');
   openSheet(`<h3>Cash App report</h3><p>Payments are grouped by day and type. Open a group to see each payment and move any that are in the wrong group. Yellow means a best guess, so check those.</p>
     <label class="chk"><input type="checkbox" id="caNet" ${useNet ? 'checked' : ''}> Use what actually landed after Cash App fees (recommended)</label>
-    ${shirtCount ? `<label class="chk mt"><input type="checkbox" id="caShirts" ${withShirts ? 'checked' : ''}> Include ${shirtCount} spirit shirt payment${shirtCount === 1 ? '' : 's'}</label>` : ''}
+    ${shirtCount ? `<label class="chk mt"><input type="checkbox" id="caShirts" ${withShirts ? 'checked' : ''}> Include ${shirtCount} spirit shirt payment${shirtCount === 1 ? '' : 's'} <span class="muted">(only shirts sold at the store; leave off pre-orders)</span></label>` : ''}
     <p class="muted" style="font-size:13px;margin:6px 0 0">${[dups ? dups + ' payment' + (dups === 1 ? ' was' : 's were') + ' already imported before and are skipped' : '', old ? old + ' older payment' + (old === 1 ? '' : 's') + ' from before this year\'s first sale are left out' : '', shirtCount && !withShirts ? 'Spirit shirt payments are left out unless you tick the box above' : ''].filter(Boolean).join('. ')}.</p>
     <div>${body || '<div class="empty-state">Nothing new to add from this report.</div>'}</div>
     <div class="err" id="iErr"></div>
@@ -1612,6 +1649,8 @@ document.addEventListener('click', e => {
   if (b.id === 'adminBtn') return openPins();
   if (b.id === 'printBtn') return openSheetExport();
   if (b.id === 'upBtn') return openUpload();
+  if (b.id === 'shShare') return shareSheet();
+  if (b.id === 'shSave') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); return toast('Count sheet downloaded.'); }
   if (b.id === 'upRead') return readUpload();
   if (b.id === 'upBack') return openUpload();
   if (b.id === 'caSave') return saveCashApp();
@@ -1652,7 +1691,8 @@ $('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeS
 window.addEventListener('beforeunload', e => { if (pendingCount()) { e.preventDefault(); e.returnValue = ''; } });
 
 (function(){ const img = $('#logo'); if (!LOGO_URL) return; img.onload = () => { img.hidden = false; $('#paw').setAttribute('hidden',''); }; img.src = LOGO_URL; })();
-load();
+openFromCopy(); render(); load();
+setTimeout(() => { const v = document.querySelector('#view .empty-state'); if (!data && !loadError && v) v.textContent = 'Waking up the tracker. The first open of the day can take up to 30 seconds…'; }, 5000);
 if (!DEMO) setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!DEMO && document.visibilityState === 'visible') load(true); });
 </script>

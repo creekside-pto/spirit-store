@@ -176,7 +176,7 @@ function setViewCode() {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (!codeOk(p.code)) return json({ ok: false, error: 'code' });
-  return json({ ok: true, data: loadAll() });
+  return ContentService.createTextOutput('{"ok":true,"data":' + dataJson() + '}').setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -204,7 +204,7 @@ function doPost(e) {
       Object.keys(touched).forEach(function (t) { writeTable(t, tables[t]); });
       appendLog(res.log);
     }
-    return json({ ok: true, applied: res.applied, conflicts: res.conflicts, data: loadAll() });
+    return ContentService.createTextOutput('{"ok":true,"applied":' + res.applied + ',"conflicts":' + JSON.stringify(res.conflicts) + ',"data":' + dataJson() + '}').setMimeType(ContentService.MimeType.JSON);
   } finally {
     lock.releaseLock();
   }
@@ -421,10 +421,14 @@ function fmtCell(v, t) {
   return v;
 }
 
-function readTable(t) {
+function readTable(t, tail) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
   if (!sh) throw new Error('Missing tab "' + SCHEMA[t].tab + '". Run Spirit Store > Set up tabs.');
-  var values = sh.getDataRange().getValues();
+  var values;
+  if (tail) { // only the newest rows (the change log grows forever)
+    var last = sh.getLastRow(), lc = Math.max(sh.getLastColumn(), 1), from = Math.max(2, last - tail + 1);
+    values = sh.getRange(1, 1, 1, lc).getValues().concat(last >= 2 ? sh.getRange(from, 1, last - from + 1, lc).getValues() : []);
+  } else values = sh.getDataRange().getValues();
   var header = normHeader(values[0] || []), idx = {};
   SCHEMA[t].cols.forEach(function (c) {
     idx[c[0]] = header.indexOf(c[1].toLowerCase());
@@ -455,6 +459,7 @@ function sheetSafe(t, field, v, id) {
   return v;
 }
 function writeTable(t, rows) {
+  dropCache();
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
   var header = normHeader(sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]);
   var height = Math.max(sh.getLastRow() - 1, rows.length, 1);
@@ -469,6 +474,7 @@ function writeTable(t, rows) {
 
 function appendLog(entries) {
   if (!entries || !entries.length) return;
+  dropCache();
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA.log.tab);
   var rows = entries.map(function (e) { return SCHEMA.log.cols.map(function (c) { return e[c[0]] === undefined ? '' : String(e[c[0]]); }); });
   var rng = sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length);
@@ -477,6 +483,38 @@ function appendLog(entries) {
 }
 
 var CASH_ROWS = [['start', 'Starting cash in box (change)'], ['end', 'Ending cash in box'], ['cashapp', 'Cash App total for this sale'], ['countedBy', 'Counted by'], ['notes', 'Notes']];
+/* Fast loads: the whole dataset is kept in the script cache for a minute and dropped on every save,
+   and on hand edits to the Google Sheet (onEdit below). Chunked because one cache entry holds 100KB at most. */
+var CACHE_KEY = 'data2';
+function dataJson() {
+  var c = CacheService.getScriptCache();
+  try {
+    var n = Number(c.get(CACHE_KEY + 'n'));
+    if (n > 0) {
+      var keys = [];
+      for (var i = 0; i < n; i++) keys.push(CACHE_KEY + '_' + i);
+      var got = c.getAll(keys), s = '';
+      for (var j = 0; j < n; j++) { if (got[keys[j]] === undefined || got[keys[j]] === null) { s = ''; break; } s += got[keys[j]]; }
+      if (s) return s;
+    }
+  } catch (e) {}
+  var ver = null;
+  try { ver = c.get(CACHE_KEY + 'ver'); } catch (e) {}
+  var out = JSON.stringify(loadAll());
+  try {
+    if (c.get(CACHE_KEY + 'ver') === ver) { // nothing was saved while this was being read
+      var parts = {}, k = 0;
+      for (var p = 0; p < out.length; p += 20000) parts[CACHE_KEY + '_' + (k++)] = out.slice(p, p + 20000);
+      c.putAll(parts, 60); c.put(CACHE_KEY + 'n', String(k), 60);
+    }
+  } catch (e) {}
+  return out;
+}
+function dropCache() {
+  try { var c = CacheService.getScriptCache(); c.put(CACHE_KEY + 'ver', String(Date.now()) + Math.random(), 21600); c.remove(CACHE_KEY + 'n'); } catch (e) {}
+}
+function onEdit() { dropCache(); }
+
 function loadAll() {
   var out = {};
   Object.keys(SCHEMA).forEach(function (t) {
@@ -492,7 +530,6 @@ function loadAll() {
     out[t] = r.rows;
   });
   out.settings = out.settings.filter(function (s) { return !/pin|code/i.test(String(s.id)); });
-  var lg = readTable('log').rows;
-  out.log = lg.slice(-80).reverse();
+  out.log = readTable('log', 80).rows.reverse();
   return out;
 }

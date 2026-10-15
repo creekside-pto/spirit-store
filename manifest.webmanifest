@@ -1,0 +1,14 @@
+{
+  "name": "Creekside Spirit Store",
+  "short_name": "Spirit Store",
+  "description": "Live spirit store numbers for the Creekside Lions PTO.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0C482D",
+  "theme_color": "#0C482D",
+  "icons": [
+    { "src": "lion-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "lion-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
