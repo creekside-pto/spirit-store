@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0C482D">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%23FFFFFF'/%3E%3Cg fill='%230C482D'%3E%3Cellipse cx='32' cy='40' rx='12' ry='10'/%3E%3Cellipse cx='18' cy='27' rx='5' ry='6.5'/%3E%3Cellipse cx='27' cy='19' rx='5' ry='6.5'/%3E%3Cellipse cx='37' cy='19' rx='5' ry='6.5'/%3E%3Cellipse cx='46' cy='27' rx='5' ry='6.5'/%3E%3C/g%3E%3C/svg%3E">
+<title>Creekside Spirit Store</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Figtree:wght@400;500;600;700;800&display=swap">
+<style>
+/* Brand: Livingston ISD green #0C482D and white, taken from the district site and logo. Pink is only for the Pink Out event chip.
+   Layout: green band header, tab strip, one working column (max 1080px). Yellow-tinted boxes are the inputs, same rule as the old spreadsheet. */
+:root{
+  --bg:#EEF3F0; --surface:#FFFFFF; --surface-2:#E2EBE6; --ink:#0F2219; --muted:#536A5E; --line:#CCDAD2;
+  --band:#0C482D; --band-ink:#FFFFFF; --gold:#FFFFFF; --accent:#0C482D; --accent-ink:#FFFFFF; --focus:#2E8B57;
+  --pink:#D23C74; --pink-soft:#FBE1EB; --input:#FFF7DC; --input-line:#E6CF85;
+  --good:#1D7443; --good-soft:#DDF0E3; --warn:#9A5B00; --warn-soft:#FFEFCC; --bad:#B0233A; --bad-soft:#FBE2E6;
+  --shadow:0 1px 2px rgba(19,36,26,.06),0 4px 14px rgba(19,36,26,.06);
+  --f-display:"Archivo","Arial Black","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1510; --surface:#142019; --surface-2:#1B2A21; --ink:#E5EEE7; --muted:#97A99D; --line:#2A3B30;
+  --band:#0A3A25; --band-ink:#F2F8F4; --gold:#F2F8F4; --accent:#74C69D; --accent-ink:#0A1A12; --focus:#74C69D;
+  --pink:#F06A9C; --pink-soft:#3A1726; --input:#2A2714; --input-line:#5E5323;
+  --good:#6CC891; --good-soft:#163323; --warn:#F0B24B; --warn-soft:#33270F; --bad:#F07A8C; --bad-soft:#3A161D;
+  --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1510; --surface:#142019; --surface-2:#1B2A21; --ink:#E5EEE7; --muted:#97A99D; --line:#2A3B30;
+  --band:#0A3A25; --band-ink:#F2F8F4; --gold:#F2F8F4; --accent:#74C69D; --accent-ink:#0A1A12; --focus:#74C69D;
+  --pink:#F06A9C; --pink-soft:#3A1726; --input:#2A2714; --input-line:#5E5323;
+  --good:#6CC891; --good-soft:#163323; --warn:#F0B24B; --warn-soft:#33270F; --bad:#F07A8C; --bad-soft:#3A161D;
+  --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0}
+/* header band */
+.band{background:var(--band);color:var(--band-ink)}
+.band .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding-block:14px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 260px}
+.brand svg{flex:none;width:42px;height:42px}
+.brand h1{font-family:var(--f-display);font-weight:900;font-size:23px;letter-spacing:.02em;line-height:1.05;color:var(--gold);text-transform:uppercase}
+.brand .logo{flex:none;height:54px;width:auto;max-width:200px;background:#FFFFFF;border-radius:10px;padding:6px 10px;object-fit:contain}
+@media (max-width:520px){.brand{flex-wrap:wrap}.brand .logo{height:46px;max-width:180px}.brand h1{font-size:20px}}
+.brand p{margin:2px 0 0;font-size:13px;opacity:.85;letter-spacing:.02em}
+.chip-event{display:inline-flex;align-items:center;gap:8px;background:var(--pink);color:#fff;border-radius:999px;padding:6px 12px;font-weight:700;font-size:13px;white-space:nowrap}
+.chip-event .dot{width:8px;height:8px;border-radius:50%;background:#fff}
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sync{font-size:12px;opacity:.85}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:40px}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,.in:focus-visible,.tab:focus-visible,.seg button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{background:transparent}
+.btn.small{min-height:32px;padding:5px 10px;font-size:13px}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.band .btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:var(--band-ink)}
+.band .btn.on{background:#FFFFFF;color:#0C482D;border-color:#FFFFFF}
+/* tabs */
+.tabbar{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-block:6px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;padding:9px 14px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;position:relative}
+.tab[aria-selected="true"]{background:var(--surface-2);color:var(--ink)}
+.tab .badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--pink);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.notice{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--ink);font-size:13.5px;border:1px solid var(--input-line)}
+.notice b{color:var(--warn)}
+main{padding-block:18px 120px}
+section+section{margin-top:22px}
+.sec-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.sec-h h2{font-size:18px;font-weight:800}
+.sec-h p{margin:0;color:var(--muted);font-size:13.5px}
+.eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.pad{padding:16px}
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.hero{grid-template-columns:1fr}}
+.profit{padding:20px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.profit .big{font-size:44px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin-top:6px}
+.equation{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:14px;font-size:14px}
+.equation .term{display:flex;flex-direction:column;background:var(--surface-2);border-radius:10px;padding:7px 11px}
+.equation .term b{font-size:16px}
+.equation .term span{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.equation .op{font-weight:800;color:var(--muted);font-size:18px}
+.foot{color:var(--muted);font-size:12.5px;margin-top:12px}
+.event{padding:18px;border-radius:14px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.event::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:var(--pink)}
+.event h3{font-size:16px;font-weight:800}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat span{display:block;font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.stat b{font-size:20px;font-weight:800}
+.progress{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:6px}
+.progress i{display:block;height:100%;background:var(--pink);border-radius:99px}
+/* needs */
+.needs{display:grid;gap:8px}
+.need{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);cursor:pointer;text-align:left;width:100%}
+.need:hover{border-color:var(--accent)}
+.need .ic{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--warn-soft);color:var(--warn)}
+.need .tx{flex:1;min-width:0}
+.need .tx small{display:block;color:var(--muted);font-size:12.5px}
+.need .go{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
+.alldone{padding:14px;border-radius:12px;background:var(--good-soft);color:var(--good);font-weight:600}
+/* pills */
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:700;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill.new{background:var(--pink-soft);color:var(--pink)}
+.pill.restock{background:var(--warn-soft);color:var(--warn)}
+.pill.donated{background:var(--good-soft);color:var(--good)}
+.pill.out{background:var(--bad);color:#fff}
+.pill.low{background:var(--warn-soft);color:var(--warn)}
+/* inputs */
+.in{background:var(--input);border:1px solid var(--input-line);border-radius:9px;padding:8px 10px;min-height:40px;width:100%;min-width:0}
+.in.numin{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.in.dirty{border-color:var(--pink);box-shadow:0 0 0 2px var(--pink-soft)}
+.in.empty{border-style:dashed}
+.ro{display:inline-block}
+.blank{color:var(--muted)}
+.stepper{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;gap:4px;align-items:center}
+.stepper button{height:40px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);font-weight:800;font-size:18px;cursor:pointer}
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:8px 14px;font-weight:700;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.search{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 12px;min-height:40px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* item rows */
+.items{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px 170px 120px;gap:12px;align-items:center;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.item .nm{font-weight:700;min-width:0}
+.item .nm small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-top:2px}
+.item .cell span{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.item .cell b{font-size:16px}
+.item .res{text-align:right}
+.item-head{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px 170px 120px;gap:12px;padding:0 14px 2px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.item-head .r{text-align:right}
+@media (max-width:760px){
+  .item-head{display:none}
+  .item{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .item .nm{grid-column:1/-1}
+  .item .entry{grid-column:1/-1;order:5}
+  .item .res{text-align:left}
+}
+.item.details{grid-template-columns:minmax(0,2fr) 130px 100px 100px minmax(0,1.4fr) auto}
+@media (max-width:760px){.item.details{grid-template-columns:repeat(2,minmax(0,1fr))}.item.details .wide{grid-column:1/-1}}
+.lbl{display:block;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;padding:14px;margin-top:12px}
+/* list rows (money etc) */
+.rows{display:grid;gap:8px}
+.row{display:grid;grid-template-columns:120px minmax(0,1.3fr) 150px minmax(0,1.4fr) auto;gap:12px;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.row .when{color:var(--muted);font-size:13px}
+.row .what{font-weight:700;min-width:0}
+.row .note{color:var(--muted);font-size:13px;min-width:0}
+.row .amt{text-align:right;font-weight:700}
+.row.need-it{border-color:var(--input-line);background:linear-gradient(0deg,var(--surface),var(--surface))}
+@media (max-width:760px){.row{grid-template-columns:minmax(0,1fr) 140px}.row .when{grid-column:1/-1;order:-1}.row .note{grid-column:1/-1}.row .act{grid-column:1/-1}}
+.sumline{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:800;font-size:16px}
+.results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+.results>div{padding:16px;border-right:1px solid var(--line)}
+.results>div:last-child{border-right:0}
+.results span{display:block;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.results b{font-size:22px}
+@media (max-width:620px){.results{grid-template-columns:1fr}.results>div{border-right:0;border-bottom:1px solid var(--line)}.results>div:last-child{border-bottom:0}}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+/* cash */
+.cashgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.cashgrid{grid-template-columns:1fr}}
+.form{display:grid;gap:12px}
+.calc{display:grid;gap:0}
+.calc div{display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.calc div:last-child{border-bottom:0}
+.calc .final{font-size:20px;font-weight:800}
+/* table */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);font-weight:700;white-space:nowrap}
+td.r,th.r{text-align:right}
+tr:last-child td{border-bottom:0}
+tfoot td{font-weight:800;background:var(--surface-2)}
+td .in{min-height:36px;padding:6px 8px}
+/* activity */
+.log{display:grid;gap:0}
+.log .ent{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line);align-items:center}
+.log .ent:last-child{border-bottom:0}
+.log .t{color:var(--muted);font-size:12.5px}
+@media (max-width:620px){.log .ent{grid-template-columns:minmax(0,1fr) auto}.log .t{grid-column:1/-1}}
+/* save bar */
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--ink);color:var(--bg);padding-bottom:env(safe-area-inset-bottom,0px)}
+.savebar .wrap{display:flex;align-items:center;gap:12px;padding-block:12px;flex-wrap:wrap}
+.savebar .msg{flex:1;min-width:0;font-weight:600}
+.savebar .btn{border-color:transparent}
+.savebar .btn.primary{background:var(--pink);color:#fff}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(5,12,8,.55);z-index:30;display:grid;place-items:center;padding:16px}
+.sheet{background:var(--surface);color:var(--ink);border-radius:16px;max-width:460px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.3);max-height:90vh;overflow:auto}
+.sheet h3{font-size:19px;font-weight:800;margin-bottom:6px}
+.sheet p{color:var(--muted);margin:0 0 14px}
+.sheet .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.sheet ul{margin:0 0 6px;padding-left:18px}
+.err{color:var(--bad);font-weight:600;font-size:13.5px;min-height:1em}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--band);color:var(--band-ink);padding:10px 16px;border-radius:10px;font-weight:600;z-index:40;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.muted{color:var(--muted)}
+.mt{margin-top:12px}
+.empty-state{padding:24px;text-align:center;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.tab,.btn,.need{transition:background .15s,border-color .15s}}
+</style>
+
+
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <div class="brand">
+      <img class="logo" id="logo" alt="Livingston ISD" hidden><svg id="paw" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="31" fill="#FFFFFF"/><g fill="#0C482D"><ellipse cx="32" cy="40" rx="12" ry="10"/><ellipse cx="18" cy="27" rx="5" ry="6.5" transform="rotate(-20 18 27)"/><ellipse cx="27" cy="19" rx="5" ry="6.5" transform="rotate(-6 27 19)"/><ellipse cx="37" cy="19" rx="5" ry="6.5" transform="rotate(6 37 19)"/><ellipse cx="46" cy="27" rx="5" ry="6.5" transform="rotate(20 46 27)"/></g></svg>
+      <div><h1 id="org">Creekside Lions PTO</h1><p id="school">Spirit Store Tracker</p></div>
+    </div>
+    <div class="hdr-right">
+      <span class="chip-event" id="eventChip"><span class="dot"></span><span id="eventTxt">Pink Out</span></span>
+      <span class="sync num" id="sync">Loading…</span>
+      <button class="btn" id="lockBtn" type="button">Unlock to edit</button>
+    </div>
+  </div>
+</header>
+<div class="tabbar"><div class="wrap"><div class="tabs" role="tablist" id="tabs"></div></div></div>
+<div class="wrap" id="demoWrap"></div>
+<main class="wrap" id="view" aria-live="polite"></main>
+<div class="savebar" id="savebar" hidden><div class="wrap"><span class="msg" id="saveMsg"></span><button class="btn ghost" id="discardBtn" type="button" style="color:inherit">Discard</button><button class="btn primary" id="submitBtn" type="button">Submit changes</button></div></div>
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ===================== SETUP: paste your Google Apps Script web app URL between the quotes ===================== */
+const API_URL = '';
+/* Logo: put the official logo file next to index.html with this name (PNG with a transparent background works best).
+   If the file is missing, the page shows the paw badge instead. */
+const LOGO_URL = 'logo.png';
+/* ============================================================================================================== */
+
+/* ===== Shared rules: used by both the web page and the Google Apps Script backend ===== */
+var SCHEMA = {
+  items: { tab: 'Items', cols: [['id','ID'],['name','Item'],['category','Category'],['price','Sell Price'],['unitCost','Cost per Unit (if no order)'],['onHand','On Hand Before'],['countedAfter','Counted After'],['notes','Notes']] },
+  purchases: { tab: 'Orders', cols: [['id','ID'],['date','Order Date'],['store','Store'],['item','Item'],['packs','Packs'],['packCost','Pack Cost'],['unitsPerPack','Units / Pack'],['source','Cost Source'],['sale','For Sale'],['notes','Notes']] },
+  moneyIn: { tab: 'Money In', cols: [['id','ID'],['date','Date'],['event','Event'],['amount','Amount'],['notes','Notes']] },
+  moneyOut: { tab: 'Money Out', cols: [['id','ID'],['date','Date'],['order','Order'],['amount','Amount'],['link','Auto'],['notes','Notes']] },
+  sales: { tab: 'Sale History', cols: [['id','ID'],['date','Sale Date'],['theme','Theme'],['spent','Spent on Store Items'],['sales','Spirit Store Sales'],['other','Other Fundraising'],['what','What it was'],['link','Auto']] },
+  cash: { tab: 'Cash Count', cols: [['id','ID'],['label','Line'],['value','Value']] },
+  settings: { tab: 'Settings', cols: [['id','Setting'],['value','Value']] },
+  log: { tab: 'Change Log', cols: [['time','Time'],['name','Who'],['role','Role'],['table','Section'],['rowId','Row'],['field','Field'],['old','Old Value'],['new','New Value']] }
+};
+var NUMERIC = {
+  items: ['price','unitCost','onHand','countedAfter'],
+  purchases: ['packs','packCost','unitsPerPack'],
+  moneyIn: ['amount'], moneyOut: ['amount'],
+  sales: ['spent','sales','other']
+};
+/* What a volunteer PIN may change. The admin PIN may change everything. */
+var VOLUNTEER_CAN = {
+  items: ['onHand','countedAfter','notes'],
+  moneyIn: ['amount','notes'],
+  cash: ['value']
+};
+var CASH_NUMERIC_IDS = ['start','end'];
+
+function fieldsOf(table) { return SCHEMA[table].cols.map(function (c) { return c[0]; }); }
+function isNumeric(table, field, id) {
+  if (table === 'cash' && field === 'value') return CASH_NUMERIC_IDS.indexOf(String(id)) >= 0;
+  if (table === 'settings' && field === 'value') return String(id) === 'startCash';
+  return (NUMERIC[table] || []).indexOf(field) >= 0;
+}
+function cleanVal(table, field, v, id) {
+  if (v === null || v === undefined) return '';
+  if (isNumeric(table, field, id)) {
+    var s = String(v).replace(/[$,\s]/g, '');
+    if (s === '') return '';
+    if (/^\(.*\)$/.test(s)) s = '-' + s.slice(1, -1);
+    var n = Number(s);
+    return isNaN(n) ? '' : n;
+  }
+  return String(v).trim();
+}
+function normVal(table, field, v, id) {
+  var c = cleanVal(table, field, v, id);
+  if (c === '') return '';
+  if (typeof c === 'number') return String(Math.round(c * 10000) / 10000);
+  return c;
+}
+function canDo(role, op) {
+  if (role === 'admin') return true;
+  if (role !== 'volunteer') return false;
+  return op.op === 'set' && (VOLUNTEER_CAN[op.table] || []).indexOf(op.field) >= 0;
+}
+function labelOf(table, row) {
+  if (!row) return '';
+  var k = { items: 'name', purchases: 'item', moneyIn: 'event', moneyOut: 'order', sales: 'theme', cash: 'label', settings: 'id' }[table];
+  return String(row[k] || row.id || '');
+}
+/* Apply a batch of edits to in-memory tables. Each "set" carries the value the editor started from (prev);
+   if someone else changed that value in the meantime, the edit is held back as a conflict instead of overwriting. */
+function applyOps(t, ops, role, who, nowIso) {
+  var res = { applied: 0, conflicts: [], log: [] };
+  for (var i = 0; i < ops.length; i++) {
+    var op = ops[i];
+    if (!op || !SCHEMA[op.table] || op.table === 'log' || !t[op.table]) { res.conflicts.push({ op: op, reason: 'unknown section' }); continue; }
+    if (!canDo(role, op)) { res.conflicts.push({ op: op, reason: 'not allowed with this PIN' }); continue; }
+    var table = t[op.table], fields = fieldsOf(op.table);
+    if (op.op === 'set') {
+      if (fields.indexOf(op.field) < 0 || op.field === 'id') { res.conflicts.push({ op: op, reason: 'unknown field' }); continue; }
+      var row = null;
+      for (var j = 0; j < table.length; j++) if (String(table[j].id) === String(op.id)) { row = table[j]; break; }
+      if (!row) { res.conflicts.push({ op: op, reason: 'row was removed' }); continue; }
+      var cur = normVal(op.table, op.field, row[op.field], op.id);
+      var nv = cleanVal(op.table, op.field, op.value, op.id);
+      if (cur === normVal(op.table, op.field, nv, op.id)) continue;
+      if (cur !== normVal(op.table, op.field, op.prev, op.id)) { res.conflicts.push({ op: op, reason: 'changed', current: row[op.field] }); continue; }
+      res.log.push({ time: nowIso, name: who, role: role, table: op.table, rowId: String(op.id), field: op.field, old: row[op.field] === undefined ? '' : String(row[op.field]), 'new': String(nv) });
+      row[op.field] = nv; res.applied++;
+    } else if (op.op === 'add') {
+      var src = op.row || {}, nr = {};
+      for (var f = 0; f < fields.length; f++) nr[fields[f]] = cleanVal(op.table, fields[f], src[fields[f]], src.id);
+      if (!nr.id) nr.id = op.table.slice(0, 2) + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+      var dup = false;
+      for (var k = 0; k < table.length; k++) if (String(table[k].id) === String(nr.id)) dup = true;
+      if (dup) { res.conflicts.push({ op: op, reason: 'duplicate' }); continue; }
+      table.push(nr);
+      res.log.push({ time: nowIso, name: who, role: role, table: op.table, rowId: String(nr.id), field: '(added)', old: '', 'new': labelOf(op.table, nr) });
+      res.applied++;
+    } else if (op.op === 'del') {
+      var idx = -1;
+      for (var m = 0; m < table.length; m++) if (String(table[m].id) === String(op.id)) idx = m;
+      if (idx < 0) continue;
+      res.log.push({ time: nowIso, name: who, role: role, table: op.table, rowId: String(op.id), field: '(removed)', old: labelOf(op.table, table[idx]), 'new': '' });
+      table.splice(idx, 1); res.applied++;
+    }
+  }
+  return res;
+}
+
+
+const SEED = {"items":[{"id":"it01","name":"Butter squishies (8-pack)","category":"New","price":5,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it02","name":"Cheese squishies, slow-rising (12-pack)","category":"New","price":4,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it03","name":"Green tinsel pom pom headbands (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it04","name":"Pink glitter hair tinsel (12-pack)","category":"New","price":3,"unitCost":"","onHand":2,"countedAfter":"","notes":""},{"id":"it05","name":"Pink ribbon bracelets (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it06","name":"Halloween pumpkin squishies (12-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it07","name":"Halloween pumpkin glitter squishies (8-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it08","name":"Mini glitter ghost squishies (12-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it09","name":"Glitter heart squishies (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it10","name":"Green cheer pom poms","category":"Restock","price":2,"unitCost":"","onHand":0,"countedAfter":"","notes":""},{"id":"it11","name":"Slow-rising stress cubes (24-pack)","category":"New","price":2,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it12","name":"Halloween 4-in-1 pens (50-pack)","category":"New","price":2,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it13","name":"Mini turtle squishies (24-pack)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it14","name":"Pink ribbon & football tattoos (20 sheets)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it15","name":"Stretchy skeletons (48-pack)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it16","name":"Pink paw print glitter eye stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it17","name":"Pink glitter eye black stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it18","name":"Green glitter eye black stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it19","name":"Green paw print bookmarks (75-pack)","category":"New","price":0.5,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it20","name":"Gold football charm bracelets","category":"Carry-over","price":3,"unitCost":0.7496,"onHand":16,"countedAfter":"","notes":""},{"id":"it21","name":"Green paw print bracelets","category":"Carry-over","price":3,"unitCost":0.7496,"onHand":39,"countedAfter":"","notes":""},{"id":"it22","name":"Black FOOTBALL clay bracelets","category":"Carry-over","price":3,"unitCost":0.6663,"onHand":15,"countedAfter":"","notes":""},{"id":"it23","name":"Football candy bracelets","category":"Carry-over","price":3,"unitCost":0.4033,"onHand":22,"countedAfter":"","notes":""},{"id":"it24","name":"Green cheer bracelets","category":"Carry-over","price":3,"unitCost":0.5995,"onHand":16,"countedAfter":"","notes":""},{"id":"it25","name":"Green tinsel hair extensions","category":"Carry-over","price":3,"unitCost":0.555,"onHand":21,"countedAfter":"","notes":""},{"id":"it26","name":"Glitter bear squishies","category":"Carry-over","price":3,"unitCost":1.1246,"onHand":0,"countedAfter":"","notes":""},{"id":"it27","name":"Glitter cube squishies","category":"Carry-over","price":3,"unitCost":1.2496,"onHand":0,"countedAfter":"","notes":""},{"id":"it28","name":"Slow-rise squishy stress balls","category":"Carry-over","price":3,"unitCost":1.2494,"onHand":0,"countedAfter":"","notes":""},{"id":"it29","name":"Football #1 keychains","category":"Carry-over","price":3,"unitCost":0.9156,"onHand":5,"countedAfter":"","notes":""},{"id":"it30","name":"Green pom pom keychains","category":"Carry-over","price":2,"unitCost":0.9995,"onHand":0,"countedAfter":"","notes":"Not on leftover count, so set to 0"},{"id":"it31","name":"Mini foam footballs","category":"Carry-over","price":2,"unitCost":0.5798,"onHand":32,"countedAfter":"","notes":""},{"id":"it32","name":"Lion 4-color pens","category":"Carry-over","price":2,"unitCost":0.8325,"onHand":0,"countedAfter":"","notes":"No leftovers counted; 12 new"},{"id":"it33","name":"Football fidget spinners","category":"Carry-over","price":1,"unitCost":0.3956,"onHand":6,"countedAfter":"","notes":""},{"id":"it34","name":"Eye black stickers (pair)","category":"Carry-over","price":1,"unitCost":0.0418,"onHand":135,"countedAfter":"","notes":""},{"id":"it35","name":"Cross eye black stickers (pair)","category":"Carry-over","price":1,"unitCost":0.1873,"onHand":24,"countedAfter":"","notes":""},{"id":"it36","name":"Balloon animal erasers","category":"Carry-over","price":1,"unitCost":0.4612,"onHand":0,"countedAfter":"","notes":"No leftovers counted; 24 new"},{"id":"it37","name":"Mini mochi squishies","category":"Carry-over","price":1,"unitCost":0.1999,"onHand":18,"countedAfter":"","notes":""},{"id":"it38","name":"Football pens, rainbow bendy (30-pack)","category":"Carry-over","price":1,"unitCost":0.4663,"onHand":3,"countedAfter":"","notes":""},{"id":"it39","name":"Football pens, green bendy (50-pack)","category":"Carry-over","price":1,"unitCost":0.3998,"onHand":50,"countedAfter":"","notes":"Arrived late last week; none sold yet"},{"id":"it40","name":"Green rubber \"I am a Creekside Star\" bracelets","category":"Carry-over","price":0.5,"unitCost":0,"onHand":33,"countedAfter":"","notes":"Older stock: add cost if known"},{"id":"it41","name":"Air freshener","category":"Carry-over","price":1,"unitCost":0,"onHand":1,"countedAfter":"","notes":"Older stock: add cost if known"},{"id":"it42","name":"Stickers (regular)","category":"Carry-over","price":0.5,"unitCost":0,"onHand":"","countedAfter":"","notes":"Count before Friday; add cost if known"},{"id":"it43","name":"Fuzzy monster pens","category":"Carry-over","price":2,"unitCost":0.7495,"onHand":20,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it44","name":"Bear stackable pencils","category":"Carry-over","price":1,"unitCost":0.463,"onHand":30,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it45","name":"Fidget snake cubes","category":"Carry-over","price":1,"unitCost":0.5297,"onHand":30,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it46","name":"Football lollipop rings","category":"Donated","price":1,"unitCost":0,"onHand":54,"countedAfter":"","notes":"3 donated boxes of 18"},{"id":"it47","name":"Green spirit tattoos","category":"Donated","price":1,"unitCost":0,"onHand":0,"countedAfter":"","notes":"Not on leftover count, so set to 0"},{"id":"it48","name":"Green bead necklaces","category":"Donated","price":1,"unitCost":0,"onHand":121,"countedAfter":"","notes":""},{"id":"it49","name":"Green heart sunglasses","category":"Donated","price":2,"unitCost":0,"onHand":17,"countedAfter":"","notes":""},{"id":"it50","name":"Lion paint kits","category":"Donated","price":4,"unitCost":0,"onHand":8,"countedAfter":"","notes":""}],"purchases":[{"id":"pu01","date":"2026-10-12","store":"Amazon","item":"Butter squishies (8-pack)","packs":1,"packCost":24.99,"unitsPerPack":8,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu02","date":"2026-10-12","store":"Amazon","item":"Cheese squishies, slow-rising (12-pack)","packs":4,"packCost":25.64,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu03","date":"2026-10-12","store":"Amazon","item":"Green tinsel pom pom headbands (24-pack)","packs":1,"packCost":25.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu04","date":"2026-10-12","store":"Amazon","item":"Pink glitter hair tinsel (12-pack)","packs":1,"packCost":7.99,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu05","date":"2026-10-12","store":"Amazon","item":"Pink ribbon bracelets (24-pack)","packs":1,"packCost":11.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu06","date":"2026-10-12","store":"Amazon","item":"Halloween pumpkin squishies (12-pack)","packs":3,"packCost":18.99,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu07","date":"2026-10-12","store":"Amazon","item":"Halloween pumpkin glitter squishies (8-pack)","packs":2,"packCost":15.99,"unitsPerPack":8,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu08","date":"2026-10-12","store":"Amazon","item":"Mini glitter ghost squishies (12-pack)","packs":1,"packCost":26.72,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu09","date":"2026-10-12","store":"Amazon","item":"Glitter heart squishies (24-pack)","packs":2,"packCost":19.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu10","date":"2026-10-12","store":"Amazon","item":"Green cheer pom poms","packs":1,"packCost":22.99,"unitsPerPack":36,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu11","date":"2026-10-12","store":"Amazon","item":"Slow-rising stress cubes (24-pack)","packs":3,"packCost":19.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu12","date":"2026-10-12","store":"Amazon","item":"Halloween 4-in-1 pens (50-pack)","packs":1,"packCost":27.99,"unitsPerPack":50,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu13","date":"2026-10-12","store":"Amazon","item":"Mini turtle squishies (24-pack)","packs":3,"packCost":9.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu14","date":"2026-10-12","store":"Amazon","item":"Pink ribbon & football tattoos (20 sheets)","packs":1,"packCost":9.99,"unitsPerPack":160,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu15","date":"2026-10-12","store":"Amazon","item":"Stretchy skeletons (48-pack)","packs":1,"packCost":17.09,"unitsPerPack":48,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu16","date":"2026-10-12","store":"Amazon","item":"Pink paw print glitter eye stickers (120 pairs)","packs":1,"packCost":13.99,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu17","date":"2026-10-12","store":"Amazon","item":"Pink glitter eye black stickers (120 pairs)","packs":1,"packCost":8.79,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu18","date":"2026-10-12","store":"Amazon","item":"Green glitter eye black stickers (120 pairs)","packs":1,"packCost":7.79,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu19","date":"2026-10-12","store":"Amazon","item":"Green paw print bookmarks (75-pack)","packs":1,"packCost":28.45,"unitsPerPack":75,"source":"Actual","sale":"Pink Out Game","notes":""}],"moneyIn":[{"id":"mi01","date":"2026-09-25","event":"Spirit store","amount":647.7,"notes":"Bank deposit slip. Tally sheet math doesn't match ($641.70 net); deposit used"},{"id":"mi02","date":"2026-10-02","event":"Spirit store","amount":1108.4,"notes":"Matches tally sheet"},{"id":"mi03","date":"2026-10-02","event":"Class sponsor deposit (face painting)","amount":119,"notes":"Separate deposit slip. Not spirit store sales"},{"id":"mi04","date":"2026-09-25","event":"Cash App - spirit store","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi05","date":"2026-10-02","event":"Cash App - spirit store","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi06","date":"2026-10-02","event":"Cash App - class sponsors","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi07","date":"2026-10-16","event":"Pink Out spirit store (cash deposit)","amount":"","notes":"Enter Friday's deposit"},{"id":"mi08","date":"2026-10-16","event":"Pink Out spirit store (Cash App)","amount":"","notes":"Enter Friday's Cash App total"}],"moneyOut":[{"id":"mo01","date":"","order":"Stock for Sept 25 sale (earlier orders)","amount":"","link":"","notes":"Enter if known"},{"id":"mo02","date":"2026-09-26","order":"Amazon order (Sept 26)","amount":519.55,"link":"","notes":"Order 114-5952805-0437038. Spirit store $436.31 + $44.77 saved for Christmas + $38.47 supplies"},{"id":"mo03","date":"2026-10-12","order":"Amazon order (Pink Out)","amount":"","link":"purchases","notes":"Fills in automatically from the Orders tab"},{"id":"mo04","date":"","order":"Fall festival order","amount":"","link":"","notes":"Enter when ordered (about $1,006.97)"}],"sales":[{"id":"sh01","date":"2026-09-25","theme":"Spirit store","spent":"","sales":647.7,"other":"","what":"","link":""},{"id":"sh02","date":"2026-10-02","theme":"Football / spirit","spent":436.31,"sales":1108.4,"other":119,"what":"Class sponsor deposit (face painting), separate slip","link":""},{"id":"sh03","date":"2026-10-16","theme":"Pink Out","spent":"","sales":"","other":"","what":"","link":"current"}],"cash":[{"id":"start","label":"Starting cash in box (change)","value":0},{"id":"end","label":"Ending cash in box","value":""},{"id":"countedBy","label":"Counted by","value":""},{"id":"notes","label":"Notes","value":""}],"settings":[{"id":"orgName","value":"Creekside Lions PTO"},{"id":"schoolLine","value":"Creekside Elementary \u00b7 Livingston ISD"},{"id":"eventName","value":"Pink Out Game"},{"id":"eventDate","value":"2026-10-16"},{"id":"startCash","value":150}],"log":[]};
+const DEMO = !API_URL;
+const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
+const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
+const CATS = ['New','Restock','Carry-over','Donated'];
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+  sget(k, d){ try{ const v = sessionStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  sset(k, v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+let data = null, lastSync = null, loadError = '';
+let auth = store.sget('css-auth', null);          // {role, pin}
+let who = store.get('css-name', '');
+let pending = store.get('css-draft', { sets:{}, adds:[], dels:{} });
+let tab = (location.hash || '').replace('#','');
+if (!TABS.some(t => t[0] === tab)) tab = store.get('css-tab', 'overview');
+let phase = store.get('css-phase', 'before');
+let catFilter = 'All', query = '', showDetails = false, viewCode = store.get('css-code', '');
+
+/* ---------- formatting ---------- */
+const num = v => { if (v === '' || v === null || v === undefined) return 0; const n = Number(v); return isNaN(n) ? 0 : n; };
+const blank = v => v === '' || v === null || v === undefined;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function money(n, opts){ n = Math.round(num(n)*100)/100; const s = '$' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); return n < 0 ? '(' + s + ')' : s; }
+function count(n){ return Math.round(num(n)).toLocaleString('en-US'); }
+function parseDate(s){ if (!s) return null; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return new Date(+m[1], +m[2]-1, +m[3]); const d = new Date(s); return isNaN(d) ? null : d; }
+function fdate(s, long){ const d = parseDate(s); if (!d) return ''; return d.toLocaleDateString('en-US', long ? {weekday:'long',month:'short',day:'numeric'} : {month:'short',day:'numeric'}); }
+function ftime(iso){ const d = new Date(iso); if (isNaN(d)) return ''; return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+const FIELD_NAMES = { onHand:'On hand before', countedAfter:'Counted after', price:'Sell price', unitCost:'Cost per unit', name:'Item name', category:'Category', notes:'Notes', amount:'Amount', value:'Value', date:'Date', event:'Event', order:'Order', packs:'Packs', packCost:'Pack cost', unitsPerPack:'Units per pack', item:'Item', store:'Store', source:'Cost source', spent:'Spent', sales:'Sales', other:'Other fundraising', what:'What it was', theme:'Theme', link:'Auto', sale:'For sale' };
+
+/* ---------- data access: server rows + this person's unsaved edits ---------- */
+const key = (t, id, f) => t + '|' + id + '|' + f;
+function addRow(t, id){ return pending.adds.find(a => a.table === t && a.row.id === id); }
+function serverRow(t, id){ return (data?.[t] || []).find(r => String(r.id) === String(id)); }
+function rows(t){
+  const base = (data?.[t] || []).filter(r => !pending.dels[t + '|' + r.id]).map(r => {
+    const o = { ...r };
+    for (const f of fieldsOf(t)) { const p = pending.sets[key(t, r.id, f)]; if (p) o[f] = p.value; }
+    return o;
+  });
+  return base.concat(pending.adds.filter(a => a.table === t).map(a => ({ ...a.row, _new: true })));
+}
+function setting(id){ const r = rows('settings').find(r => r.id === id); return r ? r.value : ''; }
+function pendingCount(){ return Object.keys(pending.sets).length + pending.adds.length + Object.keys(pending.dels).length; }
+function canEdit(t, f){ if (!auth) return false; if (f === 'id') return false; return canDo(auth.role, { op:'set', table:t, field:f }); }
+const isAdmin = () => auth && auth.role === 'admin';
+
+/* ---------- the math (mirrors the original spreadsheet) ---------- */
+function model(){
+  const ev = setting('eventName');
+  const allP = rows('purchases').map(p => {
+    const units = num(p.packs) * num(p.unitsPerPack), total = num(p.packs) * num(p.packCost);
+    return { ...p, units, total, cpu: units ? total/units : 0, current: blank(p.sale) || p.sale === ev };
+  });
+  const cur = allP.filter(p => p.current);
+  const byItem = {};
+  for (const p of cur) { const k = String(p.item||'').trim().toLowerCase(); if (!k) continue; byItem[k] = byItem[k] || { units:0, cost:0 }; byItem[k].units += p.units; byItem[k].cost += p.total; }
+  const purchTotal = cur.reduce((s,p) => s + p.total, 0), purchUnits = cur.reduce((s,p) => s + p.units, 0);
+  const T = { onHand:0, received:0, avail:0, sold:0, rev:0, cos:0, profit:0, shelfAll:0, counted:0, n:0 };
+  const items = rows('items').map(i => {
+    const b = byItem[String(i.name||'').trim().toLowerCase()];
+    const received = b ? b.units : 0;
+    const unitCost = b && b.units ? b.cost / b.units : num(i.unitCost);
+    const onHand = num(i.onHand), avail = onHand + received;
+    const counted = blank(i.countedAfter) ? null : num(i.countedAfter);
+    const sold = counted === null ? 0 : Math.max(avail - counted, 0);
+    const rev = sold * num(i.price), cos = sold * unitCost;
+    const flag = counted === null ? '' : counted === 0 ? 'SOLD OUT' : counted <= 10 ? 'Low' : '';
+    T.onHand += onHand; T.received += received; T.avail += avail; T.sold += sold; T.rev += rev; T.cos += cos; T.profit += rev - cos;
+    T.shelfAll += unitCost * avail; T.n++; if (counted !== null) T.counted++;
+    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, avail, counted, sold, rev, cos, profit: rev - cos, flag };
+  });
+  const shelf = T.shelfAll - T.cos;
+  const mIn = rows('moneyIn'), mOut = rows('moneyOut').map(r => ({ ...r, amt: r.link === 'purchases' ? purchTotal : num(r.amount) }));
+  const totalIn = mIn.reduce((s,r) => s + num(r.amount), 0), totalOut = mOut.reduce((s,r) => s + r.amt, 0);
+  const cashRow = id => rows('cash').find(r => r.id === id) || { value:'' };
+  const start = num(cashRow('start').value), endBlank = blank(cashRow('end').value), end = num(cashRow('end').value);
+  const taken = endBlank ? null : end - start;
+  const sales = rows('sales').map(s => {
+    const live = s.link === 'current';
+    const spent = live ? purchTotal : (blank(s.spent) ? null : num(s.spent));
+    const sl = live ? (T.rev ? T.rev : null) : (blank(s.sales) ? null : num(s.sales));
+    const profit = sl === null ? null : sl - (spent || 0);
+    return { ...s, live, spentV: spent, salesV: sl, profit, total: profit === null ? null : profit + num(s.other) };
+  });
+  return { ev, allP, cur, purchTotal, purchUnits, items, T, shelf, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
+           cash: { start, end, endBlank, taken, expected: T.rev, over: taken === null ? null : taken - T.rev }, sales };
+}
+
+function needsList(M){
+  const out = [];
+  for (const r of M.mIn) if (blank(r.amount)) out.push({ t:'money', id:'moneyIn|'+r.id, title:'Enter amount: ' + r.event, sub: fdate(r.date, true) + (r.notes ? ' · ' + r.notes : '') });
+  for (const r of M.mOut) if (r.link !== 'purchases' && blank(r.amount)) out.push({ t:'money', id:'moneyOut|'+r.id, title:'Enter cost: ' + r.order, sub: r.notes || 'Money out' });
+  const uncounted = M.items.filter(i => blank(i.onHand) && !i.received);
+  if (uncounted.length) out.push({ t:'count', phase:'before', title:'Count what is on hand: ' + uncounted.map(i => i.name).slice(0,3).join(', ') + (uncounted.length > 3 ? ' and ' + (uncounted.length-3) + ' more' : ''), sub:'Before the sale' });
+  const evDate = parseDate(setting('eventDate')); const today = new Date(); today.setHours(0,0,0,0);
+  if (M.T.counted < M.T.n) out.push({ t:'count', phase:'after', title:'After-sale counts: ' + M.T.counted + ' of ' + M.T.n + ' items counted', sub: evDate && evDate > today ? 'Do this right after the sale closes' : 'Sold, revenue and profit fill in from these' });
+  if (M.cash.endBlank) out.push({ t:'cash', title:'Count the cash box after closing', sub:'Over or short is checked against the item counts' });
+  const nocost = M.items.filter(i => !i.unitCost && i.category !== 'Donated');
+  if (nocost.length) out.push({ t:'count', details:true, title: nocost.length + ' item' + (nocost.length>1?'s have':' has') + ' no cost yet', sub: nocost.map(i => i.name).slice(0,3).join(', ') + (nocost.length>3?'…':'') + ' (admin)' });
+  return out;
+}
+
+/* ---------- rendering ---------- */
+function field(t, row, f, o = {}){
+  const k = key(t, row.id, f);
+  let val = row[f] ?? '';
+  const isMoney = ['amount','packCost','price','spent','sales','other'].includes(f) || (t === 'cash' && (row.id === 'start' || row.id === 'end'));
+  if (isMoney && !blank(val) && !pending.sets[k] && !row._new && !isNaN(Number(val))) val = Number(val).toFixed(2);
+  const numeric = isNumeric(t, f, row.id);
+  if (!(row._new ? isAdmin() : canEdit(t, f))) {
+    const shown = blank(val) ? '<span class="blank">' + (o.blankText || '·') + '</span>' : (o.fmt ? o.fmt(val) : esc(val));
+    return '<span class="ro ' + (numeric ? 'num' : '') + '">' + shown + '</span>';
+  }
+  const dirty = row._new || !!pending.sets[k];
+  const type = o.type || 'text';
+  const cls = 'in' + (numeric ? ' numin' : '') + (dirty ? ' dirty' : '') + (blank(val) ? ' empty' : '');
+  const inputmode = numeric ? (o.int ? 'numeric' : 'decimal') : (o.inputmode || 'text');
+  const id = 'f_' + k.replace(/[^a-zA-Z0-9]/g, '_');
+  const list = o.list ? ' list="' + o.list + '"' : '';
+  if (o.select) {
+    return '<select class="' + cls + '" id="' + id + '" data-k="' + esc(k) + '" aria-label="' + esc(o.label || FIELD_NAMES[f] || f) + '">' +
+      o.select.map(v => '<option' + (v === val ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select>';
+  }
+  const inp = '<input class="' + cls + '" id="' + id + '" data-k="' + esc(k) + '" type="' + type + '" inputmode="' + inputmode + '" value="' + esc(val) + '" placeholder="' + esc(o.ph || '') + '" aria-label="' + esc(o.label || FIELD_NAMES[f] || f) + '" autocomplete="off"' + list + '>';
+  if (o.stepper) return '<div class="stepper"><button type="button" data-step="-1" data-for="' + id + '" aria-label="Minus one">−</button>' + inp + '<button type="button" data-step="1" data-for="' + id + '" aria-label="Plus one">+</button></div>';
+  return inp;
+}
+function catPill(c){ const cls = { 'New':'new', 'Restock':'restock', 'Donated':'donated' }[c] || ''; return c ? '<span class="pill ' + cls + '">' + esc(c) + '</span>' : ''; }
+function flagPill(f){ return f === 'SOLD OUT' ? '<span class="pill out">Sold out</span>' : f === 'Low' ? '<span class="pill low">Low</span>' : ''; }
+
+function renderHeader(M){
+  $('#org').textContent = setting('orgName') || 'Creekside Lions PTO';
+  $('#school').textContent = (setting('schoolLine') ? setting('schoolLine') + ' · ' : '') + 'Spirit Store';
+  $('#eventTxt').textContent = (setting('eventName') || 'Next sale') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '');
+  const lb = $('#lockBtn');
+  lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
+  lb.classList.toggle('on', !!auth);
+  $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
+  const needs = M ? needsList(M).length : 0;
+  $('#tabs').innerHTML = TABS.map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
+  $('#demoWrap').innerHTML = DEMO ? '<div class="notice"><b>Preview mode.</b> Not connected to the shared Google Sheet yet, so changes stay on this device only. Try it: Unlock with PIN <b>1234</b> (volunteer) or <b>0000</b> (admin).</div>' : '';
+}
+
+function render(){
+  if (!data) { $('#view').innerHTML = '<div class="empty-state">' + (loadError ? esc(loadError) : 'Loading the latest numbers…') + '</div>'; renderHeader(null); return; }
+  const M = model();
+  renderHeader(M);
+  const v = { overview: vOverview, count: vCount, money: vMoney, cash: vCash, orders: vOrders, history: vHistory, activity: vActivity }[tab] || vOverview;
+  $('#view').innerHTML = v(M);
+  if (tab === 'count') filterItems();
+  renderSavebar();
+}
+const BL = '<span class="blank">·</span>';
+function calcHTML(M, k){
+  const [a, b, c] = k.split(':');
+  if (a === 'it') { const i = M.items.find(x => String(x.id) === c); if (!i) return null;
+    return { avail: count(i.avail), sold: i.counted === null ? BL : count(i.sold), rev: i.counted === null ? BL : money(i.rev), flag: flagPill(i.flag) }[b]; }
+  if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit) }[b];
+  if (a === 'm') return { in: money(M.totalIn), out: money(M.totalOut), net: money(M.net), shelf: money(M.shelf), real: money(M.real) }[b];
+  if (a === 'cash') return { taken: M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken), expected: money(M.cash.expected), over: M.cash.over === null ? BL : money(M.cash.over) }[b];
+  if (a === 'pu') { if (b === 'sum') return c === 'units' ? count(M.purchUnits) : money(M.purchTotal);
+    const p = M.allP.find(x => String(x.id) === c); if (!p) return null; return { units: count(p.units), total: money(p.total), cpu: money(p.cpu) }[b]; }
+  if (a === 'sh') { const s = M.sales.find(x => String(x.id) === c); if (!s) return null; const v = s[b]; return v === null ? BL : money(v); }
+  return null;
+}
+function patchCalcs(){
+  if (!data) return;
+  const M = model();
+  document.querySelectorAll('[data-calc]').forEach(el => { const h = calcHTML(M, el.dataset.calc); if (h !== null && h !== undefined && el.innerHTML !== h) el.innerHTML = h; });
+  const o = document.querySelector('[data-calc="cash:over"]');
+  if (o) o.className = M.cash.over === null ? '' : Math.abs(M.cash.over) < 10 ? 'good' : M.cash.over < 0 ? 'bad' : 'warn';
+  renderHeader(M);
+}
+function filterItems(){ const q = query.trim().toLowerCase(); document.querySelectorAll('.item[data-name]').forEach(el => { el.hidden = !!q && !el.dataset.name.includes(q); }); }
+function refreshCalcs(){
+  // re-render everything except the input that has focus, so typing is never interrupted
+  const a = document.activeElement, id = a && a.id, s = a && a.selectionStart;
+  render();
+  if (id) { const el = document.getElementById(id); if (el) { el.focus(); try { if (s !== null && s !== undefined) el.setSelectionRange(s, s); } catch(e){} } }
+}
+
+function vOverview(M){
+  const needs = needsList(M);
+  const pct = M.T.n ? Math.round(M.T.counted / M.T.n * 100) : 0;
+  const log = (data.log || []).slice(0, 5);
+  return `
+  <div class="hero">
+    <div class="profit">
+      <div class="eyebrow">Real profit to date</div>
+      <div class="big num ${M.real < 0 ? 'bad' : ''}">${money(M.real)}</div>
+      <div class="equation num">
+        <div class="term"><span>Money in</span><b>${money(M.totalIn)}</b></div><span class="op">−</span>
+        <div class="term"><span>Spent</span><b>${money(M.totalOut)}</b></div><span class="op">+</span>
+        <div class="term"><span>Stock on shelf</span><b>${money(M.shelf)}</b></div>
+      </div>
+      <p class="foot">Stock on shelf is valued at what we paid. Spirit shirts are not included. Cash deposits are net of the $${esc(setting('startCash') || 150)} starting cash.</p>
+    </div>
+    <div class="event">
+      <div class="eyebrow">This sale</div>
+      <h3>${esc(setting('eventName'))} · ${esc(fdate(setting('eventDate'), true))}</h3>
+      <div class="stats num">
+        <div class="stat"><span>Items sold</span><b data-calc="T:sold">${count(M.T.sold)}</b></div>
+        <div class="stat"><span>Sales</span><b data-calc="T:rev">${money(M.T.rev)}</b></div>
+        <div class="stat"><span>Cost of sold</span><b>${money(M.T.cos)}</b></div>
+        <div class="stat"><span>Profit</span><b class="${M.T.profit > 0 ? 'good' : ''}">${money(M.T.profit)}</b></div>
+      </div>
+      <div class="mt" style="display:flex;justify-content:space-between;font-size:13px"><span class="muted">After-sale counts</span><span class="num"><b>${M.T.counted}</b> of ${M.T.n}</span></div>
+      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+      <p class="foot">Spent on this sale's orders: <b class="num">${money(M.purchTotal)}</b> for ${count(M.purchUnits)} units. ${count(M.T.avail)} items ready to sell.</p>
+    </div>
+  </div>
+  <section>
+    <div class="sec-h"><h2>Needs your input</h2><p>Tap one to jump straight to it.</p></div>
+    ${needs.length ? '<div class="needs">' + needs.map((n, i) => `<button class="need" type="button" data-need="${i}"><span class="ic">${i+1}</span><span class="tx">${esc(n.title)}<small>${esc(n.sub || '')}</small></span><span class="go">Go</span></button>`).join('') + '</div>' : '<div class="alldone">Everything is filled in. Nice work.</div>'}
+  </section>
+  <section>
+    <div class="sec-h"><h2>Recent changes</h2><button class="btn small" type="button" data-tab="activity">See all</button></div>
+    <div class="card">${log.length ? '<div class="log">' + log.map(logEntry).join('') + '</div>' : '<div class="empty-state">No changes yet. Every edit shows up here with who made it.</div>'}</div>
+  </section>`;
+}
+
+function vCount(M){
+  const q = query.trim().toLowerCase();
+  const list = M.items.filter(i => catFilter === 'All' || i.category === catFilter);
+  const counts = { All: M.items.length }; for (const c of CATS) counts[c] = M.items.filter(i => i.category === c).length;
+  const after = phase === 'after';
+  let body;
+  if (showDetails && isAdmin()) {
+    body = list.map(i => `<div class="item details" data-name="${esc(String(i.name).toLowerCase())}">
+      <div class="wide"><label class="lbl" for="f_${('items|'+i.id+'|name').replace(/[^a-zA-Z0-9]/g,'_')}">Item</label>${field('items', i, 'name')}</div>
+      <div><span class="lbl">Category</span>${field('items', i, 'category', { select: CATS.includes(i.category) || !i.category ? CATS : CATS.concat([i.category]) })}</div>
+      <div><span class="lbl">Sell price</span>${field('items', i, 'price')}</div>
+      <div><span class="lbl">Cost / unit</span>${i.costFromOrders ? '<span class="ro num" title="Comes from the Orders tab">' + money(i.unitCost) + '<br><small class="muted">from orders</small></span>' : field('items', i, 'unitCost', { ph:'0.00' })}</div>
+      <div class="wide"><span class="lbl">Notes</span>${field('items', i, 'notes')}</div>
+      <div><span class="lbl">&nbsp;</span><button class="btn small danger" type="button" data-del="items|${esc(i.id)}">Remove</button></div>
+    </div>`).join('');
+  } else {
+    body = `<div class="item-head"><span>Item</span><span class="r">${after ? 'Available' : 'Received'}</span><span class="r">${after ? 'Sold' : 'Available'}</span><span>${after ? 'Counted after sale' : 'On hand before sale'}</span><span class="r">${after ? 'Sales' : 'Price'}</span></div>` +
+      list.map(i => `<div class="item" data-name="${esc(String(i.name).toLowerCase())}">
+      <div class="nm">${esc(i.name)} ${catPill(i.category)} <span data-calc="it:flag:${esc(i.id)}">${flagPill(i.flag)}</span><small>${money(i.price)} each${i.notes ? ' · ' + esc(i.notes) : ''}</small></div>
+      ${after
+        ? `<div class="cell res num"><span>Available</span><b data-calc="it:avail:${esc(i.id)}">${count(i.avail)}</b></div><div class="cell res num"><span>Sold</span><b data-calc="it:sold:${esc(i.id)}">${i.counted === null ? '<span class="blank">·</span>' : count(i.sold)}</b></div>`
+        : `<div class="cell res num"><span>Received</span><b>${i.received ? '+' + count(i.received) : '<span class="blank">0</span>'}</b></div><div class="cell res num"><span>Available</span><b data-calc="it:avail:${esc(i.id)}">${count(i.avail)}</b></div>`}
+      <div class="entry">${after ? field('items', i, 'countedAfter', { stepper:true, int:true, ph:'Count', label:'Counted after: ' + i.name }) : field('items', i, 'onHand', { stepper:true, int:true, ph:'0', label:'On hand before: ' + i.name })}</div>
+      <div class="cell res num">${after ? `<span>Sales</span><b data-calc="it:rev:${esc(i.id)}">${i.counted === null ? '<span class="blank">·</span>' : money(i.rev)}</b>` : `<span>Price</span><b>${money(i.price)}</b>`}</div>
+    </div>`).join('');
+  }
+  return `
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Which count">
+      <button type="button" data-phase="before" aria-pressed="${!after}">Before the sale</button>
+      <button type="button" data-phase="after" aria-pressed="${after}">After the sale</button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Find an item" value="${esc(query)}" aria-label="Find an item">
+    ${isAdmin() ? `<button class="btn small" type="button" id="detailsBtn">${showDetails ? 'Back to counting' : 'Edit items and prices'}</button><button class="btn small" type="button" data-addrow="items">Add item</button>` : ''}
+  </div>
+  <div class="chips mt" style="margin:-2px 0 12px">${['All'].concat(CATS).map(c => `<button type="button" data-cat="${c}" aria-pressed="${catFilter === c}">${c} ${counts[c]}</button>`).join('')}</div>
+  <p class="muted" style="margin:0 0 12px;font-size:13.5px">${after ? 'Right after closing, count what is left of each item and type it in. Sold, sales and profit work themselves out.' : 'Before opening, count leftovers from past sales. New orders are added automatically from the Orders tab.'}</p>
+  <div class="items">${body || '<div class="empty-state">No items in this group.</div>'}</div>
+  <div class="card totals num">
+    <div class="stat"><span>On hand before</span><b data-calc="T:onHand">${count(M.T.onHand)}</b></div>
+    <div class="stat"><span>Received</span><b data-calc="T:received">${count(M.T.received)}</b></div>
+    <div class="stat"><span>Available</span><b data-calc="T:avail">${count(M.T.avail)}</b></div>
+    <div class="stat"><span>Sold</span><b data-calc="T:sold">${count(M.T.sold)}</b></div>
+    <div class="stat"><span>Sales</span><b data-calc="T:rev">${money(M.T.rev)}</b></div>
+    <div class="stat"><span>Profit</span><b data-calc="T:profit">${money(M.T.profit)}</b></div>
+  </div>
+  <p class="foot">Pom poms sell 1 for $2 or 2 for $3, so real pom pom sales can run a little under what is shown here. The Cash Box tab shows what actually came in.</p>`;
+}
+
+function moneyRow(t, r, M){
+  const isLink = t === 'moneyOut' && r.link === 'purchases';
+  const labelF = t === 'moneyIn' ? 'event' : 'order';
+  const need = !isLink && blank(r.amount);
+  return `<div class="row ${need ? 'need-it' : ''}" id="row-${t}-${esc(r.id)}">
+    <div class="when">${isAdmin() ? field(t, r, 'date', { type:'date' }) : esc(fdate(r.date, true)) || '<span class="blank">No date</span>'}</div>
+    <div class="what">${isAdmin() ? field(t, r, labelF) : esc(r[labelF])}</div>
+    <div class="amt num">${isLink ? money(M.purchTotal) + '<br><small class="muted" style="font-weight:500">from Orders</small>' : field(t, r, 'amount', { ph:'Enter amount', blankText:'Not entered', fmt: money })}</div>
+    <div class="note">${field(t, r, 'notes', { ph:'Notes' })}</div>
+    <div class="act">${isAdmin() ? `<button class="btn small danger" type="button" data-del="${t}|${esc(r.id)}">Remove</button>` : ''}</div>
+  </div>`;
+}
+function vMoney(M){
+  return `
+  <section>
+    <div class="sec-h"><h2>Money in</h2><p>Bank deposits (net of the $${esc(setting('startCash') || 150)} start cash) and Cash App totals.</p></div>
+    <div class="rows">${M.mIn.map(r => moneyRow('moneyIn', r, M)).join('')}</div>
+    <div class="card sumline num mt"><span>Total money in</span><span data-calc="m:in">${money(M.totalIn)}</span></div>
+    ${isAdmin() ? '<button class="btn small mt" type="button" data-addrow="moneyIn">Add money in</button>' : ''}
+  </section>
+  <section>
+    <div class="sec-h"><h2>Money out</h2><p>What was spent on store items.</p></div>
+    <div class="rows">${M.mOut.map(r => moneyRow('moneyOut', r, M)).join('')}</div>
+    <div class="card sumline num mt"><span>Total money out</span><span data-calc="m:out">${money(M.totalOut)}</span></div>
+    ${isAdmin() ? '<button class="btn small mt" type="button" data-addrow="moneyOut">Add money out</button>' : ''}
+  </section>
+  <section>
+    <div class="sec-h"><h2>Results</h2></div>
+    <div class="card results num">
+      <div><span>Cash in minus spent</span><b data-calc="m:net">${money(M.net)}</b></div>
+      <div><span>Stock still on the shelf</span><b data-calc="m:shelf">${money(M.shelf)}</b></div>
+      <div><span>Real profit to date</span><b data-calc="m:real" class="${M.real >= 0 ? 'good' : 'bad'}">${money(M.real)}</b></div>
+    </div>
+    <p class="foot">Shelf value updates from the Count tab. Before the sale it is everything on hand. Once after-sale counts go in, it drops by the cost of what sold.</p>
+  </section>`;
+}
+
+function vCash(M){
+  const c = id => rows('cash').find(r => r.id === id) || { id, value:'' };
+  const o = M.cash.over;
+  return `
+  <div class="sec-h"><h2>Cash box · ${esc(fdate(setting('eventDate'), true))}</h2><p>Count the box before opening and after closing.</p></div>
+  <div class="cashgrid">
+    <div class="card pad form">
+      <div><label class="lbl" for="f_cash_start_value">Starting cash in box (change)</label>${field('cash', c('start'), 'value', { ph:'0.00', fmt: money, label:'Starting cash' })}</div>
+      <div><label class="lbl" for="f_cash_end_value">Ending cash in box</label>${field('cash', c('end'), 'value', { ph:'Count after closing', fmt: money, label:'Ending cash' })}</div>
+      <div><label class="lbl" for="f_cash_countedBy_value">Counted by</label>${field('cash', c('countedBy'), 'value', { ph:'Names', label:'Counted by' })}</div>
+      <div><label class="lbl" for="f_cash_notes_value">Notes</label>${field('cash', c('notes'), 'value', { ph:'Anything odd?', label:'Cash notes' })}</div>
+    </div>
+    <div class="card calc num">
+      <div><span>Cash taken in</span><b data-calc="cash:taken">${M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken)}</b></div>
+      <div><span>Expected from item counts</span><b data-calc="cash:expected">${money(M.cash.expected)}</b></div>
+      <div class="final"><span>Over / (short)</span><b data-calc="cash:over" class="${o === null ? '' : Math.abs(o) < 10 ? 'good' : o < 0 ? 'bad' : 'warn'}">${o === null ? '<span class="blank">·</span>' : money(o)}</b></div>
+    </div>
+  </div>
+  <p class="foot">A small short is normal (pom pom pairs, miscounts). A big gap usually means an item was missed on the Count tab.</p>`;
+}
+
+function vOrders(M){
+  const adm = isAdmin();
+  const itemsList = '<datalist id="itemNames">' + M.items.map(i => '<option value="' + esc(i.name) + '">').join('') + '</datalist>';
+  const tr = p => `<tr>
+    <td>${adm ? field('purchases', p, 'date', { type:'date' }) : esc(fdate(p.date))}</td>
+    <td>${field('purchases', p, 'store')}</td>
+    <td style="min-width:220px">${field('purchases', p, 'item', { list:'itemNames' })}</td>
+    <td class="r num" style="width:80px">${field('purchases', p, 'packs')}</td>
+    <td class="r num" style="width:100px">${field('purchases', p, 'packCost', { fmt: money })}</td>
+    <td class="r num" style="width:90px">${field('purchases', p, 'unitsPerPack')}</td>
+    <td class="r num" data-calc="pu:units:${esc(p.id)}">${count(p.units)}</td>
+    <td class="r num" data-calc="pu:total:${esc(p.id)}">${money(p.total)}</td>
+    <td class="r num" data-calc="pu:cpu:${esc(p.id)}">${money(p.cpu)}</td>
+    <td>${field('purchases', p, 'notes')}</td>
+    ${adm ? `<td><button class="btn small danger" type="button" data-del="purchases|${esc(p.id)}">Remove</button></td>` : ''}
+  </tr>`;
+  const past = M.allP.filter(p => !p.current);
+  return `
+  <div class="sec-h"><h2>Orders for ${esc(M.ev)}</h2><p>${adm ? 'Item names must match the Count tab so units flow over.' : 'Only the admin PIN can change orders.'}</p></div>
+  ${itemsList}
+  <div class="tablewrap"><table>
+    <thead><tr><th>Date</th><th>Store</th><th>Item</th><th class="r">Packs</th><th class="r">Pack cost</th><th class="r">Units/pack</th><th class="r">Units</th><th class="r">Total</th><th class="r">Per unit</th><th>Notes</th>${adm ? '<th></th>' : ''}</tr></thead>
+    <tbody>${M.cur.map(tr).join('') || '<tr><td colspan="11" class="muted">No orders yet for this sale.</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="6">Total</td><td class="r num" data-calc="pu:sum:units">${count(M.purchUnits)}</td><td class="r num" data-calc="pu:sum:total">${money(M.purchTotal)}</td><td colspan="${adm ? 3 : 2}"></td></tr></tfoot>
+  </table></div>
+  ${adm ? '<button class="btn small mt" type="button" data-addrow="purchases">Add order line</button>' : ''}
+  ${past.length ? `<section><div class="sec-h"><h2>Earlier orders</h2><p>${past.length} lines from past sales</p></div><div class="tablewrap"><table><thead><tr><th>Sale</th><th>Date</th><th>Item</th><th class="r">Units</th><th class="r">Total</th></tr></thead><tbody>${past.map(p => `<tr><td>${esc(p.sale)}</td><td>${esc(fdate(p.date))}</td><td>${esc(p.item)}</td><td class="r num">${count(p.units)}</td><td class="r num">${money(p.total)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
+}
+
+function vHistory(M){
+  const adm = isAdmin();
+  const tot = M.sales.reduce((a, s) => ({ spent: a.spent + (s.spentV || 0), sales: a.sales + (s.salesV || 0), other: a.other + num(s.other), profit: a.profit + (s.profit || 0), total: a.total + (s.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
+  return `
+  <div class="sec-h"><h2>Sale history</h2><p>One row per sale. Leftovers carry to the next sale, so true profit runs a little higher.</p></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Date</th><th>Theme</th><th class="r">Spent</th><th class="r">Store sales</th><th class="r">Store profit</th><th class="r">Other</th><th>What it was</th><th class="r">Total raised</th>${adm ? '<th></th>' : ''}</tr></thead>
+    <tbody>${M.sales.map(s => `<tr>
+      <td>${adm ? field('sales', s, 'date', { type:'date' }) : esc(fdate(s.date))}</td>
+      <td>${field('sales', s, 'theme')} ${s.live ? '<span class="pill new">Live</span>' : ''}</td>
+      <td class="r num">${s.live ? money(s.spentV) : field('sales', s, 'spent', { fmt: money })}</td>
+      <td class="r num">${s.live ? (s.salesV === null ? '<span class="blank">After counts</span>' : money(s.salesV)) : field('sales', s, 'sales', { fmt: money })}</td>
+      <td class="r num" data-calc="sh:profit:${esc(s.id)}">${s.profit === null ? '<span class="blank">·</span>' : money(s.profit)}</td>
+      <td class="r num">${field('sales', s, 'other', { fmt: money })}</td>
+      <td>${field('sales', s, 'what')}</td>
+      <td class="r num"><b data-calc="sh:total:${esc(s.id)}">${s.total === null ? '<span class="blank">·</span>' : money(s.total)}</b></td>
+      ${adm ? `<td>${s.live ? '' : `<button class="btn small danger" type="button" data-del="sales|${esc(s.id)}">Remove</button>`}</td>` : ''}
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="2">All sales</td><td class="r num">${money(tot.spent)}</td><td class="r num">${money(tot.sales)}</td><td class="r num">${money(tot.profit)}</td><td class="r num">${money(tot.other)}</td><td></td><td class="r num">${money(tot.total)}</td>${adm ? '<td></td>' : ''}</tr></tfoot>
+  </table></div>
+  <p class="foot">Sales are the bank deposit, net of the starting cash. The live row fills in from the Count tab after the sale. Not counted above: $44.77 of items saved for the Christmas shop and $38.47 of supplies from the Sept 26 order.</p>
+  ${adm ? `<section><div class="card pad"><h3 style="font-size:16px;font-weight:800">Done with ${esc(M.ev)}?</h3><p class="muted" style="margin:6px 0 12px">Close it out to lock in its numbers and start the next sale. Counted-after numbers become the next sale's on-hand counts.</p><button class="btn primary" type="button" id="closeoutBtn">Close out and start next sale</button></div></section>` : ''}`;
+}
+
+function logEntry(e){
+  const tname = { items:'Count', purchases:'Orders', moneyIn:'Money in', moneyOut:'Money out', sales:'History', cash:'Cash box', settings:'Settings' }[e.table] || e.table;
+  const live = (data[e.table] || []).find(r => String(r.id) === String(e.rowId));
+  const what = e.field === '(added)' ? 'added <b>' + esc(e.new) + '</b>' : e.field === '(removed)' ? 'removed <b>' + esc(e.old) + '</b>' :
+    'set <b>' + esc(FIELD_NAMES[e.field] || e.field) + '</b>' + (live ? ' for <b>' + esc(labelOf(e.table, live)) + '</b>' : '') + ' from ' + (blank(e.old) ? 'blank' : '<b>' + esc(e.old) + '</b>') + ' to ' + (blank(e.new) ? 'blank' : '<b>' + esc(e.new) + '</b>');
+  const canRevert = isAdmin() && e.field && e.field[0] !== '(' && live && normVal(e.table, e.field, live[e.field], e.rowId) === normVal(e.table, e.field, e.new, e.rowId);
+  return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${what} <span class="muted">· ${esc(tname)}</span></span>${canRevert ? `<button class="btn small" type="button" data-revert='${esc(JSON.stringify({ t:e.table, id:e.rowId, f:e.field, old:e.old, nw:e.new }))}'>Undo</button>` : '<span></span>'}</div>`;
+}
+function vActivity(){
+  const log = data.log || [];
+  return `<div class="sec-h"><h2>Activity</h2><p>Every saved change, newest first.${DEMO ? '' : ' The full record also lives in the Change Log tab of the Google Sheet.'}</p></div>
+  <div class="card">${log.length ? '<div class="log">' + log.map(logEntry).join('') + '</div>' : '<div class="empty-state">No changes yet.</div>'}</div>
+  ${isAdmin() ? '<p class="foot">Undo puts a value back the way it was, as long as nobody has changed it again since.</p>' : ''}`;
+}
+
+function renderSavebar(){
+  const n = pendingCount();
+  $('#savebar').hidden = n === 0;
+  $('#saveMsg').textContent = n + ' unsaved change' + (n === 1 ? '' : 's') + (who ? ' by ' + who : '');
+  store.set('css-draft', pending);
+}
+
+/* ---------- editing ---------- */
+function onEdit(el){
+  const [t, id, f] = el.dataset.k.split('|');
+  const a = addRow(t, id);
+  if (a) { a.row[f] = el.value; }
+  else {
+    const srv = serverRow(t, id); if (!srv) return;
+    const k = key(t, id, f);
+    if (normVal(t, f, el.value, id) === normVal(t, f, srv[f], id)) delete pending.sets[k];
+    else pending.sets[k] = { op:'set', table:t, id, field:f, prev: pending.sets[k] ? pending.sets[k].prev : (srv[f] ?? ''), value: el.value };
+  }
+  el.classList.toggle('dirty', !!a || !!pending.sets[key(t, id, f)]);
+  el.classList.toggle('empty', el.value === '');
+  clearTimeout(onEdit.tm); onEdit.tm = setTimeout(patchCalcs, 150);
+  renderSavebar();
+}
+function newRow(t){
+  const id = t.slice(0,2) + Date.now().toString(36) + Math.floor(Math.random()*1000);
+  const ev = setting('eventName');
+  const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  const base = { items:{ name:'New item', category:'New', price:'', unitCost:'', onHand:'', countedAfter:'', notes:'' },
+    purchases:{ date: iso, store:'Amazon', item:'', packs:1, packCost:'', unitsPerPack:'', source:'Actual', sale: ev, notes:'' },
+    moneyIn:{ date: iso, event:'', amount:'', notes:'' }, moneyOut:{ date: iso, order:'', amount:'', link:'', notes:'' } }[t];
+  pending.adds.push({ op:'add', table:t, row:{ id, ...base } });
+  if (t === 'items') { showDetails = true; catFilter = 'All'; query = ''; }
+  render();
+  toast('Added. Fill it in, then Submit.');
+}
+
+/* ---------- server / preview backend ---------- */
+async function apiLoad(){
+  if (DEMO) {
+    const d = store.get('css-demo-db', null) || JSON.parse(JSON.stringify(SEED));
+    return { ok:true, data: { ...d, log: (d.log || []).slice(0, 80) } };
+  }
+  const r = await fetch(API_URL + '?action=load' + (viewCode ? '&code=' + encodeURIComponent(viewCode) : '') + '&t=' + Date.now());
+  return r.json();
+}
+async function apiPost(body){
+  if (DEMO) {
+    const role = DEMO_PINS[body.pin];
+    if (!role) return { ok:false, error:'That PIN did not work.' };
+    if (body.action === 'auth') return { ok:true, role };
+    const d = store.get('css-demo-db', null) || JSON.parse(JSON.stringify(SEED));
+    const res = applyOps(d, body.ops, role, body.name || 'Someone', new Date().toISOString());
+    d.log = res.log.reverse().concat(d.log || []).slice(0, 300);
+    store.set('css-demo-db', d);
+    return { ok:true, applied: res.applied, conflicts: res.conflicts, data: { ...d, log: d.log.slice(0, 80) } };
+  }
+  const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ ...body, code: viewCode }) });
+  return r.json();
+}
+async function load(quiet){
+  try {
+    const res = await apiLoad();
+    if (!res.ok && res.error === 'code') { loadError = ''; askCode(); return; }
+    if (!res.ok) throw new Error(res.error || 'Could not load');
+    data = res.data; lastSync = new Date(); loadError = '';
+    const a = document.activeElement;
+    if (quiet && a && a.dataset && a.dataset.k) { renderHeader(model()); return; }
+    render();
+  } catch (e) {
+    loadError = 'Offline · showing last numbers';
+    if (!data) loadError = 'Could not reach the tracker. Check the connection and refresh.';
+    render();
+  }
+}
+async function submit(){
+  if (!auth) { openUnlock(); return; }
+  const ops = Object.values(pending.sets).concat(pending.adds).concat(Object.values(pending.dels));
+  if (!ops.length) return;
+  const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops });
+    if (!res.ok) { if (res.error && /PIN/.test(res.error)) { auth = null; store.sset('css-auth', null); } toast(res.error || 'Save failed. Your changes are still here.'); return; }
+    data = res.data; lastSync = new Date();
+    const held = (res.conflicts || []).filter(c => c.reason === 'changed' && c.op.op === 'set');
+    pending = { sets:{}, adds:[], dels:{} };
+    for (const c of held) pending.sets[key(c.op.table, c.op.id, c.op.field)] = { ...c.op, prev: c.current ?? '' };
+    render();
+    if (held.length) showConflicts(held);
+    else if ((res.conflicts || []).length) toast('Saved ' + res.applied + '. ' + res.conflicts.length + ' could not be saved: ' + res.conflicts[0].reason + '.');
+    else toast('Saved. Everyone sees it now.');
+  } catch (e) { toast('Could not reach the tracker. Your changes are still here; try Submit again.'); }
+  finally { btn.disabled = false; btn.textContent = 'Submit changes'; }
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html){ $('#sheet').innerHTML = html; $('#scrim').hidden = false; const f = $('#sheet input, #sheet button'); if (f) f.focus(); }
+function closeSheet(){ $('#scrim').hidden = true; $('#sheet').innerHTML = ''; }
+function openUnlock(){
+  openSheet(`<h3>Unlock to edit</h3><p>Enter your name so the activity log shows who made each change, then the PIN the PTO gave you.</p>
+    <form id="unlockForm" class="form"><div><label class="lbl" for="uName">Your name</label><input class="in" id="uName" autocomplete="name" value="${esc(who)}" required></div>
+    <div><label class="lbl" for="uPin">PIN</label><input class="in" id="uPin" type="password" inputmode="numeric" autocomplete="off" required></div>
+    <div class="err" id="uErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Unlock</button></div></form>`);
+  $('#uName').focus();
+}
+function askCode(){
+  openSheet(`<h3>Enter the access code</h3><p>This tracker is private to the PTO. Ask the PTO for the code.</p>
+    <form id="codeForm" class="form"><div><label class="lbl" for="vCode">Access code</label><input class="in" id="vCode" autocomplete="off" required></div>
+    <div class="acts"><button class="btn primary" type="submit">Open tracker</button></div></form>`);
+}
+function showConflicts(held){
+  openSheet(`<h3>Someone else changed ${held.length === 1 ? 'a number' : held.length + ' numbers'} first</h3>
+    <p>Their numbers are saved and showing now. Yours are still in the boxes, highlighted.</p>
+    <ul>${held.map(c => { const r = serverRow(c.op.table, c.op.id); return '<li><b>' + esc(labelOf(c.op.table, r)) + '</b>, ' + esc(FIELD_NAMES[c.op.field] || c.op.field) + ': theirs ' + (blank(c.current) ? 'blank' : esc(c.current)) + ', yours ' + (blank(c.op.value) ? 'blank' : esc(c.op.value)) + '</li>'; }).join('')}</ul>
+    <div class="acts"><button class="btn" type="button" id="keepTheirs">Keep theirs</button><button class="btn primary" type="button" id="keepMine">Use mine</button></div>`);
+}
+function openCloseout(M){
+  if (pendingCount()) { toast('Submit or discard your open changes first.'); return; }
+  const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
+  const nd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  openSheet(`<h3>Close out ${esc(M.ev)}</h3>
+    <p>This locks in ${esc(M.ev)} at <b>${money(M.T.rev)}</b> in sales and <b>${money(M.purchTotal)}</b> spent, carries counted leftovers forward as on-hand stock, and clears the cash box for the next sale.${M.T.counted < M.T.n ? ' <b class="warn">' + (M.T.n - M.T.counted) + ' items have no after-sale count; they carry forward as unsold.</b>' : ''}</p>
+    <form id="closeForm" class="form"><div><label class="lbl" for="nName">Next sale name</label><input class="in" id="nName" value="Fall Festival" required></div>
+    <div><label class="lbl" for="nDate">Next sale date</label><input class="in" id="nDate" type="date" value="${nd}" required></div>
+    <div class="err" id="cErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Close out and start</button></div></form>`);
+}
+async function doCloseout(name, date){
+  const M = model(), ops = [];
+  const set = (table, id, field, value) => { const r = serverRow(table, id); if (r && normVal(table, field, r[field], id) !== normVal(table, field, value, id)) ops.push({ op:'set', table, id, field, prev: r[field] ?? '', value }); };
+  for (const i of M.items) {
+    set('items', i.id, 'onHand', i.counted === null ? i.avail : i.counted);
+    set('items', i.id, 'countedAfter', '');
+    if (i.costFromOrders) set('items', i.id, 'unitCost', Math.round(i.unitCost * 10000) / 10000);
+    if (i.category === 'New' || i.category === 'Restock') set('items', i.id, 'category', 'Carry-over');
+  }
+  for (const s of M.sales) if (s.live) { set('sales', s.id, 'spent', Math.round(M.purchTotal*100)/100); set('sales', s.id, 'sales', M.T.rev ? Math.round(M.T.rev*100)/100 : ''); set('sales', s.id, 'link', ''); }
+  for (const r of M.mOut) if (r.link === 'purchases') { set('moneyOut', r.id, 'amount', Math.round(M.purchTotal*100)/100); set('moneyOut', r.id, 'link', ''); }
+  set('cash', 'end', 'value', ''); set('cash', 'countedBy', 'value', ''); set('cash', 'notes', 'value', '');
+  set('settings', 'eventName', 'value', name); set('settings', 'eventDate', 'value', date);
+  const sid = Date.now().toString(36);
+  ops.push({ op:'add', table:'sales', row:{ id:'sh' + sid, date, theme:name, spent:'', sales:'', other:'', what:'', link:'current' } });
+  ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'a', date, event: name + ' (cash deposit)', amount:'', notes:'Enter the deposit' } });
+  ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'b', date, event: name + ' (Cash App)', amount:'', notes:'Enter the Cash App total' } });
+  ops.push({ op:'add', table:'moneyOut', row:{ id:'mo' + sid, date:'', order: name + ' orders', amount:'', link:'purchases', notes:'Fills in automatically from the Orders tab' } });
+  const res = await apiPost({ action:'save', pin: auth.pin, name: who, ops });
+  if (!res.ok) { $('#cErr').textContent = res.error || 'Could not close out.'; return; }
+  data = res.data; closeSheet(); tab = 'overview'; render();
+  toast(name + ' is ready. Counts carried forward.');
+}
+
+let toastTm;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTm); toastTm = setTimeout(() => t.hidden = true, 3800); }
+function go(t){ tab = t; store.set('css-tab', t); try { history.replaceState(null, '', '#' + t); } catch(e){} render(); window.scrollTo({ top:0 }); }
+
+/* ---------- events ---------- */
+document.addEventListener('input', e => {
+  if (e.target.dataset && e.target.dataset.k) onEdit(e.target);
+  if (e.target.id === 'q') { query = e.target.value; filterItems(); }
+});
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tab) return go(b.dataset.tab);
+  if (b.dataset.close !== undefined) return closeSheet();
+  if (b.dataset.phase) { phase = b.dataset.phase; store.set('css-phase', phase); showDetails = false; return render(); }
+  if (b.dataset.cat) { catFilter = b.dataset.cat; return render(); }
+  if (b.dataset.step) {
+    const el = document.getElementById(b.dataset.for); if (!el) return;
+    el.value = String(Math.max(0, num(el.value) + Number(b.dataset.step))); onEdit(el); patchCalcs(); return;
+  }
+  if (b.dataset.need !== undefined) {
+    const n = needsList(model())[+b.dataset.need]; if (!n) return;
+    if (n.phase) { phase = n.phase; store.set('css-phase', phase); }
+    if (n.details && isAdmin()) showDetails = true;
+    go(n.t);
+    if (!auth) setTimeout(() => toast('Tap Unlock to edit, at the top, to enter numbers.'), 300);
+    if (n.id) { const [t, id] = n.id.split('|'); const row = document.getElementById('row-' + t + '-' + id); if (row) { row.scrollIntoView({ block:'center' }); const inp = row.querySelector('.amt input'); if (inp) inp.focus({ preventScroll:true }); } }
+    return;
+  }
+  if (b.dataset.addrow) return newRow(b.dataset.addrow);
+  if (b.dataset.del) {
+    const [t, id] = b.dataset.del.split('|');
+    const a = addRow(t, id);
+    if (a) pending.adds = pending.adds.filter(x => x !== a);
+    else pending.dels[t + '|' + id] = { op:'del', table:t, id };
+    render(); toast('Marked for removal. Submit to save, or Discard to undo.'); return;
+  }
+  if (b.dataset.revert) {
+    const r = JSON.parse(b.dataset.revert);
+    pending.sets[key(r.t, r.id, r.f)] = { op:'set', table:r.t, id:r.id, field:r.f, prev:r.nw, value:r.old };
+    render(); toast('Undo is ready. Tap Submit to save it.'); return;
+  }
+  if (b.id === 'lockBtn') { if (auth) { if (pendingCount()) { toast('Submit or discard your changes before locking.'); return; } auth = null; store.sset('css-auth', null); showDetails = false; render(); toast('Locked. Viewing only.'); } else openUnlock(); return; }
+  if (b.id === 'detailsBtn') { showDetails = !showDetails; return render(); }
+  if (b.id === 'submitBtn') return submit();
+  if (b.id === 'discardBtn') { pending = { sets:{}, adds:[], dels:{} }; render(); toast('Changes discarded.'); return; }
+  if (b.id === 'keepTheirs') { pending = { sets:{}, adds:[], dels:{} }; closeSheet(); render(); return; }
+  if (b.id === 'keepMine') { closeSheet(); submit(); return; }
+  if (b.id === 'closeoutBtn') return openCloseout(model());
+});
+document.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (e.target.id === 'unlockForm') {
+    const name = $('#uName').value.trim(), pin = $('#uPin').value.trim();
+    if (!name) { $('#uErr').textContent = 'Add your name so changes are labeled.'; return; }
+    try {
+      const res = await apiPost({ action:'auth', pin });
+      if (!res.ok) { $('#uErr').textContent = res.error || 'That PIN did not work.'; return; }
+      auth = { role: res.role, pin }; who = name; store.sset('css-auth', auth); store.set('css-name', name);
+      closeSheet(); render(); toast(res.role === 'admin' ? 'Unlocked with full access.' : 'Unlocked. You can enter counts, deposits and the cash box.');
+    } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }
+  }
+  if (e.target.id === 'codeForm') { viewCode = $('#vCode').value.trim(); store.set('css-code', viewCode); closeSheet(); load(); }
+  if (e.target.id === 'closeForm') { const n = $('#nName').value.trim(), d = $('#nDate').value; if (!n || !d) { $('#cErr').textContent = 'Add a name and date.'; return; } doCloseout(n, d); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#scrim').hidden) closeSheet();
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.k && e.target.tagName === 'INPUT') {
+    const all = [...document.querySelectorAll('input[data-k]')]; const i = all.indexOf(e.target); if (all[i+1]) { e.preventDefault(); all[i+1].focus(); all[i+1].select(); }
+  }
+});
+$('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeSheet(); });
+window.addEventListener('beforeunload', e => { if (pendingCount()) { e.preventDefault(); e.returnValue = ''; } });
+
+(function(){ const img = $('#logo'); if (!LOGO_URL) return; img.onload = () => { img.hidden = false; $('#paw').setAttribute('hidden',''); }; img.src = LOGO_URL; })();
+load();
+if (!DEMO) setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!DEMO && document.visibilityState === 'visible') load(true); });
+</script>
+
+</body>
+</html>
