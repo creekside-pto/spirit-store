@@ -758,7 +758,7 @@ function calcHTML(M, k){
   if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit), realProfit: money(saleProfit(M)) }[b];
   if (a === 'm') return { in: money(M.totalIn), out: money(M.totalOut), net: money(M.net), shelf: money(M.shelf), real: money(M.real) }[b];
   if (a === 'cash' && b === 'line') return moneyLine(M);
-  if (a === 'cash' && b === 'money') return M.cash.money === null ? '<span class="blank">Count the cash box</span>' : money(M.cash.money);
+  if (a === 'cash' && b === 'money') return M.cash.money === null ? '<span class="blank">Not yet</span>' : money(M.cash.money);
   if (a === 'cash' && b === 'warn') return showStartWarn(M) ? startLeftOutHTML(M) : '';
   if (a === 'cash') return { taken: M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken), expected: money(M.cash.expected), cashapp: money(M.cash.cashapp), over: M.cash.over === null ? BL : money(M.cash.over) }[b];
   if (a === 'pu') { if (b === 'sum') return c === 'units' ? count(M.purchUnits) : money(M.purchTotal);
@@ -827,7 +827,7 @@ function vOverview(M){
       <div class="stats num">
         <div class="stat"><span>Items sold</span><b data-calc="T:sold">${count(M.T.sold)}</b></div>
         <div class="stat"><span>Sold by count</span><b data-calc="T:rev">${money(M.T.rev)}</b></div>
-        <div class="stat"><span>Money taken in</span><b data-calc="cash:money">${M.cash.money === null ? '<span class="blank">Count the cash box</span>' : money(M.cash.money)}</b></div>
+        <div class="stat"><span>Money taken in</span><b data-calc="cash:money">${M.cash.money === null ? '<span class="blank">Not yet</span>' : money(M.cash.money)}</b></div>
         <div class="stat"><span>Profit</span><b data-calc="T:realProfit" class="${saleProfit(M) > 0 ? 'good' : ''}">${money(saleProfit(M))}</b></div>
       </div>
       <div class="moneyline" data-calc="cash:line">${moneyLine(M)}</div>
