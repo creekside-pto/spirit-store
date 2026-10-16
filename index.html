@@ -571,7 +571,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '054a177b7b'; // set by the build; version.json next to this page says which build is live
+const BUILD = '315b734417'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -1327,7 +1327,102 @@ function openSheetExport(){
       <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Download PDF</button></div>
     </form>`);
 }
-async function pdfLogo(){ let logo = null; try { const b = await fetch('lion.png').then(r => r.ok && /^image\//.test(r.headers.get('content-type') || '') ? r.blob() : null); if (b) logo = await new Promise(r => { const img = new Image(), u = URL.createObjectURL(b); img.onload = () => { const c = document.createElement('canvas'); c.width = 120; c.height = Math.round(120 * img.naturalHeight / img.naturalWidth); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); r(c.toDataURL('image/png')); }; img.onerror = () => r(null); img.src = u; }); } catch (e) {} return logo; }
+async function pdfLogo(){ let logo = null; try { const b = await fetch('lion.png').then(r => r.ok && /^image\//.test(r.headers.get('content-type') || '') ? r.blob() : null); if (b) logo = await new Promise(r => { const img = new Image(), u = URL.createObjectURL(b); img.onload = () => { const c = document.createElement('canvas'); c.width = 240; c.height = Math.round(240 * img.naturalHeight / img.naturalWidth); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); r(c.toDataURL('image/jpeg', 0.9)); }; img.onerror = () => r(null); img.src = u; }); } catch (e) {} return logo; }
+/* ---------- Every printout looks like it came from the tracker ----------
+   Same green band with the lion in a white circle and faint paw prints, Archivo headings, the sale color,
+   paw section bars, and the "Lion Country Pride" footer. Archivo Black ships with the site (archivo-black.ttf, OFL). */
+const PDF = { green:[12,72,45], mint:[207,233,218], soft:[236,243,239], line:[211,223,215], grid:[150,163,155], ink:[19,36,27], muted:[85,105,93], white:[255,255,255] };
+let pdfKitP = null;
+function pdfKit(){
+  if (!pdfKitP) pdfKitP = (async () => {
+    const [font, logo] = await Promise.all([
+      fetch('archivo-black.ttf').then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (!b) return null; let t = ''; const u = new Uint8Array(b); for (let i = 0; i < u.length; i += 8192) t += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(t); }).catch(() => null),
+      pdfLogo()
+    ]);
+    const ar = logo ? await imgSize(logo).then(sz => sz ? sz[1] / sz[0] : 1.2) : 1.2;
+    return { font, logo, ar };
+  })();
+  return pdfKitP;
+}
+function pdfStart(kit){
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
+  if (kit.font) { try { doc.addFileToVFS('ArchivoBlack.ttf', kit.font); doc.addFont('ArchivoBlack.ttf', 'Archivo', 'normal'); } catch (e) { kit.font = null; } }
+  doc.kit = kit;
+  return doc;
+}
+function pdfDisplay(doc, size){ if (doc.kit.font) doc.setFont('Archivo', 'normal'); else doc.setFont('helvetica', 'bold'); doc.setFontSize(size); }
+const pdfDisplayFont = doc => doc.kit.font ? 'Archivo' : 'helvetica';
+function saleRGB(){ const ec = EVENT_COLORS.find(c => c[0] === setting('eventColor')); return hexRgb(ec ? ec[1] : '#D23C74'); }
+function pdfSpaced(doc, t, x, y, cs, align){ const w = doc.getTextWidth(t) + cs * (t.length - 1); doc.text(t, align === 'right' ? x - w : align === 'center' ? x - w / 2 : x, y, { charSpace: cs }); return w; }
+/* the tracker's paw (same shape as the site icon): a pad and four toes */
+function pdfPaw(doc, cx, cy, size, rgb, opacity, angle){
+  const k = size / 38, a = angle || 0, rot = (dx, dy) => [cx + (dx * Math.cos(a) - dy * Math.sin(a)) * k, cy + (dx * Math.sin(a) + dy * Math.cos(a)) * k];
+  const op = opacity !== undefined && opacity < 1 && doc.GState;
+  if (op) { doc.saveGraphicsState(); doc.setGState(new doc.GState({ opacity })); }
+  doc.setFillColor(...rgb);
+  const [px, py] = rot(0, 9); doc.ellipse(px, py, 12 * k, 10 * k, 'F');
+  for (const [dx, dy] of [[-14, -4], [-5, -12], [5, -12], [14, -4]]) { const [tx, ty] = rot(dx, dy); doc.ellipse(tx, ty, 5 * k, 6.5 * k, 'F'); }
+  if (op) doc.restoreGraphicsState();
+}
+/* page 1: the full band. o = { title, chip, chipFill, chipInk } */
+function pdfHeader(doc, o){
+  const W = doc.internal.pageSize.getWidth(), BH = 84, kit = doc.kit;
+  doc.setFillColor(...PDF.green); doc.rect(0, 0, W, BH, 'F');
+  for (const [x, y, sz, a] of [[214, 66, 10, .5], [262, 20, 15, -.4], [312, 62, 12, .3], [360, 22, 10, -.6], [410, 66, 13, .2], [462, 16, 11, .5], [512, 64, 12, -.3], [560, 20, 14, .4], [598, 70, 10, -.2]]) pdfPaw(doc, x, y, sz, PDF.white, 0.09, a);
+  doc.setFillColor(...PDF.white); doc.setDrawColor(...PDF.mint); doc.setLineWidth(2.5); doc.circle(54, 42, 28, 'FD');
+  if (kit.logo) { const h = 42, w = h / kit.ar; doc.addImage(kit.logo, 'JPEG', 54 - w / 2, 42 - h / 2, w, h); }
+  pdfDisplay(doc, 17.5); doc.setTextColor(...PDF.white); const orgEnd = 94 + pdfSpaced(doc, 'CREEKSIDE LIONS PTO', 94, 39, 0.4);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF.mint);
+  doc.text((setting('schoolLine') || 'Creekside Elementary · Livingston ISD') + ' · Spirit Store', 94, 54);
+  const T = o.title.toUpperCase(); let ts = 14; pdfDisplay(doc, ts);
+  while (ts > 9 && doc.getTextWidth(T) + 0.7 * (T.length - 1) > W - 34 - orgEnd - 28) { ts -= 0.5; pdfDisplay(doc, ts); }
+  doc.setTextColor(...PDF.white); pdfSpaced(doc, T, W - 34, 33, 0.7, 'right');
+  if (o.chip) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+    const cw = doc.getTextWidth(o.chip) + 26, cx = W - 34 - cw, fill = o.chipFill || saleRGB(), ink = o.chipInk || PDF.white;
+    doc.setFillColor(...fill); doc.roundedRect(cx, 43, cw, 19, 9.5, 9.5, 'F');
+    doc.setFillColor(...ink); doc.circle(cx + 10.5, 52.5, 2.7, 'F');
+    doc.setTextColor(...ink); doc.text(o.chip, cx + 18, 55.7);
+  }
+  doc.setFillColor(...saleRGB()); doc.rect(0, BH, W, 4, 'F');
+  return BH + 26;
+}
+/* pages 2 and on: a slim band so every page still reads as the tracker's */
+const PDF_TOP = 58;
+function pdfSlimHeader(doc, title){
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...PDF.green); doc.rect(0, 0, W, 30, 'F');
+  pdfPaw(doc, 46, 15, 13, PDF.mint, 1, -.25);
+  pdfDisplay(doc, 9.5); doc.setTextColor(...PDF.white); pdfSpaced(doc, 'CREEKSIDE LIONS PTO', 60, 18.6, 0.4);
+  doc.setTextColor(...PDF.mint); pdfSpaced(doc, title.toUpperCase(), W - 34, 18.6, 0.6, 'right');
+  doc.setFillColor(...saleRGB()); doc.rect(0, 30, W, 3, 'F');
+}
+/* a section bar with a paw, like the headings in the tracker */
+function pdfBar(doc, x, y, w, label, right){
+  doc.setFillColor(...PDF.green); doc.roundedRect(x, y, w, 21, 5, 5, 'F');
+  pdfPaw(doc, x + 13, y + 10.5, 12, PDF.mint, 1, -.2);
+  pdfDisplay(doc, 10); doc.setTextColor(...PDF.white); pdfSpaced(doc, label.toUpperCase(), x + 27, y + 14.6, 0.5);
+  if (right) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PDF.mint); doc.text(right, x + w - 9, y + 14, { align:'right' }); }
+  return y + 21;
+}
+/* every page: slim band on pages 2+, and the Lion Country Pride footer */
+function pdfFinish(doc, title, note){
+  try { doc.setProperties({ title: 'Creekside Lions PTO · ' + title.replace(/^./, c => c.toUpperCase()), author: 'Creekside Lions PTO', subject: 'Spirit store', creator: 'Creekside spirit store tracker' }); } catch (e) {}
+  const n = doc.internal.getNumberOfPages(), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    if (i > 1) pdfSlimHeader(doc, title);
+    doc.setDrawColor(...PDF.line); doc.setLineWidth(0.7); doc.line(34, H - 40, W - 34, H - 40);
+    pdfDisplay(doc, 7.5); doc.setTextColor(...PDF.green);
+    const w = pdfSpaced(doc, 'LION COUNTRY PRIDE', W / 2, H - 22, 1.4, 'center');
+    pdfPaw(doc, W / 2 - w / 2 - 10, H - 24.6, 9, PDF.green, 1, -.3); pdfPaw(doc, W / 2 + w / 2 + 10, H - 24.6, 9, PDF.green, 1, .3);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
+    const room = W / 2 - w / 2 - 26 - 34;
+    doc.text(doc.splitTextToSize(note || 'From the spirit store tracker', room)[0], 34, H - 22);
+    doc.text('Printed ' + printed + (n > 1 ? '   ·   Page ' + i + ' of ' + n : ''), W - 34, H - 22, { align:'right' });
+  }
+}
 async function exportCountSheet(hideZero, reminder, next){
   try { localStorage.setItem('css-sheet-reminder', reminder); } catch (e) {}
   const btn = document.querySelector('#sheetForm button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Making PDF…'; }
@@ -1336,45 +1431,44 @@ async function exportCountSheet(hideZero, reminder, next){
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   } catch (e) { $('#shErr').textContent = 'Could not load the PDF maker. Check the connection and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } return; }
   const M = model(), groups = sheetRows(M, hideZero, next);
-  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
-  const W = doc.internal.pageSize.getWidth(), GREEN = [12,72,45], LIGHT = [226,239,231];
-  const logo = await pdfLogo();
-  let y = 40;
-  if (logo) doc.addImage(logo, 'PNG', 40, y - 8, 30, 36);
-  doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...GREEN);
-  doc.text('Creekside Spirit Store · Inventory Count Sheet', logo ? 80 : 40, y + 6);
-  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(60);
-  const printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-  doc.text((next ? 'Next sale · what was left after ' + (setting('eventName') || 'the last sale') : (setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '')) + '   ·   printed ' + printed, logo ? 80 : 40, y + 22);
-  y += 48; doc.setTextColor(20); doc.setFontSize(10.5);
-  doc.text('Counted BEFORE by: ________________________', 40, y); doc.text('Counted AFTER by: ________________________', W/2 + 6, y);
-  y += 14;
+  const doc = pdfStart(await pdfKit());
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), L = 36;
+  let y = pdfHeader(doc, { title: 'Inventory Count Sheet', chip: next ? 'Next sale · left after ' + (setting('eventName') || 'the last sale') : (setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '') });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF.ink);
+  doc.text('Counted BEFORE by: ______________________', L, y); doc.text('Counted AFTER by: ______________________', W / 2 + 4, y);
+  y += 12;
+  // the cash box lives up top: starting cash is counted before opening, the rest at closing
+  doc.setFillColor(...PDF.soft); doc.roundedRect(L, y, W - 2 * L, 30, 6, 6, 'F');
+  pdfPaw(doc, L + 13, y + 15, 12, PDF.green, 1, -.2);
+  pdfDisplay(doc, 9); doc.setTextColor(...PDF.green); pdfSpaced(doc, 'CASH BOX', L + 26, y + 18.5, 0.6);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...PDF.ink);
+  doc.text('Starting cash $________', L + 100, y + 19); doc.text('Ending cash $________', L + 248, y + 19); doc.text('Cash App $________', L + 392, y + 19);
+  y += 40;
   if (reminder) {
-    const lines = doc.splitTextToSize('REMINDER: ' + reminder, W - 92);
-    doc.setFillColor(255, 243, 205); doc.rect(40, y, W - 80, lines.length * 13 + 10, 'F');
-    doc.setFont('helvetica','bold'); doc.setTextColor(150, 30, 30); doc.text(lines, 46, y + 15); y += lines.length * 13 + 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    const lines = doc.splitTextToSize(reminder, W - 2 * L - 90);
+    const bh = Math.max(24, lines.length * 13 + 12);
+    doc.setFillColor(255, 239, 204); doc.roundedRect(L, y, W - 2 * L, bh, 6, 6, 'F');
+    doc.setFillColor(...saleRGB()); doc.roundedRect(L, y, 5, bh, 2.5, 2.5, 'F');
+    pdfDisplay(doc, 9); doc.setTextColor(154, 91, 0); pdfSpaced(doc, 'REMINDER', L + 14, y + 16, 0.6);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF.ink); doc.text(lines, L + 82, y + 16);
+    y += bh + 8;
   }
-  doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(90);
-  const help = doc.splitTextToSize((next ? 'BEFORE is what was counted left after the last sale. Orders for the next sale are not on it yet, so add those as they come in. ' : 'BEFORE is filled in from the leftover count plus this sale\'s orders. ') + ' Check it while unpacking; cross out anything wrong and write the right number. Blank BEFORE boxes need to be counted. After the sale, write what is LEFT in the AFTER column, then take a photo of each page and tap Upload at the top of the tracker.', W - 80);
-  doc.text(help, 40, y + 4); y += help.length * 10 + 6;
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+  const help = doc.splitTextToSize((next ? 'BEFORE is what was counted left after the last sale. Orders for the next sale are not on it yet, so add those as they come in. ' : 'BEFORE is filled in from the leftover count plus this sale\'s orders. ') + 'Check it while unpacking; cross out anything wrong and write the right number. Blank BEFORE boxes need to be counted. After the sale, write what is LEFT in the AFTER column, then take a photo of each page and tap Upload at the top of the tracker.', W - 2 * L);
+  doc.text(help, L, y + 4); y += help.length * 10 + 6;
   const body = [];
   for (const g of groups) {
-    body.push([{ content: g.label.toUpperCase(), colSpan: 7, styles: { fillColor: LIGHT, textColor: GREEN, fontStyle: 'bold', fontSize: 9, halign: 'left' } }]);
+    body.push([{ content: g.label.toUpperCase(), colSpan: 7, styles: { fillColor: PDF.soft, textColor: PDF.green, font: pdfDisplayFont(doc), fontStyle: 'normal', fontSize: 9, halign: 'left', cellPadding: { top: 5, bottom: 5, left: 22, right: 4 } } }]);
     for (const it of g.items) body.push([String(it.n), it.name, it.price, it.before === '' ? '' : String(it.before), '', '', it.note]);
   }
-  doc.autoTable({ startY: y, head: [['#','Item','Price','BEFORE','AFTER','SOLD','Notes']], body, theme:'grid', margin:{ left:40, right:40 },
-    styles:{ fontSize:9.5, cellPadding:{ top:5, bottom:5, left:4, right:4 }, minCellHeight:22, valign:'middle', lineColor:[150,160,155], lineWidth:0.6, textColor:20 },
-    headStyles:{ fillColor:GREEN, textColor:255, fontStyle:'bold', halign:'center' },
-    columnStyles:{ 0:{ cellWidth:24, halign:'center', textColor:110 }, 1:{ cellWidth:'auto' }, 2:{ cellWidth:40, halign:'center' }, 3:{ cellWidth:52, halign:'center', fontStyle:'bold', fontSize:11 }, 4:{ cellWidth:52 }, 5:{ cellWidth:44 }, 6:{ cellWidth:120, fontSize:7.5, textColor:100, fontStyle:'italic' } } });
-  y = doc.lastAutoTable.finalY + 22;
-  if (y > doc.internal.pageSize.getHeight() - 110) { doc.addPage(); y = 50; }
-  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...GREEN); doc.text('Cash box', 40, y);
-  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(20); y += 20;
-  doc.text('Starting cash: $__________', 40, y); doc.text('Ending cash: $__________', 220, y); doc.text('Cash App total: $__________', 400, y);
-  y += 24; doc.text('Notes: ______________________________________________________________________________', 40, y);
-  const pages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Page ' + i + ' of ' + pages + '   ·   Creekside Lions PTO', W / 2, doc.internal.pageSize.getHeight() - 20, { align:'center' }); }
-  const fname = next ? 'Count sheet - next sale.pdf' : 'Count sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf';
+  doc.autoTable({ startY: y, head: [['#','Item','Price','BEFORE','AFTER','SOLD','Notes']], body, theme:'grid', margin:{ left:L, right:L, top: PDF_TOP, bottom: 52 },
+    styles:{ fontSize:9.5, cellPadding:{ top:5, bottom:5, left:4, right:4 }, minCellHeight:22, valign:'middle', lineColor:PDF.grid, lineWidth:0.6, textColor:PDF.ink },
+    headStyles:{ fillColor:PDF.green, textColor:255, font: pdfDisplayFont(doc), fontStyle:'normal', halign:'center', fontSize:9 },
+    columnStyles:{ 0:{ cellWidth:24, halign:'center', textColor:110 }, 1:{ cellWidth:'auto' }, 2:{ cellWidth:40, halign:'center' }, 3:{ cellWidth:52, halign:'center', fontStyle:'bold', fontSize:11 }, 4:{ cellWidth:52 }, 5:{ cellWidth:44 }, 6:{ cellWidth:120, fontSize:7.5, textColor:100, fontStyle:'italic' } },
+    didDrawCell: d => { if (d.section === 'body' && d.cell.colSpan === 7) pdfPaw(doc, d.cell.x + 11, d.cell.y + d.cell.height / 2, 10, PDF.green, 1, -.2); } });
+  pdfFinish(doc, 'Inventory count sheet', 'Count sheet from the spirit store tracker');
+  const fname = 'Creekside Lions count sheet - ' + (next ? 'next sale' : (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '')) + '.pdf';
   deliverPdf(doc, fname, 'Count sheet', ' Print it and take it to the sale.');
 }
 /* Phones get the share sheet (Print, Files, Messages); computers get a download. */
@@ -1483,56 +1577,44 @@ async function exportPriceSheet(hideZero){
   try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); await psLoad(); }
   catch (e) { $('#psErr').textContent = 'Could not load the PDF maker. Check the connection and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } return; }
   try {
-    const M = model(), groups = psCells(M, psConfig(), hideZero);
-    const ec = EVENT_COLORS.find(c => c[0] === setting('eventColor')), ACC = hexRgb(ec ? ec[1] : '#D23C74'), GREEN = [12,72,45];
-    const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
-    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), L = 30, COLS = 6, CW = (W - 2 * L) / COLS, RH = 104, GH = 19;
+    const M = model(), groups = psCells(M, psConfig(), hideZero), ACC = saleRGB();
+    const doc = pdfStart(await pdfKit());
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), L = 34, COLS = 6, GAP = 5, CW = (W - 2 * L - (COLS - 1) * GAP) / COLS, RH = 100, BOTTOM = H - 48;
     const sizes = {};
     for (const g of groups) for (const c of g.cells) if (c.photo && !sizes[c.photo]) sizes[c.photo] = await imgSize(c.photo);
-    let y = 40;
-    const title = () => {
-      doc.setFont('helvetica','bold'); doc.setFontSize(19); doc.setTextColor(...GREEN); doc.text('Creekside Spirit Store · Price Sheet', W / 2, y, { align:'center' });
-      doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(90);
-      doc.text((setting('eventName') || '') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : ''), W / 2, y + 15, { align:'center' });
-      y += 30;
-    };
-    const header = (name, cont) => {
-      doc.setFillColor(...GREEN); doc.rect(L, y, W - 2 * L, GH, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255); doc.text(name.toUpperCase() + (cont ? '  (continued)' : ''), L + 6, y + 13.5);
-      y += GH;
-    };
+    let y = pdfHeader(doc, { title: 'Price Sheet', chip: (setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '') }) - 10;
     const cell = (c, x, top) => {
-      doc.setDrawColor(...ACC); doc.setLineWidth(0.8); doc.rect(x, top, CW, RH);
-      doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+      doc.setFillColor(...PDF.white); doc.setDrawColor(...PDF.line); doc.setLineWidth(0.9); doc.roundedRect(x, top, CW, RH, 7, 7, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
       const nameLines = doc.splitTextToSize(c.name, CW - 10).slice(0, 3);
       const priceLines = String(c.price).split(/\s*,\s*/).filter(Boolean);
-      const pSize = priceLines.length > 1 ? 10.5 : 16, nameH = nameLines.length * 9.5, priceH = priceLines.length * (pSize + 1);
-      let ty;
+      const pSize = priceLines.length > 1 ? 10 : 16, nameH = nameLines.length * 9.6, priceH = priceLines.length * (pSize + 1.5);
       const sz = c.photo && sizes[c.photo];
+      let ty;
       if (sz) {
-        const boxW = CW - 18, boxH = RH - 12 - nameH - priceH - 4, k = Math.min(boxW / sz[0], boxH / sz[1]);
-        const iw = sz[0] * k, ih = sz[1] * k;
-        try { doc.addImage(c.photo, 'JPEG', x + (CW - iw) / 2, top + 5 + (boxH - ih) / 2, iw, ih); } catch (e) {}
-        ty = top + 5 + boxH + 9;
-      } else ty = top + (RH - nameH - priceH) / 2 + 8;
-      doc.setTextColor(20); doc.text(nameLines, x + CW / 2, ty, { align:'center' });
-      doc.setFontSize(pSize); doc.setTextColor(...ACC); doc.text(priceLines, x + CW / 2, ty + nameH + (pSize > 12 ? 8 : 4), { align:'center' });
-    };
-    title();
-    for (const g of groups) {
-      if (y + GH + RH > H - 34) { doc.addPage(); y = 36; }
-      header(g.name, false);
-      for (let i = 0; i < g.cells.length; i += COLS) {
-        if (y + RH > H - 34) { doc.addPage(); y = 36; header(g.name, true); }
-        g.cells.slice(i, i + COLS).forEach((c, j) => cell(c, L + j * CW, y));
-        y += RH;
+        const boxW = CW - 16, boxH = RH - 14 - nameH - priceH - 4, k = Math.min(boxW / sz[0], boxH / sz[1]), iw = sz[0] * k, ih = sz[1] * k;
+        try { doc.addImage(c.photo, 'JPEG', x + (CW - iw) / 2, top + 6 + (boxH - ih) / 2, iw, ih); } catch (e) {}
+        ty = top + 6 + boxH + 9;
+      } else {
+        pdfPaw(doc, x + CW / 2, top + 24, 18, PDF.soft, 1, -.2);
+        ty = top + Math.max(46, (RH - nameH - priceH) / 2 + 12);
       }
-      y += 8;
+      doc.setTextColor(...PDF.ink); doc.text(nameLines, x + CW / 2, ty, { align:'center' });
+      pdfDisplay(doc, pSize); doc.setTextColor(...ACC); doc.text(priceLines, x + CW / 2, ty + nameH + (pSize > 12 ? 9 : 4.5), { align:'center' });
+    };
+    for (const g of groups) {
+      if (y + 21 + 5 + RH > BOTTOM) { doc.addPage(); y = PDF_TOP; }
+      y = pdfBar(doc, L, y, W - 2 * L, g.name) + 5;
+      for (let i = 0; i < g.cells.length; i += COLS) {
+        if (y + RH > BOTTOM) { doc.addPage(); y = PDF_TOP; y = pdfBar(doc, L, y, W - 2 * L, g.name, 'continued') + 5; }
+        g.cells.slice(i, i + COLS).forEach((c, j) => cell(c, L + j * (CW + GAP), y));
+        y += RH + GAP;
+      }
+      y += 6;
     }
-    if (!groups.length) { doc.setFontSize(12); doc.setTextColor(90); doc.text('Nothing to show. Every item is out of stock or hidden.', W / 2, y + 20, { align:'center' }); }
-    const pages = doc.internal.getNumberOfPages(), printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(130); doc.text('Prices from the Creekside spirit store tracker   ·   printed ' + printed + (pages > 1 ? '   ·   page ' + i + ' of ' + pages : ''), W / 2, H - 16, { align:'center' }); }
-    deliverPdf(doc, 'Price sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf', 'Price sheet', ' Print it for the table.');
+    if (!groups.length) { doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(...PDF.muted); doc.text('Nothing to show. Every item is out of stock or hidden.', W / 2, y + 20, { align:'center' }); }
+    pdfFinish(doc, 'Price sheet', 'Prices from the spirit store tracker');
+    deliverPdf(doc, 'Creekside Lions price sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf', 'Price sheet', ' Print it for the table.');
   } catch (e) { console.error(e); $('#psErr') && ($('#psErr').textContent = 'Could not make the price sheet. Try again.'); if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } }
 }
 
@@ -1653,64 +1735,57 @@ async function exportReport(btn){
   } catch (e) { restore(); toast('Could not load the PDF maker. Check the connection and try again.'); return; }
   try {
     const M = model();
-    const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
-    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), GREEN = [12,72,45], LIGHT = [226,239,231];
+    const doc = pdfStart(await pdfKit());
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), L = 36, DF = pdfDisplayFont(doc);
     const m$ = v => v === null || v === undefined || v === '' ? '' : money(v);
-    const logo = await pdfLogo();
-    let y = 40;
-    if (logo) doc.addImage(logo, 'PNG', 40, y - 8, 30, 36);
-    doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...GREEN);
-    doc.text('Creekside Spirit Store · Sales Report', logo ? 80 : 40, y + 6);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(60);
     const printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    doc.text((setting('orgName') || 'Creekside Lions PTO') + (setting('schoolLine') ? ' · ' + setting('schoolLine') : '') + '   ·   printed ' + printed, logo ? 80 : 40, y + 22);
-    y += 50;
-    // the four headline numbers
+    let y = pdfHeader(doc, { title: 'Sales Report', chip: 'Every sale through ' + printed, chipFill: PDF.mint, chipInk: PDF.green });
+    // the four headline numbers, like the top of the Overview
     const boxes = [['Real profit to date', M.real], ['Money in', M.totalIn], ['Spent', M.totalOut], ['Stock on shelf (at cost)', M.shelf]];
-    const bw = (W - 80 - 3 * 10) / 4;
+    const bw = (W - 2 * L - 3 * 10) / 4;
     boxes.forEach(([label, v], i) => {
-      const x = 40 + i * (bw + 10);
-      doc.setFillColor(...(i === 0 ? GREEN : LIGHT)); doc.roundedRect(x, y, bw, 52, 6, 6, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...(i === 0 ? [255,255,255] : GREEN)); doc.text(label.toUpperCase(), x + 10, y + 17);
-      doc.setFontSize(i === 0 ? 17 : 15); doc.setTextColor(i === 0 ? 255 : 20); doc.text(money(v), x + 10, y + 40);
+      const x = L + i * (bw + 10);
+      doc.setFillColor(...(i === 0 ? PDF.green : PDF.soft)); doc.roundedRect(x, y, bw, 56, 8, 8, 'F');
+      if (i === 0) pdfPaw(doc, x + bw - 16, y + 15, 14, PDF.white, 0.14, .3);
+      pdfDisplay(doc, 7.5); doc.setTextColor(...(i === 0 ? PDF.mint : PDF.green)); pdfSpaced(doc, label.toUpperCase(), x + 11, y + 18, 0.5);
+      pdfDisplay(doc, i === 0 ? 18 : 15); doc.setTextColor(...(i === 0 ? PDF.white : PDF.ink)); doc.text(money(v), x + 11, y + 43);
     });
-    y += 66;
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(90);
-    const how = doc.splitTextToSize('Real profit to date = money in, minus everything spent, plus stock still on the shelf at what we paid (items with no cost entered, like spirit shirts, count as $0). Cash deposits are net of the $' + (setting('startCash') || 150) + ' starting cash.', W - 80);
-    doc.text(how, 40, y); y += how.length * 10 + 14;
+    y += 68;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+    const how = doc.splitTextToSize('Real profit to date = money in, minus everything spent, plus stock still on the shelf at what we paid (items with no cost entered, like spirit shirts, count as $0). Cash deposits are net of the $' + (setting('startCash') || 150) + ' starting cash.', W - 2 * L);
+    doc.text(how, L, y); y += how.length * 10 + 12;
+    const tableStyle = { theme:'grid', showFoot:'lastPage', margin:{ left:L, right:L, top: PDF_TOP + 4, bottom: 52 },
+      styles:{ fontSize:9.5, cellPadding:5, valign:'middle', lineColor:PDF.line, lineWidth:0.6, textColor:PDF.ink },
+      headStyles:{ fillColor:PDF.soft, textColor:PDF.green, font: DF, fontStyle:'normal', halign:'center', fontSize:8.5 },
+      footStyles:{ fillColor:PDF.mint, textColor:PDF.green, font: DF, fontStyle:'normal', halign:'right', fontSize:9.5 } };
     // every sale, then the totals
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...GREEN); doc.text('Every sale', 40, y); y += 8;
+    y = pdfBar(doc, L, y, W - 2 * L, 'Every sale');
     const sales = M.sales.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const tot = sales.reduce((a, x) => ({ spent: a.spent + (x.spentV || 0), sales: a.sales + (x.salesV || 0), other: a.other + num(x.other), profit: a.profit + (x.profit || 0), total: a.total + (x.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
-    doc.autoTable({ startY: y, margin:{ left:40, right:40 }, theme:'grid', showFoot:'lastPage',
+    doc.autoTable({ ...tableStyle, startY: y + 4,
       head: [['Date', 'Sale', 'Spent on items', 'Store sales', 'Store profit', 'Other fundraising', 'Total raised']],
       body: sales.map(x => [fdate(x.date) + (x.date ? ', ' + String(x.date).slice(0, 4) : ''), (x.theme || '') + (x.live ? ' (current sale)' : '') + (x.what ? '\n' + x.what : ''), m$(x.spentV), x.salesV === null ? (x.live ? 'Not yet' : '') : money(x.salesV), m$(x.profit), m$(blank(x.other) ? null : num(x.other)), m$(x.total)]),
       foot: [['', 'All ' + sales.length + ' sales', money(tot.spent), money(tot.sales), money(tot.profit), money(tot.other), money(tot.total)]],
-      styles:{ fontSize:9.5, cellPadding:5, valign:'middle', lineColor:[150,160,155], lineWidth:0.6, textColor:20 },
-      headStyles:{ fillColor:GREEN, textColor:255, fontStyle:'bold', halign:'center', fontSize:9 },
-      footStyles:{ fillColor:LIGHT, textColor:20, fontStyle:'bold', halign:'right' },
-      columnStyles:{ 0:{ cellWidth:76 }, 1:{ cellWidth:'auto' }, 2:{ halign:'right', cellWidth:64 }, 3:{ halign:'right', cellWidth:64 }, 4:{ halign:'right', cellWidth:64 }, 5:{ halign:'right', cellWidth:64 }, 6:{ halign:'right', cellWidth:66, fontStyle:'bold' } } });
+      columnStyles:{ 0:{ cellWidth:76 }, 1:{ cellWidth:'auto' }, 2:{ halign:'right', cellWidth:62 }, 3:{ halign:'right', cellWidth:62 }, 4:{ halign:'right', cellWidth:62 }, 5:{ halign:'right', cellWidth:62 }, 6:{ halign:'right', cellWidth:66, fontStyle:'bold' } } });
     y = doc.lastAutoTable.finalY + 10;
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(90);
-    const sn = doc.splitTextToSize('Store sales = the money that came in: cash (not counting the starting cash) plus Cash App. The current sale uses the cash box once it is counted, and the item counts until then. Store profit = store sales minus what was spent on items. Total raised = store profit plus other fundraising. ' + HISTORY_NOTE, W - 80);
-    doc.text(sn, 40, y + 4); y += sn.length * 10 + 18;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+    const sn = doc.splitTextToSize('Store sales = the money that came in: cash (not counting the starting cash) plus Cash App. The current sale uses the cash box once it is counted, and the item counts until then. Store profit = store sales minus what was spent on items. Total raised = store profit plus other fundraising. ' + HISTORY_NOTE, W - 2 * L);
+    doc.text(sn, L, y + 4); y += sn.length * 10 + 16;
     // the money behind it
-    const ledger = (title, rows, cols, total) => {
-      if (y > H - 120) { doc.addPage(); y = 50; }
-      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...GREEN); doc.text(title, 40, y); y += 8;
-      doc.autoTable({ startY: y, margin:{ left:40, right:40 }, theme:'grid', showFoot:'lastPage', head: [cols], body: rows, foot: [['', 'Total', money(total), '']],
-        styles:{ fontSize:9, cellPadding:4, valign:'middle', lineColor:[170,178,174], lineWidth:0.5, textColor:20 },
-        headStyles:{ fillColor:GREEN, textColor:255, fontStyle:'bold', fontSize:8.5 }, footStyles:{ fillColor:LIGHT, textColor:20, fontStyle:'bold' },
-        columnStyles:{ 0:{ cellWidth:76 }, 1:{ cellWidth:160 }, 2:{ halign:'right', cellWidth:70 }, 3:{ cellWidth:'auto', textColor:90, fontSize:8 } } });
-      y = doc.lastAutoTable.finalY + 22;
+    const ledger = (title, rows, total) => {
+      if (y > H - 150) { doc.addPage(); y = PDF_TOP; }
+      y = pdfBar(doc, L, y, W - 2 * L, title, rows.length + (rows.length === 1 ? ' line' : ' lines'));
+      doc.autoTable({ ...tableStyle, startY: y + 4, head: [['Date', 'What', 'Amount', 'Notes']], body: rows, foot: [['', 'Total', money(total), '']],
+        styles:{ ...tableStyle.styles, fontSize:9, cellPadding:4 },
+        columnStyles:{ 0:{ cellWidth:76 }, 1:{ cellWidth:160 }, 2:{ halign:'right', cellWidth:70 }, 3:{ cellWidth:'auto', textColor:PDF.muted, fontSize:8 } } });
+      y = doc.lastAutoTable.finalY + 20;
     };
     const dt = d => fdate(d) + (d ? ', ' + String(d).slice(0, 4) : '');
-    ledger('Money in', M.mIn.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(r => [dt(r.date), r.event || '', blank(r.amount) ? 'Not entered' : money(r.amount), r.notes || '']), ['Date', 'What', 'Amount', 'Notes'], M.totalIn);
-    ledger('Money out', M.mOut.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(r => [dt(r.date), r.order || '', r.link !== 'purchases' && blank(r.amount) ? 'Not entered' : money(r.amt), (r.notes || '')]), ['Date', 'What', 'Amount', 'Notes'], M.totalOut);
-    const pages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Page ' + i + ' of ' + pages + '   ·   Creekside Lions PTO Spirit Store   ·   printed ' + printed, W / 2, H - 20, { align:'center' }); }
+    ledger('Money in', M.mIn.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(r => [dt(r.date), r.event || '', blank(r.amount) ? 'Not entered' : money(r.amount), r.notes || '']), M.totalIn);
+    ledger('Money out', M.mOut.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(r => [dt(r.date), r.order || '', r.link !== 'purchases' && blank(r.amount) ? 'Not entered' : money(r.amt), (r.notes || '')]), M.totalOut);
+    pdfFinish(doc, 'Sales report', 'From the spirit store tracker');
     restore();
-    deliverPdf(doc, 'Spirit store report - ' + printed.replace(/,/g, '') + '.pdf', 'Report', '');
+    deliverPdf(doc, 'Creekside Lions sales report - ' + printed.replace(/,/g, '') + '.pdf', 'Report', '');
   } catch (e) { restore(); toast('Could not make the report. Try again.'); console.error(e); }
 }
 
