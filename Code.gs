@@ -178,6 +178,7 @@ function setViewCode() {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (!codeOk(p.code)) return json({ ok: false, error: 'code' });
+  if (p.action === 'photos') return json({ ok: true, photos: readPhotos() }); // anyone who can view can print the price sheet
   return ContentService.createTextOutput('{"ok":true,"data":' + dataJson() + '}').setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -192,6 +193,7 @@ function doPost(e) {
   if (body.action === 'importRead') return json(importRead(body, role.role));
   if (body.action === 'readDoc') return json(readDoc(body, role.role));
   if (body.action === 'ask') return json(ask(body, role.role));
+  if (body.action === 'setPhoto') return json(setPhoto(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
@@ -306,9 +308,10 @@ var HELP_GUIDE = [
   '- Money tab: Money in (bank deposits, Cash App totals) and Money out (orders and other costs). Cash deposits are net of the starting cash.',
   '- Orders tab (admin): what was bought for this sale. Earlier orders are kept below.',
   '- Buttons only show for people who can use them. Upload shows after unlocking with a PIN; Ask, PINs & access, Edit sale details, Add and Remove show only for admins.',
-  '- Print report button (on the Overview "Real profit to date" card and at the top of the History tab, anyone can print it): a PDF of every sale with totals, the four headline numbers, and every money in and money out line.',
+  '- Print button (top, anyone can use it) offers three PDFs: Price sheet (every item and its price with pictures, grouped like the table, from the tracker prices; "Leave off items with none left" is on by default), Count sheet (BEFORE and AFTER columns for volunteers), and Sales report (every sale with totals, the four headline numbers, and every money in and money out line). Print report buttons on the Overview card and the History tab make the sales report too.',
+  '- Price sheet editing (admin): Print, Price sheet, "Edit names, groups and photos". Change the name a customer sees, the group, special price text like "1 for $2, 2 for $3", hide an item, or add a photo. Two items with the same name in the same group print as one box. A new item shows up on its own; to add something like a hat that is not in the tracker yet, add it as an item on the Count tab first.',
   '- Upload button (top, after unlocking): add a photo of the count sheet (each page), a deposit slip photo, an Amazon order screenshot or PDF, or the Cash App export file (admin). It reads it, asks one-tap questions about anything that does not add up, and nothing saves until every question is answered and Save is tapped. The green Saved screen has "Undo this upload".',
-  '- Print count sheet button (top): makes a PDF. After the after-sale counts are in, it asks which numbers go in BEFORE: "What\'s left now" (for the next sale) or the current sale\'s starting numbers. "Leave off items with none left" hides zero rows; row numbers never change.',
+  '- Count sheet (Print button, then Count sheet): makes a PDF. After the after-sale counts are in, it asks which numbers go in BEFORE: "What\'s left now" (for the next sale) or the current sale\'s starting numbers. "Leave off items with none left" hides zero rows; row numbers never change.',
   '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
   '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
   '- Activity tab: every saved change with name and time. Admins can Undo a change there.',
@@ -363,6 +366,36 @@ function logAsk(who, q, answer) {
     rng.setNumberFormat('@');
     rng.setValues([[new Date().toISOString(), cellText(who || 'Someone', 40), cellText(q, 1000), cellText(answer, 2500)]]);
   } catch (e) {} finally { lock.releaseLock(); }
+}
+
+/* ------------------------------ Price sheet photos ------------------------------
+   One small JPEG per item on a "Photos" tab (item ID, picture). The starter pictures ship with the website;
+   a photo saved here replaces the starter one, and "none" means print that item without a picture. */
+var PHOTO_TAB = 'Photos';
+function readPhotos() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(PHOTO_TAB), out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) { if (r[0]) out[String(r[0])] = String(r[1]); });
+  return out;
+}
+function setPhoto(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Photos are for admins. Unlock with the admin PIN.' };
+  var id = String(body.id || ''), pic = String(body.data || '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) return { ok: false, error: 'Bad request.' };
+  if (pic && pic !== 'none' && !(/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(pic) && pic.length < 48000)) return { ok: false, error: 'That picture is too big or not a photo. Try another one.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
+  try {
+    var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(PHOTO_TAB);
+    if (!sh) { sh = ss.insertSheet(PHOTO_TAB); sh.getRange(1, 1, 1, 2).setValues([['Item ID', 'Photo (used on the price sheet)']]).setFontWeight('bold'); sh.setFrozenRows(1); }
+    var n = sh.getLastRow(), ids = n > 1 ? sh.getRange(2, 1, n - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+    var at = ids.indexOf(id), had = at >= 0;
+    if (had) { sh.getRange(at + 2, 1, 1, 2).setValues([[id, pic]]); }
+    else { var rng = sh.getRange(n + 1, 1, 1, 2); rng.setNumberFormat('@'); rng.setValues([[id, pic]]); }
+    appendLog([{ time: new Date().toISOString(), name: String(body.name || 'Someone').slice(0, 40), role: role, table: 'photos', rowId: id, field: 'photo',
+                 old: had ? 'photo' : '', new: pic === 'none' ? 'no photo' : pic ? 'new photo' : 'starter photo' }]);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
 }
 
 /* One-time update, Oct 2026: adds the items on the paper count sheet that were not in the tracker yet.

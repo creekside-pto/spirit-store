@@ -406,6 +406,22 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
 .answer p.muted{color:var(--muted)}
 .answer-acts{display:flex;flex-wrap:wrap;gap:8px}
 #askOut:empty{display:none}
+
+.printpick{display:grid;gap:10px;margin:4px 0 14px}
+.printpick button{font:inherit;text-align:left;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;display:grid;gap:3px}
+.printpick button:hover{border-color:var(--accent)}
+.printpick b{font-size:16px}.printpick span{font-size:13.5px;color:var(--muted);line-height:1.35}
+.psadd{display:flex;gap:8px;margin:8px 0 12px}.psadd .in{flex:1}
+.psrows{display:grid;gap:10px}
+.psrow{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:start;border:1px solid var(--line);border-radius:12px;padding:10px}
+.psthumb{width:76px;height:76px;border-radius:10px;border:1px dashed var(--line);background:#fff;display:grid;place-items:center;overflow:hidden;cursor:pointer;padding:0}
+.psthumb img{max-width:100%;max-height:100%;object-fit:contain}
+.psthumb span{font-size:12px;font-weight:700;color:#536A5E;padding:4px;text-align:center}
+.psf{display:grid;gap:6px;min-width:0}
+.psorig{font-size:12px;overflow-wrap:anywhere}
+.psline{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:6px}
+.psline.small{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px}
+.linkbtn{font:inherit;font-size:13px;background:none;border:0;color:var(--accent);text-decoration:underline;padding:0;cursor:pointer}
 </style>
 
 
@@ -421,7 +437,7 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
       <span class="chip-event" id="eventChip"><span class="dot"></span><span id="eventTxt">Pink Out</span></span>
       <span class="sync num" id="sync">Loading…</span>
       <button class="btn on" id="upBtn" type="button" hidden>Upload</button>
-      <button class="btn" id="printBtn" type="button">Print count sheet</button>
+      <button class="btn" id="printBtn" type="button">Print</button>
       <button class="btn" id="askBtn" type="button" hidden>Ask</button>
       <button class="btn" id="adminBtn" type="button" hidden>PINs &amp; access</button>
       <button class="btn" id="lockBtn" type="button">Unlock to edit</button>
@@ -555,7 +571,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '8c6125e032'; // set by the build; version.json next to this page says which build is live
+const BUILD = '054a177b7b'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -1000,6 +1016,10 @@ function vHistory(M){
 }
 
 function logEntry(e){
+  if (e.table === 'photos' || (e.table === 'settings' && String(e.rowId) === 'priceSheet')) {
+    const it = (data.items || []).find(r => String(r.id) === String(e.rowId));
+    return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${e.table === 'photos' ? (e.new === 'no photo' ? 'removed the photo for ' : e.new === 'starter photo' ? 'went back to the starter photo for ' : 'added a photo for ') + '<b>' + esc(it ? it.name : e.rowId) + '</b>' : 'changed the price sheet'} <span class="muted">· Price sheet</span></span></div>`;
+  }
   const tname = { items:'Count', purchases:'Orders', moneyIn:'Money in', moneyOut:'Money out', sales:'History', cash:'Cash box', settings:'Settings' }[e.table] || e.table;
   const live = (data[e.table] || []).find(r => String(r.id) === String(e.rowId));
   const what = e.field === '(security)' ? esc(e.new) : e.field === '(added)' ? 'added <b>' + esc(e.new) + '</b>' : e.field === '(removed)' ? 'removed <b>' + esc(e.old) + '</b>' :
@@ -1375,6 +1395,249 @@ let sheetPdf = null;
 async function shareSheet(){
   try { await navigator.share({ files:[sheetPdf.file], title: sheetPdf.fname }); closeSheet(); toast(sheetPdf.label + ' sent.' + (sheetPdf.after || '')); }
   catch (e) { if (e && e.name !== 'AbortError') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); toast(sheetPdf.label + ' downloaded.'); } }
+}
+
+/* ---------- Print: one button, three PDFs ---------- */
+function openPrintMenu(){
+  openSheet(`<h3>Print</h3><p>Pick what to print. Each one makes a PDF from the numbers in the tracker right now.</p>
+    <div class="printpick">
+      <button type="button" data-print="price"><b>Price sheet</b><span>Every item and its price, with pictures. Put it on the table.</span></button>
+      <button type="button" data-print="count"><b>Count sheet</b><span>BEFORE and AFTER columns for counting at the sale.</span></button>
+      <button type="button" data-print="report"><b>Sales report</b><span>Every sale and the totals, plus money in and money out.</span></button>
+    </div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button></div>`);
+}
+
+/* ---------- Price sheet ----------
+   Built from the tracker's items and prices, so it is always current. How each item shows (the name customers see,
+   its group, special price text, hidden or not) is kept in the "priceSheet" setting; until an admin changes it, the
+   starter layout that ships with the site (price-sheet.json, made from Brittany's sheet) is used. Items with the same
+   name and price in the same group print as one box. Photos: a saved photo (Photos tab) wins over the starter photo. */
+let psStarter = null, psSaved = null, psPending = {}, psTarget = '', psCfgDraft = null;
+async function psLoad(){
+  if (!psStarter) {
+    try { const r = await fetch('price-sheet.json?b=' + BUILD); psStarter = r.ok ? await r.json() : { groups: [], items: [], photos: {} }; }
+    catch (e) { psStarter = { groups: [], items: [], photos: {} }; }
+  }
+  if (!DEMO) {
+    try { const r = await (await fetch(API_URL + '?action=photos' + (viewCode ? '&code=' + encodeURIComponent(viewCode) : '') + '&t=' + Date.now())).json(); if (r.ok) psSaved = r.photos || {}; }
+    catch (e) { if (!psSaved) psSaved = {}; }
+  } else psSaved = psSaved || {};
+}
+function psConfig(){
+  let c = null; try { c = JSON.parse(setting('priceSheet') || 'null'); } catch (e) {}
+  if (!c || !Array.isArray(c.i)) c = { g: (psStarter && psStarter.groups) || [], i: ((psStarter && psStarter.items) || []).map(x => [x[0], x[1], x[2], x[3] || '', 0]) };
+  return c;
+}
+function psPhoto(id){
+  if (psPending[id] !== undefined) return psPending[id] === 'none' ? '' : psPending[id] || (psStarter && psStarter.photos[id]) || '';
+  const s = psSaved && psSaved[id];
+  if (s === 'none') return '';
+  return s || (psStarter && psStarter.photos[id]) || '';
+}
+/* the name a customer sees: no pack sizes, no price in the name */
+function psCleanName(n){
+  return String(n || '').replace(/\s*\((\d+\s*[- ]?\s*(pack|pairs?|sheets?|ct|count|pcs|pieces)|pair|all designs)\)\s*/ig, ' ').replace(/\s*\$\d+(\.\d+)?\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+/* every item with its name, group and price text: saved choices first, sensible defaults for anything new */
+function psRows(M, cfg){
+  const byId = {}; cfg.i.forEach((x, k) => { byId[x[0]] = { k, name: x[1], group: x[2], ptext: x[3] || '', hide: !!x[4] }; });
+  const groupOfPrice = {};
+  for (const i of M.items) { const c = byId[i.id]; if (c && !c.hide) { const pk = String(num(i.price)); groupOfPrice[pk] = groupOfPrice[pk] || {}; groupOfPrice[pk][c.group] = (groupOfPrice[pk][c.group] || 0) + 1; } }
+  return M.items.map((i, n) => {
+    const c = byId[i.id], price = num(i.price);
+    const guess = groupOfPrice[String(price)] ? Object.entries(groupOfPrice[String(price)]).sort((a, b) => b[1] - a[1])[0][0] : (price >= 10 ? 'Spirit wear & extras' : priceLabel(price));
+    return { item: i, id: i.id, order: c ? c.k : 1000 + n, name: c ? c.name : psCleanName(i.name), group: c ? c.group : guess, ptext: c ? c.ptext : '', hide: c ? c.hide : false, price,
+             inStock: (i.onHandBlank && !i.received) || i.avail > 0 };
+  });
+}
+/* the boxes to print, grouped and in order */
+function psCells(M, cfg, hideZero){
+  const rows = psRows(M, cfg).filter(r => !r.hide && (r.price > 0 || r.ptext));
+  const cells = {}, order = [];
+  for (const r of rows.sort((a, b) => a.order - b.order || String(a.name).localeCompare(String(b.name)))) {
+    const k = r.group + '|' + r.name.toLowerCase() + '|' + (r.ptext || r.price);
+    if (!cells[k]) { cells[k] = { group: r.group, name: r.name, price: r.ptext || priceLabel(r.price), num: r.price, ids: [], inStock: false }; order.push(k); }
+    cells[k].ids.push(r.id); cells[k].inStock = cells[k].inStock || r.inStock;
+  }
+  const groups = {};
+  for (const k of order) { const c = cells[k]; if (hideZero && !c.inStock) continue; c.photo = c.ids.map(psPhoto).find(Boolean) || ''; (groups[c.group] = groups[c.group] || []).push(c); }
+  const gi = g => { const x = cfg.g.indexOf(g); return x < 0 ? 999 : x; };
+  return Object.keys(groups).map(g => ({ name: g, cells: groups[g], top: Math.max(...groups[g].map(c => c.num)) }))
+    .sort((a, b) => b.top - a.top || gi(a.name) - gi(b.name) || a.name.localeCompare(b.name));
+}
+async function openPriceSheet(){
+  openSheet(`<h3>Price sheet</h3><p>Every item and its price, grouped like the table, with pictures. It uses the prices in the tracker, so it is always current.</p>
+    <form id="psForm" class="form">
+      <label class="chk"><input type="checkbox" id="psHide" checked> Leave off items with none left</label>
+      <div class="err" id="psErr"></div>
+      ${isAdmin() ? '<button class="btn" type="button" id="psEdit">Edit names, groups and photos</button>' : ''}
+      <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Download PDF</button></div>
+    </form>`);
+  psLoad();
+}
+function hexRgb(h){ const m = String(h).replace('#', ''); return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16)); }
+function imgSize(src){ return new Promise(r => { const im = new Image(); im.onload = () => r([im.naturalWidth, im.naturalHeight]); im.onerror = () => r(null); im.src = src; }); }
+async function exportPriceSheet(hideZero){
+  const btn = document.querySelector('#psForm button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Making PDF…'; }
+  try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); await psLoad(); }
+  catch (e) { $('#psErr').textContent = 'Could not load the PDF maker. Check the connection and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } return; }
+  try {
+    const M = model(), groups = psCells(M, psConfig(), hideZero);
+    const ec = EVENT_COLORS.find(c => c[0] === setting('eventColor')), ACC = hexRgb(ec ? ec[1] : '#D23C74'), GREEN = [12,72,45];
+    const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), L = 30, COLS = 6, CW = (W - 2 * L) / COLS, RH = 104, GH = 19;
+    const sizes = {};
+    for (const g of groups) for (const c of g.cells) if (c.photo && !sizes[c.photo]) sizes[c.photo] = await imgSize(c.photo);
+    let y = 40;
+    const title = () => {
+      doc.setFont('helvetica','bold'); doc.setFontSize(19); doc.setTextColor(...GREEN); doc.text('Creekside Spirit Store · Price Sheet', W / 2, y, { align:'center' });
+      doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(90);
+      doc.text((setting('eventName') || '') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : ''), W / 2, y + 15, { align:'center' });
+      y += 30;
+    };
+    const header = (name, cont) => {
+      doc.setFillColor(...GREEN); doc.rect(L, y, W - 2 * L, GH, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255); doc.text(name.toUpperCase() + (cont ? '  (continued)' : ''), L + 6, y + 13.5);
+      y += GH;
+    };
+    const cell = (c, x, top) => {
+      doc.setDrawColor(...ACC); doc.setLineWidth(0.8); doc.rect(x, top, CW, RH);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+      const nameLines = doc.splitTextToSize(c.name, CW - 10).slice(0, 3);
+      const priceLines = String(c.price).split(/\s*,\s*/).filter(Boolean);
+      const pSize = priceLines.length > 1 ? 10.5 : 16, nameH = nameLines.length * 9.5, priceH = priceLines.length * (pSize + 1);
+      let ty;
+      const sz = c.photo && sizes[c.photo];
+      if (sz) {
+        const boxW = CW - 18, boxH = RH - 12 - nameH - priceH - 4, k = Math.min(boxW / sz[0], boxH / sz[1]);
+        const iw = sz[0] * k, ih = sz[1] * k;
+        try { doc.addImage(c.photo, 'JPEG', x + (CW - iw) / 2, top + 5 + (boxH - ih) / 2, iw, ih); } catch (e) {}
+        ty = top + 5 + boxH + 9;
+      } else ty = top + (RH - nameH - priceH) / 2 + 8;
+      doc.setTextColor(20); doc.text(nameLines, x + CW / 2, ty, { align:'center' });
+      doc.setFontSize(pSize); doc.setTextColor(...ACC); doc.text(priceLines, x + CW / 2, ty + nameH + (pSize > 12 ? 8 : 4), { align:'center' });
+    };
+    title();
+    for (const g of groups) {
+      if (y + GH + RH > H - 34) { doc.addPage(); y = 36; }
+      header(g.name, false);
+      for (let i = 0; i < g.cells.length; i += COLS) {
+        if (y + RH > H - 34) { doc.addPage(); y = 36; header(g.name, true); }
+        g.cells.slice(i, i + COLS).forEach((c, j) => cell(c, L + j * CW, y));
+        y += RH;
+      }
+      y += 8;
+    }
+    if (!groups.length) { doc.setFontSize(12); doc.setTextColor(90); doc.text('Nothing to show. Every item is out of stock or hidden.', W / 2, y + 20, { align:'center' }); }
+    const pages = doc.internal.getNumberOfPages(), printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(130); doc.text('Prices from the Creekside spirit store tracker   ·   printed ' + printed + (pages > 1 ? '   ·   page ' + i + ' of ' + pages : ''), W / 2, H - 16, { align:'center' }); }
+    deliverPdf(doc, 'Price sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf', 'Price sheet', ' Print it for the table.');
+  } catch (e) { console.error(e); $('#psErr') && ($('#psErr').textContent = 'Could not make the price sheet. Try again.'); if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } }
+}
+
+/* ---------- Price sheet editor (admins) ---------- */
+async function openPriceEditor(){
+  if (!isAdmin()) return;
+  psPending = {};
+  openSheet('<h3>Edit the price sheet</h3><div class="askthink">' + paws(5, true) + '<span>Loading pictures…</span></div>', true);
+  await psLoad();
+  if (!isAdmin() || !$('#sheet')) return;
+  const M = model(), cfg = psConfig();
+  psCfgDraft = { g: cfg.g.slice() };
+  const rows = psRows(M, cfg).sort((a, b) => a.order - b.order || String(a.name).localeCompare(String(b.name)));
+  for (const r of rows) if (!psCfgDraft.g.includes(r.group)) psCfgDraft.g.push(r.group);
+  $('#sheet').dataset.guard = '1';
+  openSheet(`<h3>Edit the price sheet</h3>
+    <p>Change what customers see. Prices come from the Count tab. Give two items the same name and group to print them as one box. Tap a picture to change it.</p>
+    <div class="psrows">${rows.map(psRowHTML).join('')}</div>
+    <div class="psadd"><input class="in" id="psNewGroup" maxlength="40" placeholder="New group name, like $2 toys"><button class="btn small" type="button" id="psAddGroup">Add group</button></div>
+    <input type="file" id="psFile" accept="image/*" hidden>
+    <div class="err" id="psEditErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="psSave">Save price sheet</button></div>`, true);
+  $('#sheet').dataset.guard = '1';
+}
+function psGroupOptions(sel){ return psCfgDraft.g.map(g => `<option${g === sel ? ' selected' : ''}>${esc(g)}</option>`).join(''); }
+function psRowHTML(r){
+  const pic = psPhoto(r.id);
+  return `<div class="psrow" data-id="${esc(r.id)}">
+    <button type="button" class="psthumb" data-psphoto="${esc(r.id)}" aria-label="Change picture for ${esc(r.name)}">${pic ? `<img src="${pic}" alt="">` : '<span>Add photo</span>'}</button>
+    <div class="psf">
+      <div class="psorig muted">${esc(r.item.name)} · ${esc(priceLabel(r.price))}${r.inStock ? '' : ' · none left'}</div>
+      <input class="in" data-psf="name" value="${esc(r.name)}" maxlength="60" aria-label="Name on the sheet">
+      <div class="psline">
+        <select class="in" data-psf="group" aria-label="Group">${psGroupOptions(r.group)}</select>
+        <input class="in" data-psf="ptext" value="${esc(r.ptext)}" maxlength="40" placeholder="${esc(priceLabel(r.price))}" aria-label="Price text">
+      </div>
+      <div class="psline small">
+        <label class="chk"><input type="checkbox" data-psf="show"${r.hide ? '' : ' checked'}> On the sheet</label>
+        ${pic ? `<button type="button" class="linkbtn" data-psnophoto="${esc(r.id)}">No picture</button>` : ''}
+        ${(psSaved && psSaved[r.id]) || psPending[r.id] !== undefined ? `<button type="button" class="linkbtn" data-psstarter="${esc(r.id)}">Starter picture</button>` : ''}
+      </div>
+    </div></div>`;
+}
+function psRefreshRow(id){
+  const el = document.querySelector('.psrow[data-id="' + CSS.escape(id) + '"]'); if (!el) return;
+  const thumb = el.querySelector('.psthumb'), pic = psPhoto(id);
+  thumb.innerHTML = pic ? `<img src="${pic}" alt="">` : '<span>Add photo</span>';
+  const line = el.querySelectorAll('.psline')[1];
+  line.querySelectorAll('.linkbtn').forEach(b => b.remove());
+  if (pic) line.insertAdjacentHTML('beforeend', `<button type="button" class="linkbtn" data-psnophoto="${esc(id)}">No picture</button>`);
+  line.insertAdjacentHTML('beforeend', `<button type="button" class="linkbtn" data-psstarter="${esc(id)}">Starter picture</button>`);
+}
+function psAddGroup(){
+  const v = $('#psNewGroup').value.trim(); if (!v) return;
+  if (!psCfgDraft.g.some(g => g.toLowerCase() === v.toLowerCase())) psCfgDraft.g.push(v);
+  document.querySelectorAll('.psrow select[data-psf="group"]').forEach(s => { const cur = s.value; s.innerHTML = psGroupOptions(cur); });
+  $('#psNewGroup').value = ''; toast('Group added. Pick it for any item below.');
+}
+/* a picture from the phone: fit inside 200 x 200 on white, saved as a small JPEG */
+function psResize(file){
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 200 / Math.max(im.naturalWidth, im.naturalHeight)), w = Math.max(1, Math.round(im.naturalWidth * k)), h = Math.max(1, Math.round(im.naturalHeight * k));
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(im, 0, 0, w, h);
+      URL.revokeObjectURL(u);
+      let q = 0.82, out = c.toDataURL('image/jpeg', q); while (out.length > 45000 && q > 0.4) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
+      res(out);
+    };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('img')); };
+    im.src = u;
+  });
+}
+async function psPicked(file){
+  if (!file || !psTarget) return;
+  try { psPending[psTarget] = await psResize(file); psRefreshRow(psTarget); }
+  catch (e) { toast('That file is not a picture the phone can open. Try a screenshot or a photo.'); }
+}
+async function psSave(){
+  if (!isAdmin()) return;
+  const btn = $('#psSave'); btn.disabled = true; btn.textContent = 'Saving…'; $('#psEditErr').textContent = '';
+  const items = [...document.querySelectorAll('.psrow')].map(el => {
+    const v = f => el.querySelector('[data-psf="' + f + '"]');
+    return [el.dataset.id, v('name').value.trim() || psCleanName((data.items.find(i => String(i.id) === el.dataset.id) || {}).name), v('group').value, v('ptext').value.trim(), v('show').checked ? 0 : 1];
+  });
+  const used = new Set(items.map(x => x[2]));
+  const cfg = JSON.stringify({ g: psCfgDraft.g.filter(g => used.has(g)), i: items });
+  const row = serverRow('settings', 'priceSheet');
+  const ops = [];
+  if (!row) ops.push({ op:'add', table:'settings', row:{ id:'priceSheet', value: cfg } });
+  else if (String(row.value) !== cfg) ops.push({ op:'set', table:'settings', id:'priceSheet', field:'value', prev: row.value ?? '', value: cfg });
+  try {
+    if (ops.length) {
+      const r = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true });
+      if (!r.ok) throw new Error(r.error || 'Not saved.');
+      if (r.conflicts && r.conflicts.length) throw new Error('Someone else changed the price sheet just now. Close this and open it again.');
+      data = r.data;
+    }
+    for (const [id, pic] of Object.entries(psPending)) {
+      const r = await apiPost({ action:'setPhoto', pin: auth.pin, name: who, id, data: pic });
+      if (!r.ok) throw new Error(r.error || 'A picture did not save.');
+      psSaved = psSaved || {}; if (pic) psSaved[id] = pic; else delete psSaved[id];
+    }
+  } catch (e) { btn.disabled = false; btn.textContent = 'Save price sheet'; $('#psEditErr').textContent = e.message === 'Failed to fetch' ? 'Could not reach the tracker. Check the internet connection.' : e.message; return; }
+  psPending = {}; closeSheet(); render(); load(true); toast('Price sheet saved. Everyone sees it now.');
 }
 
 /* ---------- Sales report: every sale, the totals, and the money in and out behind them. Anyone who can see the numbers can print it. ---------- */
@@ -2378,6 +2641,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'q') { query = e.target.value; filterItems(); }
 });
 document.addEventListener('change', e => {
+  if (e.target.id === 'psFile') return psPicked(e.target.files && e.target.files[0]);
   if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'impFiles') { addImpFiles(e.target.files); e.target.value = ''; }
   if (e.target.dataset && e.target.dataset.qf) { const [id, k] = e.target.dataset.qf.split('|'); qSetVal(id, k, e.target.value); return laterRedraw(); }
@@ -2455,7 +2719,16 @@ document.addEventListener('click', e => {
   if (b.id === 'fixEndCash') { const r = serverRow('cash', 'end'); if (!r) return; pending.sets[key('cash', 'end', 'value')] = { op:'set', table:'cash', id:'end', field:'value', prev: r.value ?? '', value: Number(b.dataset.v) }; return submit(); }
   if (b.id === 'saleEditBtn') return openSaleEdit();
   if (b.id === 'adminBtn') return openPins();
-  if (b.id === 'printBtn') return openSheetExport();
+  if (b.id === 'printBtn') return openPrintMenu();
+  if (b.dataset.print === 'price') return openPriceSheet();
+  if (b.dataset.print === 'count') return openSheetExport();
+  if (b.dataset.print === 'report') { closeSheet(); return exportReport(null); }
+  if (b.id === 'psEdit') return openPriceEditor();
+  if (b.id === 'psAddGroup') return psAddGroup();
+  if (b.dataset.psphoto !== undefined) { psTarget = b.dataset.psphoto; const f = $('#psFile'); f.value = ''; return f.click(); }
+  if (b.dataset.psnophoto !== undefined) { psPending[b.dataset.psnophoto] = 'none'; return psRefreshRow(b.dataset.psnophoto); }
+  if (b.dataset.psstarter !== undefined) { psPending[b.dataset.psstarter] = ''; return psRefreshRow(b.dataset.psstarter); }
+  if (b.id === 'psSave') return psSave();
   if (b.id === 'upBtn') return openUpload();
   if (b.id === 'shShare') return shareSheet();
   if (b.id === 'shSave') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); return toast(sheetPdf.label + ' downloaded.'); }
@@ -2473,6 +2746,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   if (e.target.id === 'askForm') return sendAsk($('#askQ').value);
+  if (e.target.id === 'psForm') return exportPriceSheet($('#psHide').checked);
   if (e.target.id === 'unlockForm') {
     const name = $('#uName').value.trim(), pin = $('#uPin').value.trim();
     if (!name) { $('#uErr').textContent = 'Add your name so changes are labeled.'; return; }
