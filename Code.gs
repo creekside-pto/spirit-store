@@ -121,7 +121,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 }
 
 
-var SEED = {"items":[{"id":"it01","name":"Butter squishies (8-pack)","category":"New","price":5,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it02","name":"Cheese squishies, slow-rising (12-pack)","category":"New","price":4,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it03","name":"Green tinsel pom pom headbands (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it04","name":"Pink glitter hair tinsel (12-pack)","category":"New","price":3,"unitCost":"","onHand":2,"countedAfter":"","notes":""},{"id":"it05","name":"Pink ribbon bracelets (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it06","name":"Halloween pumpkin squishies (12-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it07","name":"Halloween pumpkin glitter squishies (8-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it08","name":"Mini glitter ghost squishies (12-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it09","name":"Glitter heart squishies (24-pack)","category":"New","price":3,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it10","name":"Green cheer pom poms","category":"Restock","price":2,"unitCost":"","onHand":0,"countedAfter":"","notes":""},{"id":"it11","name":"Slow-rising stress cubes (24-pack)","category":"New","price":2,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it12","name":"Halloween 4-in-1 pens (50-pack)","category":"New","price":2,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it13","name":"Mini turtle squishies (24-pack)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it14","name":"Pink ribbon & football tattoos (20 sheets)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it15","name":"Stretchy skeletons (48-pack)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it16","name":"Pink paw print glitter eye stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it17","name":"Pink glitter eye black stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it18","name":"Green glitter eye black stickers (120 pairs)","category":"New","price":1,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it19","name":"Green paw print bookmarks (75-pack)","category":"New","price":0.5,"unitCost":"","onHand":"","countedAfter":"","notes":""},{"id":"it20","name":"Gold football charm bracelets","category":"Carry-over","price":3,"unitCost":0.7496,"onHand":16,"countedAfter":"","notes":""},{"id":"it21","name":"Green paw print bracelets","category":"Carry-over","price":3,"unitCost":0.7496,"onHand":39,"countedAfter":"","notes":""},{"id":"it22","name":"Black FOOTBALL clay bracelets","category":"Carry-over","price":3,"unitCost":0.6663,"onHand":15,"countedAfter":"","notes":""},{"id":"it23","name":"Football candy bracelets","category":"Carry-over","price":3,"unitCost":0.4033,"onHand":22,"countedAfter":"","notes":""},{"id":"it24","name":"Green cheer bracelets","category":"Carry-over","price":3,"unitCost":0.5995,"onHand":16,"countedAfter":"","notes":""},{"id":"it25","name":"Green tinsel hair extensions","category":"Carry-over","price":3,"unitCost":0.555,"onHand":21,"countedAfter":"","notes":""},{"id":"it26","name":"Glitter bear squishies","category":"Carry-over","price":3,"unitCost":1.1246,"onHand":0,"countedAfter":"","notes":""},{"id":"it27","name":"Glitter cube squishies","category":"Carry-over","price":3,"unitCost":1.2496,"onHand":0,"countedAfter":"","notes":""},{"id":"it28","name":"Slow-rise squishy stress balls","category":"Carry-over","price":3,"unitCost":1.2494,"onHand":0,"countedAfter":"","notes":""},{"id":"it29","name":"Football #1 keychains","category":"Carry-over","price":3,"unitCost":0.9156,"onHand":5,"countedAfter":"","notes":""},{"id":"it30","name":"Green pom pom keychains","category":"Carry-over","price":2,"unitCost":0.9995,"onHand":0,"countedAfter":"","notes":"Not on leftover count, so set to 0"},{"id":"it31","name":"Mini foam footballs","category":"Carry-over","price":2,"unitCost":0.5798,"onHand":32,"countedAfter":"","notes":""},{"id":"it32","name":"Lion 4-color pens","category":"Carry-over","price":2,"unitCost":0.8325,"onHand":0,"countedAfter":"","notes":"No leftovers counted; 12 new"},{"id":"it33","name":"Football fidget spinners","category":"Carry-over","price":1,"unitCost":0.3956,"onHand":6,"countedAfter":"","notes":""},{"id":"it34","name":"Eye black stickers (pair)","category":"Carry-over","price":1,"unitCost":0.0418,"onHand":135,"countedAfter":"","notes":""},{"id":"it35","name":"Cross eye black stickers (pair)","category":"Carry-over","price":1,"unitCost":0.1873,"onHand":24,"countedAfter":"","notes":""},{"id":"it36","name":"Balloon animal erasers","category":"Carry-over","price":1,"unitCost":0.4612,"onHand":0,"countedAfter":"","notes":"No leftovers counted; 24 new"},{"id":"it37","name":"Mini mochi squishies","category":"Carry-over","price":1,"unitCost":0.1999,"onHand":18,"countedAfter":"","notes":""},{"id":"it38","name":"Football pens, rainbow bendy (30-pack)","category":"Carry-over","price":1,"unitCost":0.4663,"onHand":3,"countedAfter":"","notes":""},{"id":"it39","name":"Football pens, green bendy (50-pack)","category":"Carry-over","price":1,"unitCost":0.3998,"onHand":50,"countedAfter":"","notes":"Arrived late last week; none sold yet"},{"id":"it40","name":"Green rubber \"I am a Creekside Star\" bracelets","category":"Carry-over","price":0.5,"unitCost":0,"onHand":33,"countedAfter":"","notes":"Older stock: add cost if known"},{"id":"it41","name":"Air freshener","category":"Carry-over","price":1,"unitCost":0,"onHand":1,"countedAfter":"","notes":"Older stock: add cost if known"},{"id":"it42","name":"Stickers (regular)","category":"Carry-over","price":0.5,"unitCost":0,"onHand":"","countedAfter":"","notes":"Count before Friday; add cost if known"},{"id":"it43","name":"Fuzzy monster pens","category":"Carry-over","price":2,"unitCost":0.7495,"onHand":20,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it44","name":"Bear stackable pencils","category":"Carry-over","price":1,"unitCost":0.463,"onHand":30,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it45","name":"Fidget snake cubes","category":"Carry-over","price":1,"unitCost":0.5297,"onHand":30,"countedAfter":"","notes":"From Sept 26 order (was saved for Christmas)"},{"id":"it46","name":"Football lollipop rings","category":"Donated","price":1,"unitCost":0,"onHand":54,"countedAfter":"","notes":"3 donated boxes of 18"},{"id":"it47","name":"Green spirit tattoos","category":"Donated","price":1,"unitCost":0,"onHand":0,"countedAfter":"","notes":"Not on leftover count, so set to 0"},{"id":"it48","name":"Green bead necklaces","category":"Donated","price":1,"unitCost":0,"onHand":121,"countedAfter":"","notes":""},{"id":"it49","name":"Green heart sunglasses","category":"Donated","price":2,"unitCost":0,"onHand":17,"countedAfter":"","notes":""},{"id":"it50","name":"Lion paint kits","category":"Donated","price":4,"unitCost":0,"onHand":8,"countedAfter":"","notes":""}],"purchases":[{"id":"pu01","date":"2026-10-12","store":"Amazon","item":"Butter squishies (8-pack)","packs":1,"packCost":24.99,"unitsPerPack":8,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu02","date":"2026-10-12","store":"Amazon","item":"Cheese squishies, slow-rising (12-pack)","packs":4,"packCost":25.64,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu03","date":"2026-10-12","store":"Amazon","item":"Green tinsel pom pom headbands (24-pack)","packs":1,"packCost":25.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu04","date":"2026-10-12","store":"Amazon","item":"Pink glitter hair tinsel (12-pack)","packs":1,"packCost":7.99,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu05","date":"2026-10-12","store":"Amazon","item":"Pink ribbon bracelets (24-pack)","packs":1,"packCost":11.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu06","date":"2026-10-12","store":"Amazon","item":"Halloween pumpkin squishies (12-pack)","packs":3,"packCost":18.99,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu07","date":"2026-10-12","store":"Amazon","item":"Halloween pumpkin glitter squishies (8-pack)","packs":2,"packCost":15.99,"unitsPerPack":8,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu08","date":"2026-10-12","store":"Amazon","item":"Mini glitter ghost squishies (12-pack)","packs":1,"packCost":26.72,"unitsPerPack":12,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu09","date":"2026-10-12","store":"Amazon","item":"Glitter heart squishies (24-pack)","packs":2,"packCost":19.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu10","date":"2026-10-12","store":"Amazon","item":"Green cheer pom poms","packs":1,"packCost":22.99,"unitsPerPack":36,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu11","date":"2026-10-12","store":"Amazon","item":"Slow-rising stress cubes (24-pack)","packs":3,"packCost":19.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu12","date":"2026-10-12","store":"Amazon","item":"Halloween 4-in-1 pens (50-pack)","packs":1,"packCost":27.99,"unitsPerPack":50,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu13","date":"2026-10-12","store":"Amazon","item":"Mini turtle squishies (24-pack)","packs":3,"packCost":9.99,"unitsPerPack":24,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu14","date":"2026-10-12","store":"Amazon","item":"Pink ribbon & football tattoos (20 sheets)","packs":1,"packCost":9.99,"unitsPerPack":160,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu15","date":"2026-10-12","store":"Amazon","item":"Stretchy skeletons (48-pack)","packs":1,"packCost":17.09,"unitsPerPack":48,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu16","date":"2026-10-12","store":"Amazon","item":"Pink paw print glitter eye stickers (120 pairs)","packs":1,"packCost":13.99,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu17","date":"2026-10-12","store":"Amazon","item":"Pink glitter eye black stickers (120 pairs)","packs":1,"packCost":8.79,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu18","date":"2026-10-12","store":"Amazon","item":"Green glitter eye black stickers (120 pairs)","packs":1,"packCost":7.79,"unitsPerPack":120,"source":"Actual","sale":"Pink Out Game","notes":""},{"id":"pu19","date":"2026-10-12","store":"Amazon","item":"Green paw print bookmarks (75-pack)","packs":1,"packCost":28.45,"unitsPerPack":75,"source":"Actual","sale":"Pink Out Game","notes":""}],"moneyIn":[{"id":"mi01","date":"2026-09-25","event":"Spirit store","amount":647.7,"notes":"Bank deposit slip. Tally sheet math doesn't match ($641.70 net); deposit used"},{"id":"mi02","date":"2026-10-02","event":"Spirit store","amount":1108.4,"notes":"Matches tally sheet"},{"id":"mi03","date":"2026-10-02","event":"Class sponsor deposit (face painting)","amount":119,"notes":"Separate deposit slip. Not spirit store sales"},{"id":"mi04","date":"2026-09-25","event":"Cash App - spirit store","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi05","date":"2026-10-02","event":"Cash App - spirit store","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi06","date":"2026-10-02","event":"Cash App - class sponsors","amount":"","notes":"Enter Cash App total for this day"},{"id":"mi07","date":"2026-10-16","event":"Pink Out spirit store (cash deposit)","amount":"","notes":"Enter Friday's deposit"},{"id":"mi08","date":"2026-10-16","event":"Pink Out spirit store (Cash App)","amount":"","notes":"Enter Friday's Cash App total"}],"moneyOut":[{"id":"mo01","date":"","order":"Stock for Sept 25 sale (earlier orders)","amount":"","link":"","notes":"Enter if known"},{"id":"mo02","date":"2026-09-26","order":"Amazon order (Sept 26)","amount":519.55,"link":"","notes":"Order 114-5952805-0437038. Spirit store $436.31 + $44.77 saved for Christmas + $38.47 supplies"},{"id":"mo03","date":"2026-10-12","order":"Amazon order (Pink Out)","amount":"","link":"purchases","notes":"Fills in automatically from the Orders tab"},{"id":"mo04","date":"","order":"Fall festival order","amount":"","link":"","notes":"Enter when ordered (about $1,006.97)"}],"sales":[{"id":"sh01","date":"2026-09-25","theme":"Spirit store","spent":"","sales":647.7,"other":"","what":"","link":""},{"id":"sh02","date":"2026-10-02","theme":"Football / spirit","spent":436.31,"sales":1108.4,"other":119,"what":"Class sponsor deposit (face painting), separate slip","link":""},{"id":"sh03","date":"2026-10-16","theme":"Pink Out","spent":"","sales":"","other":"","what":"","link":"current"}],"cash":[{"id":"start","label":"Starting cash in box (change)","value":0},{"id":"end","label":"Ending cash in box","value":""},{"id":"countedBy","label":"Counted by","value":""},{"id":"notes","label":"Notes","value":""}],"settings":[{"id":"orgName","value":"Creekside Lions PTO"},{"id":"schoolLine","value":"Creekside Elementary \u00b7 Livingston ISD"},{"id":"eventName","value":"Pink Out Game"},{"id":"eventDate","value":"2026-10-16"},{"id":"startCash","value":150}],"log":[]};
+var SEED = null;
 
 /* ------------------------------ Sheet menu ------------------------------ */
 function onOpen() {
@@ -144,7 +144,7 @@ function setupTabs() {
     sh.getRange(1, 1, 1, headers.length).setValues([headers])
       .setFontWeight('bold').setBackground('#0C482D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
-    var rows = (SEED[t] || []).map(function (r) { return SCHEMA[t].cols.map(function (c) { var v = r[c[0]]; return v === undefined || v === null ? '' : v; }); });
+    var rows = ((SEED && SEED[t]) || []).map(function (r) { return SCHEMA[t].cols.map(function (c) { var v = r[c[0]]; return v === undefined || v === null ? '' : v; }); });
     if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
     sh.autoResizeColumns(1, headers.length);
   });
@@ -191,6 +191,10 @@ function doPost(e) {
   if (body.action === 'setPins') return json(setPinsFromWeb(body, role.role));
   if (body.action === 'importRead') return json(importRead(body, role.role));
   if (body.action === 'readDoc') return json(readDoc(body, role.role));
+  if (body.action === 'ask') return json(ask(body, role.role));
+  if (body.action === 'request') return json(addRequest(body, role.role));
+  if (body.action === 'requests') return json(listRequests(body, role.role));
+  if (body.action === 'requestDone') return json(requestDone(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
@@ -291,6 +295,115 @@ function readDoc(body, role) {
   return callClaude(files, prompt);
 }
 
+/* ------------------------------ Ask the tracker (admins only) ------------------------------
+   A plain-language answer about the live numbers or how to do something. The page sends a short summary of
+   its numbers with the question. Every question, and every "Send to Hunter" request, is kept on the Requests tab. */
+var HELP_GUIDE = [
+  'How the tracker works (use these exact button and tab names):',
+  '- One link for everyone. Looking needs only the access code. Changing anything needs a name and a PIN (button at the top: "Unlock to edit"). Volunteer PIN: counts, deposits, cash box. Admin PIN: everything, including orders, Cash App, sale details, PINs & access.',
+  '- Tabs: Overview, Count, Money, Cash Box, Orders, History, Activity.',
+  '- Overview: "Real profit to date" = money in minus spent plus stock on the shelf (valued at cost). The "This sale" card shows Items sold, Sold by count (after-sale counts times prices), Money taken in (cash taken in plus Cash App, once the cash box is counted), Profit (money taken in minus what the sold items cost). The red number on the Overview tab is the to-do list.',
+  '- Sold by count and Money taken in rarely match exactly. Small gaps are normal: Cash App fees (if Cash App was entered after fees), pom pom pairs sold 2 for a deal, miscounts. A big short usually means an item was miscounted or money is missing; a big over usually means an item was missed on the Count tab.',
+  '- Count tab: each item has BEFORE (leftovers on hand plus this sale\'s orders) and AFTER (what is left after the sale). Sold = before minus after. Items with nothing on hand do not need an after count.',
+  '- Cash Box tab: Starting cash (change put in the box, usually $150), Ending cash (EVERYTHING in the box at closing, including the starting cash), Cash App total for this sale. Cash taken in = ending minus starting. Over/(short) compares cash taken in plus Cash App with Sold by count. If ending cash looks like it leaves out the starting cash, a yellow "Check the ending cash" box offers a one-tap fix.',
+  '- Money tab: Money in (bank deposits, Cash App totals) and Money out (orders and other costs). Cash deposits are net of the starting cash.',
+  '- Orders tab (admin): what was bought for this sale. Earlier orders are kept below.',
+  '- Upload button (top): add a photo of the count sheet (each page), a deposit slip photo, an Amazon order screenshot or PDF, or the Cash App export file (admin). It reads it, asks one-tap questions about anything that does not add up, and nothing saves until every question is answered and Save is tapped. The green Saved screen has "Undo this upload".',
+  '- Print count sheet button (top): makes a PDF. After the after-sale counts are in, it asks which numbers go in BEFORE: "What\'s left now" (for the next sale) or the current sale\'s starting numbers. "Leave off items with none left" hides zero rows; row numbers never change.',
+  '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
+  '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
+  '- Activity tab: every saved change with name and time. Admins can Undo a change there.',
+  '- "Edit sale details" on the Overview card (admin) changes the sale name, date and color.',
+  '- PINs & access button (admin) changes the PINs and the access code.'
+].join('\n');
+var ASK_TABS = ['overview', 'count', 'money', 'cash', 'orders', 'history', 'activity'];
+/* Run from the script editor to check the Ask button end to end with the real AI (nothing is saved). */
+function selfTestAsk() {
+  var ctx = { sale: { name: 'Pink Out Game', soldByCount: 1157.5, moneyTakenIn: 1149.28, afterCounts: '47 of 48 items counted' },
+              cashBox: { startingCash: 150, endingCash: 1113.93, cashApp: 185.35, cashTakenIn: 963.93, overShort: -8.22 } };
+  var r = ask({ q: 'Why is Sold by count higher than the money we took in?', name: 'Self test', ctx: ctx }, 'admin', true);
+  Logger.log(JSON.stringify(r));
+  return r;
+}
+function ask(body, role, test) {
+  if (role !== 'admin') return { ok: false, error: 'Ask is for admins. Unlock with the admin PIN.' };
+  var q = String(body.q || '').trim().slice(0, 600);
+  if (!q) return { ok: false, error: 'Type a question first.' };
+  var c = CacheService.getScriptCache(), n = Number(c.get('askN') || 0);
+  if (n >= 40) return { ok: false, error: 'That is a lot of questions for one hour. Try again a little later.' };
+  try { c.put('askN', String(n + 1), 3600); } catch (e) {}
+  var ctx = '';
+  try { ctx = JSON.stringify(body.ctx || {}).slice(0, 16000); } catch (e) {}
+  var prompt = [
+    'You are the "Ask" button inside the Creekside Lions PTO spirit store tracker (Creekside Elementary, Livingston ISD). The person asking is an admin volunteer, not technical, usually on a phone.',
+    HELP_GUIDE,
+    'Live numbers from the tracker right now (JSON): ' + ctx,
+    'Question from ' + String(body.name || 'an admin').slice(0, 40) + ': ' + q,
+    'Answer rules: 1 to 5 short sentences in plain words. Use the live numbers and show the simple math when it helps (for example "$963.93 + $185.35 = $1,149.28"). For how-to questions give the taps in order, using the exact button and tab names. Never invent numbers; if something is not in the numbers, say so. No dashes as punctuation, no markdown, no bullet symbols.',
+    'If the question asks for a change to the tracker itself (a new feature, something broken, something worded confusingly), say Hunter can add it and put a one sentence summary of the change in "request". Otherwise "request" is empty.',
+    'Return ONLY one JSON object, no other text: {"answer":"...","goTo":"one of overview, count, money, cash, orders, history, activity, or empty if no tab helps","request":""}'
+  ].join('\n\n');
+  var r = callClaude([], prompt, { maxTokens: 1200, rawOk: true });
+  if (!r.ok) return r;
+  var o = r.result || {};
+  var answer = String(o.answer || '').trim().slice(0, 2500);
+  if (!answer) return { ok: false, error: "Couldn't get an answer. Try asking another way." };
+  var goTo = ASK_TABS.indexOf(String(o.goTo || '').toLowerCase()) >= 0 ? String(o.goTo).toLowerCase() : '';
+  var request = String(o.request || '').trim().slice(0, 400);
+  if (!test) saveRequest('Question', body.name, q, answer);
+  return { ok: true, answer: answer, goTo: goTo, request: request };
+}
+var REQ_TAB = 'Requests', REQ_COLS = ['Time', 'Who', 'Kind', 'Text', 'Reply', 'Status'];
+function reqSheet(make) {
+  var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(REQ_TAB);
+  if (!sh && make) {
+    sh = ss.insertSheet(REQ_TAB);
+    sh.getRange(1, 1, 1, REQ_COLS.length).setValues([REQ_COLS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function reqText(v, max) { var t = String(v || '').trim().slice(0, max); return /^[=+\-@']/.test(t) ? "'" + t : t; }
+function saveRequest(kind, who, text, reply) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    var sh = reqSheet(true);
+    var rng = sh.getRange(sh.getLastRow() + 1, 1, 1, REQ_COLS.length);
+    rng.setNumberFormat('@');
+    rng.setValues([[new Date().toISOString(), reqText(who || 'Someone', 40), kind, reqText(text, 1000), reqText(reply, 2500), kind === 'Request' ? 'Open' : '']]);
+    return true;
+  } finally { lock.releaseLock(); }
+}
+function addRequest(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Requests are for admins. Unlock with the admin PIN.' };
+  var t = String(body.text || '').trim();
+  if (!t) return { ok: false, error: 'Type what you would like changed first.' };
+  if (!saveRequest('Request', body.name, t, String(body.context || ''))) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
+  return { ok: true };
+}
+function listRequests(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Unlock with the admin PIN.' };
+  var sh = reqSheet(false);
+  if (!sh || sh.getLastRow() < 2) return { ok: true, rows: [] };
+  var last = sh.getLastRow(), first = Math.max(2, last - 39);
+  var vals = sh.getRange(first, 1, last - first + 1, REQ_COLS.length).getValues(), out = [];
+  for (var i = vals.length - 1; i >= 0; i--) {
+    var v = vals[i];
+    out.push({ row: first + i, time: String(v[0]), who: String(v[1]), kind: String(v[2]), text: String(v[3]), reply: String(v[4]), status: String(v[5]) });
+  }
+  return { ok: true, rows: out };
+}
+function requestDone(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Unlock with the admin PIN.' };
+  var sh = reqSheet(false), row = Number(body.row);
+  if (!sh || !(row >= 2) || row > sh.getLastRow()) return { ok: false, error: 'That request is not there anymore.' };
+  var v = sh.getRange(row, 1, 1, REQ_COLS.length).getValues()[0];
+  if (String(v[0]) !== String(body.time)) return { ok: false, error: 'That list changed. Close it and open it again.' };
+  sh.getRange(row, 6).setValue(body.done === false ? 'Open' : 'Done');
+  return { ok: true };
+}
+
 /* One-time update, Oct 2026: adds the items on the paper count sheet that were not in the tracker yet.
    Run it from the script editor. Safe to run again: it skips anything already there. */
 function addCountSheetItems() {
@@ -363,7 +476,8 @@ function aiExtract(images, text, names) {
   return r;
 }
 
-function callClaude(images, prompt) {
+function callClaude(images, prompt, opts) {
+  opts = opts || {};
   var key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!key) return { ok: false, error: "The AI reader isn't set up yet. In the Google Sheet: Spirit Store > Set AI key." };
   var content = images.map(function (im) {
@@ -376,7 +490,7 @@ function callClaude(images, prompt) {
     var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: 8000, messages: [{ role: 'user', content: content }] })
+      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: opts.maxTokens || 8000, messages: [{ role: 'user', content: content }] })
     });
     var code = resp.getResponseCode(), raw = resp.getContentText();
     if (code === 404 || (code === 400 && /model/i.test(raw) && !/credit/i.test(raw))) { last = raw; continue; }
@@ -386,9 +500,9 @@ function callClaude(images, prompt) {
     if (code !== 200) return { ok: false, error: 'The AI reader returned an error (' + code + ').' };
     var out = JSON.parse(raw), txt = (out.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('');
     var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-    if (a < 0 || b < a) return { ok: false, error: "Couldn't find anything to read. Try a clearer picture." };
+    if (a < 0 || b < a) return opts.rawOk && txt.trim() ? { ok: true, result: { answer: txt.trim() }, model: AI_MODELS[i] } : { ok: false, error: opts.rawOk ? "Couldn't get an answer. Try asking another way." : "Couldn't find anything to read. Try a clearer picture." };
     var result;
-    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return { ok: false, error: "Couldn't read that. Try again or use a clearer picture." }; }
+    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return opts.rawOk ? { ok: true, result: { answer: txt.trim() }, model: AI_MODELS[i] } : { ok: false, error: "Couldn't read that. Try again or use a clearer picture." }; }
     return { ok: true, result: result, model: AI_MODELS[i] };
   }
   return { ok: false, error: 'No AI model was available. ' + String(last).slice(0, 120) };

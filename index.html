@@ -385,6 +385,40 @@ details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-
 .ca-p{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
 @media (max-width:520px){.ca-p{grid-template-columns:1fr}}
 .small-t{font-size:12.5px}
+
+.moneyline{font-size:13.5px;margin-top:10px;line-height:1.45}
+.moneyline:empty{display:none}
+.warnbox{background:var(--warn-soft);border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.warnbox .btn{margin-top:8px;display:flex;width:max-content}
+.calcwarn:empty{display:none}
+input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
+.lblnote{text-transform:none;letter-spacing:0;font-weight:500}
+.choice{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:8px}
+.choice legend{padding:0 4px}
+.choice .chk{align-items:flex-start}
+
+.askchips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.chipq{font:inherit;font-size:13.5px;font-weight:600;line-height:1.3;text-align:left;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 12px;cursor:pointer}
+.chipq:hover{border-color:var(--accent)}
+.askthink{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:14px;padding:6px 0}
+.answer{background:var(--good-soft);border-radius:12px;padding:12px 14px;display:grid;gap:10px;font-size:15px;line-height:1.5}
+.answer p{color:var(--ink);margin:0}
+.answer p.muted{color:var(--muted)}
+.answer-acts{display:flex;flex-wrap:wrap;gap:8px}
+.answer .small,.sent{font-size:13px}
+.sent{color:var(--good);font-weight:700;align-self:center}
+#askOut:empty{display:none}
+.reqs{display:grid}
+.req{padding:12px 14px;border-top:1px solid var(--line);display:grid;gap:6px}
+.req:first-child{border-top:0}
+.req-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px}
+.req .kind{font-weight:800;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.req.isreq .kind{color:var(--pink)}
+.req .done{font-weight:700;color:var(--good)}
+.req-h .btn{margin-left:auto}
+.req-t{font-size:14.5px;overflow-wrap:anywhere}
+.req details{font-size:13.5px;color:var(--muted)}
+.req details p{margin:6px 0 0}
 </style>
 
 
@@ -401,6 +435,7 @@ details.paste summary{cursor:pointer;color:var(--accent);font-weight:600;margin-
       <span class="sync num" id="sync">Loading…</span>
       <button class="btn on" id="upBtn" type="button">Upload</button>
       <button class="btn" id="printBtn" type="button">Print count sheet</button>
+      <button class="btn" id="askBtn" type="button" hidden>Ask</button>
       <button class="btn" id="adminBtn" type="button" hidden>PINs &amp; access</button>
       <button class="btn" id="lockBtn" type="button">Unlock to edit</button>
     </div>
@@ -614,7 +649,9 @@ function model(){
     const rev = sold * num(i.price), cos = sold * unitCost;
     const flag = counted === null ? '' : counted === 0 ? 'SOLD OUT' : counted <= 10 ? 'Low' : '';
     T.onHand += onHand; T.received += received; T.avail += avail; T.sold += sold; T.rev += rev; T.cos += cos; T.profit += rev - cos;
-    T.shelfAll += unitCost * avail; T.n++; if (counted !== null) T.counted++;
+    T.shelfAll += unitCost * avail;
+    if (counted !== null || avail > 0 || (onHandBlank && !received)) T.n++; // items with none on hand have nothing to count
+    if (counted !== null) T.counted++;
     return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, onHandBlank, avail, counted, sold, rev, cos, profit: rev - cos, flag };
   });
   const shelf = T.shelfAll - T.cos;
@@ -624,17 +661,24 @@ function model(){
   const start = num(cashRow('start').value), endBlank = blank(cashRow('end').value), end = num(cashRow('end').value);
   const cashapp = num(cashRow('cashapp').value);
   const taken = endBlank ? null : end - start;
+  const moneyIn = taken === null ? null : Math.round((taken + cashapp) * 100) / 100; // what actually came in: cash (less the starting cash) plus Cash App
+  const deposit = mIn.find(m => m.date === setting('eventDate') && !/cash app/i.test(m.event || '') && !blank(m.amount));
+  // Ending cash should include the starting cash. Flag it when it can't, or when adding the starting cash back is clearly the fix
+  // (the ending cash equals the cash deposit, or the short is the starting cash to within $5). Deposits that include the starting cash don't trip it.
+  const off = taken === null ? 0 : taken + cashapp - T.rev;
+  const startLeftOut = !endBlank && start > 0 && (end < start || (T.counted > 0 && off < 0 && (
+    (deposit && Math.abs(num(deposit.amount) - end) < 0.01 && Math.abs(off + start) < Math.abs(off)) || Math.abs(off + start) < 5)));
   const sales = rows('sales').map(s => {
     const live = s.link === 'current';
     const spent = live ? purchTotal : (blank(s.spent) ? null : num(s.spent));
-    const sl = live ? (T.rev ? T.rev : null) : (blank(s.sales) ? null : num(s.sales));
+    const sl = live ? (moneyIn !== null ? moneyIn : T.rev ? T.rev : null) : (blank(s.sales) ? null : num(s.sales));
     const profit = sl === null ? null : sl - (spent || 0);
     return { ...s, live, spentV: spent, salesV: sl, profit, total: profit === null ? null : profit + num(s.other) };
   });
   const itemNames = new Set(items.map(i => String(i.name || '').trim().toLowerCase()));
   const unmatched = cur.filter(p => !blank(p.item) && !itemNames.has(String(p.item).trim().toLowerCase()));
   return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
-           cash: { start, end, endBlank, cashapp, taken, expected: T.rev, over: taken === null ? null : taken + cashapp - T.rev }, sales };
+           cash: { start, end, endBlank, cashapp, taken, money: moneyIn, startLeftOut, expected: T.rev, over: taken === null ? null : taken + cashapp - T.rev }, sales };
 }
 
 function needsList(M){
@@ -688,7 +732,7 @@ function renderHeader(M){
   const lb = $('#lockBtn');
   lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
   lb.classList.toggle('on', !!auth);
-  $('#adminBtn').hidden = !isAdmin();
+  $('#adminBtn').hidden = !isAdmin(); $('#askBtn').hidden = !isAdmin();
   $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : refreshing ? 'Updating…' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
   const needs = M ? needsList(M).length : 0;
   $('#tabs').innerHTML = TABS.map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
@@ -711,8 +755,11 @@ function calcHTML(M, k){
   const [a, b, c] = k.split(':');
   if (a === 'it') { const i = M.items.find(x => String(x.id) === c); if (!i) return null;
     return { avail: count(i.avail), sold: i.counted === null ? BL : count(i.sold), rev: i.counted === null ? BL : money(i.rev), flag: flagPill(i.flag) }[b]; }
-  if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit) }[b];
+  if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit), realProfit: money(saleProfit(M)) }[b];
   if (a === 'm') return { in: money(M.totalIn), out: money(M.totalOut), net: money(M.net), shelf: money(M.shelf), real: money(M.real) }[b];
+  if (a === 'cash' && b === 'line') return moneyLine(M);
+  if (a === 'cash' && b === 'money') return M.cash.money === null ? '<span class="blank">Count the cash box</span>' : money(M.cash.money);
+  if (a === 'cash' && b === 'warn') return showStartWarn(M) ? startLeftOutHTML(M) : '';
   if (a === 'cash') return { taken: M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken), expected: money(M.cash.expected), cashapp: money(M.cash.cashapp), over: M.cash.over === null ? BL : money(M.cash.over) }[b];
   if (a === 'pu') { if (b === 'sum') return c === 'units' ? count(M.purchUnits) : money(M.purchTotal);
     const p = M.allP.find(x => String(x.id) === c); if (!p) return null; return { units: count(p.units), total: money(p.total), cpu: money(p.cpu) }[b]; }
@@ -725,6 +772,7 @@ function patchCalcs(){
   document.querySelectorAll('[data-calc]').forEach(el => { const h = calcHTML(M, el.dataset.calc); if (h !== null && h !== undefined && el.innerHTML !== h) el.innerHTML = h; });
   const o = document.querySelector('[data-calc="cash:over"]');
   if (o) o.className = M.cash.over === null ? '' : Math.abs(M.cash.over) < 10 ? 'good' : M.cash.over < 0 ? 'bad' : 'warn';
+  const rp = document.querySelector('[data-calc="T:realProfit"]'); if (rp) rp.className = saleProfit(M) > 0 ? 'good' : '';
   renderHeader(M);
 }
 function filterItems(){ const q = query.trim().toLowerCase(); document.querySelectorAll('.item[data-name]').forEach(el => { el.hidden = !!q && !el.dataset.name.includes(q); }); }
@@ -735,6 +783,26 @@ function refreshCalcs(){
   if (id) { const el = document.getElementById(id); if (el) { el.focus(); try { if (s !== null && s !== undefined) el.setSelectionRange(s, s); } catch(e){} } }
 }
 
+function saleProfit(M){ return (M.cash.money === null ? M.T.rev : M.cash.money) - M.T.cos; }
+/* one plain sentence comparing the money with the counts, plus the starting-cash slip check */
+const showStartWarn = M => M.cash.startLeftOut && !pending.sets[key('cash', 'end', 'value')]; // not while the ending cash is still being typed
+function moneyLine(M){
+  const c = M.cash;
+  if (showStartWarn(M)) return startLeftOutHTML(M);
+  if (c.money === null) return M.T.counted ? '<span class="muted">Once the cash box is counted, this compares the money with the counts.</span>' : '';
+  const parts = 'Cash ' + money(c.taken) + ' + Cash App ' + money(c.cashapp) + '. ';
+  if (!M.T.counted) return parts + '<span class="muted">Once the after-sale counts are in, this compares the money with them.</span>';
+  const d = Math.round((c.money - M.T.rev) * 100) / 100, a = Math.abs(d), left = M.T.n - M.T.counted;
+  const still = left > 0 ? ' ' + count(left) + (left === 1 ? ' item still needs' : ' items still need') + ' an after count.' : '';
+  if (a < 0.01) return parts + '<b class="good">Matches the counts exactly.</b>' + still;
+  const gap = '<b class="' + (a < 25 ? 'good' : 'bad') + '">' + money(a) + (d < 0 ? ' short of' : ' over') + ' the counts.</b> ';
+  return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' : (d < 0 ? 'A big short usually means an item was miscounted on the Count tab, or some money is missing from the cash box.' : 'A big over usually means an item was missed on the Count tab.')) + still;
+}
+function startLeftOutHTML(M){
+  const c = M.cash, fixed = Math.round((c.end + c.start) * 100) / 100;
+  return '<div class="warnbox"><b>Check the ending cash.</b> It says ' + money(c.end) + ', which looks like it leaves out the ' + money(c.start) + ' starting cash. Ending cash should be everything in the box at closing.'
+    + (canEdit('cash', 'value') ? ' <button class="btn small" type="button" id="fixEndCash" data-v="' + fixed + '">Make it ' + money(fixed) + '</button>' : ' Unlock to fix it.') + '</div>';
+}
 function vOverview(M){
   const needs = needsList(M);
   const pct = M.T.n ? Math.round(M.T.counted / M.T.n * 100) : 0;
@@ -758,13 +826,14 @@ function vOverview(M){
       ${isAdmin() ? '<button class="btn small" type="button" id="saleEditBtn">Edit sale details</button>' : ''}</div>
       <div class="stats num">
         <div class="stat"><span>Items sold</span><b data-calc="T:sold">${count(M.T.sold)}</b></div>
-        <div class="stat"><span>Sales</span><b data-calc="T:rev">${money(M.T.rev)}</b></div>
-        <div class="stat"><span>Cost of sold</span><b>${money(M.T.cos)}</b></div>
-        <div class="stat"><span>Profit</span><b class="${M.T.profit > 0 ? 'good' : ''}">${money(M.T.profit)}</b></div>
+        <div class="stat"><span>Sold by count</span><b data-calc="T:rev">${money(M.T.rev)}</b></div>
+        <div class="stat"><span>Money taken in</span><b data-calc="cash:money">${M.cash.money === null ? '<span class="blank">Count the cash box</span>' : money(M.cash.money)}</b></div>
+        <div class="stat"><span>Profit</span><b data-calc="T:realProfit" class="${saleProfit(M) > 0 ? 'good' : ''}">${money(saleProfit(M))}</b></div>
       </div>
+      <div class="moneyline" data-calc="cash:line">${moneyLine(M)}</div>
       <div class="mt" style="display:flex;justify-content:space-between;font-size:13px"><span class="muted">After-sale counts</span><span class="num"><b>${M.T.counted}</b> of ${M.T.n}</span></div>
       <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
-      <p class="foot">Spent on this sale's orders: <b class="num">${money(M.purchTotal)}</b> for ${count(M.purchUnits)} units. ${count(M.T.avail)} items ready to sell.</p>
+      <p class="foot">Sold by count = what the after-sale counts say sold, times each price. Profit = ${M.cash.money === null ? 'sold by count' : 'money taken in'} minus the ${money(M.T.cos)} those items cost. Spent on this sale's orders: <b class="num">${money(M.purchTotal)}</b> for ${count(M.purchUnits)} units.</p>
     </div>
   </div>
   <section>
@@ -871,19 +940,20 @@ function vCash(M){
   <div class="cashgrid">
     <div class="card pad form">
       <div><label class="lbl" for="f_cash_start_value">Starting cash in box (change)</label>${field('cash', c('start'), 'value', { ph:'0.00', fmt: money, label:'Starting cash' })}</div>
-      <div><label class="lbl" for="f_cash_end_value">Ending cash in box</label>${field('cash', c('end'), 'value', { ph:'Count after closing', fmt: money, label:'Ending cash' })}</div>
+      <div><label class="lbl" for="f_cash_end_value">Ending cash in box <span class="lblnote">(everything in the box, including the starting cash)</span></label>${field('cash', c('end'), 'value', { ph:'Count after closing', fmt: money, label:'Ending cash' })}</div>
+      <div class="calcwarn" data-calc="cash:warn">${showStartWarn(M) ? startLeftOutHTML(M) : ''}</div>
       <div><label class="lbl" for="f_cash_cashapp_value">Cash App total for this sale</label>${field('cash', c('cashapp'), 'value', { ph:'From the Cash App history', fmt: money, label:'Cash App total' })}</div>
       <div><label class="lbl" for="f_cash_countedBy_value">Counted by</label>${field('cash', c('countedBy'), 'value', { ph:'Names', label:'Counted by' })}</div>
       <div><label class="lbl" for="f_cash_notes_value">Notes</label>${field('cash', c('notes'), 'value', { ph:'Anything odd?', label:'Cash notes' })}</div>
     </div>
     <div class="card calc num">
-      <div><span>Cash taken in</span><b data-calc="cash:taken">${M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken)}</b></div>
+      <div><span>Cash taken in <small class="muted">(ending minus starting)</small></span><b data-calc="cash:taken">${M.cash.taken === null ? '<span class="blank">After closing</span>' : money(M.cash.taken)}</b></div>
       <div><span>Plus Cash App</span><b data-calc="cash:cashapp">${money(M.cash.cashapp)}</b></div>
       <div><span>Expected from item counts</span><b data-calc="cash:expected">${money(M.cash.expected)}</b></div>
       <div class="final"><span>Over / (short)</span><b data-calc="cash:over" class="${o === null ? '' : Math.abs(o) < 10 ? 'good' : o < 0 ? 'bad' : 'warn'}">${o === null ? '<span class="blank">·</span>' : money(o)}</b></div>
     </div>
   </div>
-  <p class="foot">Over / (short) = cash taken in + Cash App, compared with what the item counts say sold. A small short is normal (pom pom pairs, miscounts). A big gap usually means an item was missed on the Count tab.</p>`;
+  <p class="foot">Over / (short) = cash taken in + Cash App, compared with what the item counts say sold. A small short is normal (Cash App fees if you entered what landed after fees, pom pom pairs, miscounts). A big gap usually means an item was missed on the Count tab.</p>`;
 }
 
 function vOrders(M){
@@ -935,7 +1005,7 @@ function vHistory(M){
     </tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="2">All sales</td><td class="r num">${money(tot.spent)}</td><td class="r num">${money(tot.sales)}</td><td class="r num">${money(tot.profit)}</td><td class="r num">${money(tot.other)}</td><td></td><td class="r num">${money(tot.total)}</td>${adm ? '<td></td>' : ''}</tr></tfoot>
   </table></div>
-  <p class="foot">Sales are the bank deposit, net of the starting cash. The live row fills in from the Count tab after the sale. Not counted above: $44.77 of items saved for the Christmas shop and $38.47 of supplies from the Sept 26 order.</p>
+  <p class="foot">Sales are the money that came in: cash (not counting the starting cash) plus Cash App. The live row uses the cash box once it is counted, and the item counts until then. Not counted above: $44.77 of items saved for the Christmas shop and $38.47 of supplies from the Sept 26 order.</p>
   ${adm ? `<section><div class="card pad"><h3 style="font-size:16px;font-weight:800">Done with ${esc(M.ev)}?</h3><p class="muted" style="margin:6px 0 12px">Close it out to lock in its numbers and start the next sale. Counted-after numbers become the next sale's on-hand counts.</p><button class="btn primary" type="button" id="closeoutBtn">Close out and start next sale</button></div></section>` : ''}`;
 }
 
@@ -953,7 +1023,7 @@ function vActivity(){
   const log = shownLog();
   return `<div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Activity</h2><p>Every saved change, newest first.${DEMO ? '' : ' The full record also lives in the Change Log tab of the Google Sheet.'}</p></div>
   <div class="card">${log.length ? '<div class="log">' + log.map(logEntry).join('') + '</div>' : '<div class="empty-state">No changes yet.</div>'}</div>
-  ${isAdmin() ? '<p class="foot">Undo puts a value back the way it was, as long as nobody has changed it again since.</p>' : ''}`;
+  ${isAdmin() ? '<p class="foot">Undo puts a value back the way it was, as long as nobody has changed it again since.</p>' + reqSection() : ''}`;
 }
 
 function renderSavebar(){
@@ -961,6 +1031,108 @@ function renderSavebar(){
   $('#savebar').hidden = n === 0;
   $('#saveMsg').textContent = n + ' unsaved change' + (n === 1 ? '' : 's') + (who ? ' by ' + who : '');
   store.set('css-draft', pending); if (n) store.set('css-draft-who', who);
+}
+
+/* ---------- Ask the tracker (admins only) ----------
+   Answers questions about the live numbers and how to do things. Anything that needs a change to the tracker
+   goes to Hunter with one tap. Questions and requests are listed on the Activity tab for admins. */
+const ASK_EXAMPLES = ['Why don\'t the money and the counts match?', 'What still needs an after count?', 'How do I print the count sheet for the next sale?', 'How do I close out this sale?'];
+const HELPER = () => setting('helpName') || 'Hunter';
+let askTok = 0, reqCache = null, reqBusy = false, reqLoading = false;
+function askContext(M){
+  const r2 = n => n === null || n === undefined || n === '' ? null : Math.round(num(n) * 100) / 100;
+  return {
+    today: new Date().toISOString().slice(0, 10), tabOpen: tab, role: auth && auth.role,
+    sale: { name: setting('eventName'), date: setting('eventDate'), itemsSold: M.T.sold, soldByCount: r2(M.T.rev), moneyTakenIn: M.cash.money, costOfSold: r2(M.T.cos),
+            profit: r2(saleProfit(M)), spentOnOrders: r2(M.purchTotal), afterCounts: M.T.counted + ' of ' + M.T.n + ' items counted' },
+    cashBox: { startingCash: M.cash.start, endingCash: M.cash.endBlank ? null : M.cash.end, cashApp: M.cash.cashapp, cashTakenIn: r2(M.cash.taken),
+               overShort: r2(M.cash.over), endingCashLooksToLeaveOutStartingCash: M.cash.startLeftOut },
+    allTime: { moneyIn: r2(M.totalIn), spent: r2(M.totalOut), stockOnShelfAtCost: r2(M.shelf), realProfit: r2(M.real) },
+    todo: needsList(M).map(n => n.title).slice(0, 15),
+    itemColumns: 'name, price, before (leftovers plus new orders; null = unknown), after count (null = not counted yet), sold',
+    items: M.items.map(i => [i.name, num(i.price), i.onHandBlank && !i.received ? null : i.avail, i.counted, i.sold]).slice(0, 160),
+    moneyIn: M.mIn.slice(-15).map(m => [m.date, m.event, m.amount]),
+    moneyOut: M.mOut.slice(-15).map(m => [m.date, m.order, r2(m.amt)]),
+    pastSales: M.sales.map(x => [x.date, x.theme, x.spentV, x.salesV, x.live ? 'current sale' : '']),
+    recentChanges: shownLog().slice(0, 12).map(e => [e.time, e.name, e.table, e.field, e.old, e.new])
+  };
+}
+function openAsk(){
+  if (!isAdmin()) return;
+  askTok++;
+  openSheet(`<h3>Ask the tracker</h3><p>Ask about the numbers or how to do something. It looks at the live numbers to answer.</p>
+    <div class="askchips">${ASK_EXAMPLES.map(x => `<button type="button" class="chipq" data-askx="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+    <form id="askForm" class="form">
+      <div><label class="lbl" for="askQ">Your question</label><textarea class="in" id="askQ" maxlength="600" rows="3" placeholder="Or type your own question"></textarea></div>
+      <div id="askOut" aria-live="polite"></div>
+      <div class="acts"><button class="btn ghost" type="button" data-close>Close</button><button class="btn primary" type="submit" id="askGo">Ask</button></div>
+    </form>`);
+}
+async function sendAsk(q){
+  q = String(q || '').trim();
+  if (!q) { $('#askOut').innerHTML = '<div class="err">Type a question, or tap one of the examples.</div>'; return; }
+  const tok = ++askTok;
+  $('#askQ').value = q; $('#askGo').disabled = true;
+  $('#askOut').innerHTML = `<div class="askthink">${paws(5, true)}<span>Looking at the numbers…</span></div>`;
+  let r;
+  try { r = await apiPost({ action:'ask', pin: auth.pin, name: who, q, ctx: askContext(model()) }); }
+  catch (e) { r = { ok:false, error:'Could not reach the tracker. Check the internet connection.' }; }
+  if (tok !== askTok || !$('#askOut')) return; // closed or asked again
+  $('#askGo').disabled = false; reqCache = null;
+  if (!r.ok) { $('#askOut').innerHTML = '<div class="err">' + esc(r.error || 'Something went wrong. Try again.') + '</div>'; return; }
+  const tabName = (TABS.find(t => t[0] === r.goTo) || [])[1];
+  const ask = r.request ? r.request : q;
+  $('#askOut').innerHTML = `<div class="answer">
+      <p>${esc(r.answer).replace(/\n+/g, '<br>')}</p>
+      <div class="answer-acts">
+        ${tabName ? `<button class="btn small" type="button" data-askgo="${esc(r.goTo)}">Go to ${esc(tabName)}</button>` : ''}
+        ${r.request ? `<button class="btn small primary" type="button" id="reqSend" data-req="${esc(ask)}" data-ctx="${esc(q)}">Send to ${esc(HELPER())}</button>`
+                    : `<button class="btn small ghost" type="button" id="reqSend" data-req="${esc(q)}" data-ctx="${esc(r.answer)}">Didn't help? Send to ${esc(HELPER())}</button>`}
+      </div>
+      ${r.request ? `<p class="muted small">Sends: "${esc(r.request)}"</p>` : ''}
+    </div>`;
+}
+async function sendRequest(b){
+  if (reqBusy) return; reqBusy = true; b.disabled = true; const was = b.textContent; b.textContent = 'Sending…';
+  let r;
+  try { r = await apiPost({ action:'request', pin: auth.pin, name: who, text: b.dataset.req, context: b.dataset.ctx || '' }); }
+  catch (e) { r = { ok:false, error:'Could not reach the tracker. Check the internet connection.' }; }
+  reqBusy = false; reqCache = null;
+  if (!r.ok) { b.disabled = false; b.textContent = was; toast(r.error || 'Not sent. Try again.'); return; }
+  b.outerHTML = '<span class="sent">Sent to ' + esc(HELPER()) + '. It is on the Activity tab too.</span>';
+}
+function reqSection(){
+  if (!isAdmin()) return '';
+  if (!reqLoading && (!reqCache || Date.now() - reqCache.at > 60000)) loadRequests();
+  return `<div class="sec-h" style="margin-top:22px"><h2><span class="paw" aria-hidden="true"></span>Questions and requests</h2><p>What admins asked with the Ask button, and changes sent to ${esc(HELPER())}. Only admins see this.</p></div>
+    <div class="card" id="reqList">${reqListHTML()}</div>`;
+}
+function reqListHTML(){
+  if (!reqCache) return '<div class="empty-state">Loading…</div>';
+  if (reqCache.error) return '<div class="empty-state">' + esc(reqCache.error) + '</div>';
+  if (!reqCache.rows.length) return '<div class="empty-state">Nothing yet. Tap Ask at the top to ask a question.</div>';
+  return '<div class="reqs">' + reqCache.rows.map(r => `<div class="req${r.kind === 'Request' ? ' isreq' : ''}">
+      <div class="req-h"><span class="kind">${r.kind === 'Request' ? 'Request' : 'Question'}</span><span class="muted">${esc(r.who)} · ${esc(ftime(r.time))}</span>
+        ${r.kind === 'Request' ? (r.status === 'Done' ? '<span class="done">Done</span> <button class="btn small ghost" type="button" data-reqdone="' + r.row + '" data-t="' + esc(r.time) + '" data-v="0">Reopen</button>' : '<button class="btn small" type="button" data-reqdone="' + r.row + '" data-t="' + esc(r.time) + '" data-v="1">Mark done</button>') : ''}</div>
+      <div class="req-t">${esc(r.text)}</div>
+      ${r.kind === 'Question' && r.reply ? '<details><summary>Answer</summary><p>' + esc(r.reply) + '</p></details>' : ''}
+    </div>`).join('') + '</div>';
+}
+async function loadRequests(){
+  if (!isAdmin() || DEMO) { reqCache = { at: Date.now(), rows: [] }; return; }
+  reqLoading = true;
+  let r;
+  try { r = await apiPost({ action:'requests', pin: auth.pin, name: who }); } catch (e) { r = { ok:false, error:'Could not load the list. Check the internet connection.' }; }
+  reqLoading = false;
+  reqCache = r.ok ? { at: Date.now(), rows: r.rows || [] } : { at: Date.now() - 50000, rows: [], error: r.error };
+  const el = $('#reqList'); if (el) el.innerHTML = reqListHTML();
+}
+async function markRequest(b){
+  b.disabled = true;
+  let r;
+  try { r = await apiPost({ action:'requestDone', pin: auth.pin, name: who, row: Number(b.dataset.reqdone), time: b.dataset.t, done: b.dataset.v === '1' }); } catch (e) { r = { ok:false, error:'Could not reach the tracker.' }; }
+  if (!r.ok) { b.disabled = false; toast(r.error || 'Not saved. Try again.'); return; }
+  reqCache = null; loadRequests();
 }
 
 /* ---------- editing ---------- */
@@ -1160,13 +1332,20 @@ async function savePins(){
 /* ---------- printable count sheet (PDF) ---------- */
 const TIERS = [[10,'Spirit wear & extras'],[4,'$5 & $4'],[3,'$3 items'],[2,'$2 items'],[1,'$1 items'],[0,'Under $1']];
 function priceLabel(p){ p = num(p); return p < 1 && p > 0 ? Math.round(p*100) + '¢' : '$' + (Number.isInteger(p) ? p : p.toFixed(2)); }
-function sheetRows(M, hideZero){
+function sheetRows(M, hideZero, next){
   const groups = TIERS.map(t => ({ label: t[1], min: t[0], items: [] }));
   for (const i of M.items) {
-    const unknown = i.onHandBlank && !i.received;
     const g = groups.find(g => num(i.price) >= g.min) || groups[groups.length - 1];
-    const note = [unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
-    g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before: unknown ? '' : i.avail, note, hide: hideZero && !unknown && i.avail === 0 });
+    let unknown, before, note;
+    if (next) { // what's left now: the after-sale count, or what should be there if it wasn't counted
+      const left = i.counted !== null ? i.counted : (i.onHandBlank && !i.received ? null : i.avail);
+      unknown = left === null; before = unknown ? '' : left;
+      note = [unknown ? 'COUNT BEFORE OPENING' : '', i.counted === null && !unknown && i.avail > 0 ? 'NOT COUNTED AFTER LAST SALE' : '', i.notes || ''].filter(Boolean).join(' · ');
+    } else {
+      unknown = i.onHandBlank && !i.received; before = unknown ? '' : i.avail;
+      note = [unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
+    }
+    g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before, note, hide: hideZero && !unknown && num(before) === 0 });
   }
   let n = 0; // numbered before hiding, so a row number always means the same item
   for (const g of groups) { g.items.sort((a, b) => String(a.name).localeCompare(String(b.name))); for (const it of g.items) it.n = ++n; g.items = g.items.filter(it => !it.hide); }
@@ -1175,22 +1354,26 @@ function sheetRows(M, hideZero){
 function loadScript(src){ return new Promise((res, rej) => { if (document.querySelector('script[src="' + src + '"]')) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load')); document.head.appendChild(s); }); }
 function openSheetExport(){
   let rem = ''; try { rem = localStorage.getItem('css-sheet-reminder') || ''; } catch (e) {}
-  openSheet(`<h3>Print count sheet</h3><p>Makes a PDF with today's numbers. BEFORE is filled in from leftovers plus this sale's orders. Print it, take it to the sale, write the AFTER counts by hand, then upload a photo of it here.</p>
+  const M = model(), hasAfter = M.T.counted > 0, ev = setting('eventName') || 'this sale';
+  openSheet(`<h3>Print count sheet</h3><p>Makes a PDF to take to the sale. Write the AFTER counts by hand, then upload a photo of it here.</p>
     <form id="sheetForm" class="form">
+      ${hasAfter ? `<fieldset class="choice"><legend class="lbl">Which numbers go in BEFORE?</legend>
+        <label class="chk"><input type="radio" name="shMode" value="next" checked> <span><b>What's left now</b>, for the next sale. Uses the after-sale counts from ${esc(ev)}.</span></label>
+        <label class="chk"><input type="radio" name="shMode" value="this"> <span><b>${esc(ev)}</b>, what it started with: leftovers plus its orders.</span></label></fieldset>` : ''}
       <label class="chk"><input type="checkbox" id="shHide" checked> Leave off items with none left</label>
       <div><label class="lbl" for="shRem">Reminder at the top (optional)</label><textarea class="in" id="shRem" placeholder="Example: Count the croc charms and lion paint kits before opening.">${esc(rem)}</textarea></div>
       <div class="err" id="shErr"></div>
       <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit">Download PDF</button></div>
     </form>`);
 }
-async function exportCountSheet(hideZero, reminder){
+async function exportCountSheet(hideZero, reminder, next){
   try { localStorage.setItem('css-sheet-reminder', reminder); } catch (e) {}
   const btn = document.querySelector('#sheetForm button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Making PDF…'; }
   try {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
   } catch (e) { $('#shErr').textContent = 'Could not load the PDF maker. Check the connection and try again.'; if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; } return; }
-  const M = model(), groups = sheetRows(M, hideZero);
+  const M = model(), groups = sheetRows(M, hideZero, next);
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit:'pt', format:'letter' });
   const W = doc.internal.pageSize.getWidth(), GREEN = [12,72,45], LIGHT = [226,239,231];
   let logo = null; try { const b = await fetch('lion.png').then(r => r.ok && /^image\//.test(r.headers.get('content-type') || '') ? r.blob() : null); if (b) logo = await new Promise(r => { const img = new Image(), u = URL.createObjectURL(b); img.onload = () => { const c = document.createElement('canvas'); c.width = 120; c.height = Math.round(120 * img.naturalHeight / img.naturalWidth); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); r(c.toDataURL('image/png')); }; img.onerror = () => r(null); img.src = u; }); } catch (e) {}
@@ -1200,7 +1383,7 @@ async function exportCountSheet(hideZero, reminder){
   doc.text('Creekside Spirit Store · Inventory Count Sheet', logo ? 80 : 40, y + 6);
   doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(60);
   const printed = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-  doc.text((setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '') + '   ·   printed ' + printed, logo ? 80 : 40, y + 22);
+  doc.text((next ? 'Next sale · what was left after ' + (setting('eventName') || 'the last sale') : (setting('eventName') || 'Spirit store') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '')) + '   ·   printed ' + printed, logo ? 80 : 40, y + 22);
   y += 48; doc.setTextColor(20); doc.setFontSize(10.5);
   doc.text('Counted BEFORE by: ________________________', 40, y); doc.text('Counted AFTER by: ________________________', W/2 + 6, y);
   y += 14;
@@ -1210,7 +1393,7 @@ async function exportCountSheet(hideZero, reminder){
     doc.setFont('helvetica','bold'); doc.setTextColor(150, 30, 30); doc.text(lines, 46, y + 15); y += lines.length * 13 + 16;
   }
   doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(90);
-  const help = doc.splitTextToSize('BEFORE is filled in from the leftover count plus this sale\'s orders. Check it while unpacking; cross out anything wrong and write the right number. Blank BEFORE boxes need to be counted. After the sale, write what is LEFT in the AFTER column, then take a photo of each page and tap Upload at the top of the tracker.', W - 80);
+  const help = doc.splitTextToSize((next ? 'BEFORE is what was counted left after the last sale. Orders for the next sale are not on it yet, so add those as they come in. ' : 'BEFORE is filled in from the leftover count plus this sale\'s orders. ') + ' Check it while unpacking; cross out anything wrong and write the right number. Blank BEFORE boxes need to be counted. After the sale, write what is LEFT in the AFTER column, then take a photo of each page and tap Upload at the top of the tracker.', W - 80);
   doc.text(help, 40, y + 4); y += help.length * 10 + 6;
   const body = [];
   for (const g of groups) {
@@ -1229,7 +1412,7 @@ async function exportCountSheet(hideZero, reminder){
   y += 24; doc.text('Notes: ______________________________________________________________________________', 40, y);
   const pages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Page ' + i + ' of ' + pages + '   ·   Creekside Lions PTO', W / 2, doc.internal.pageSize.getHeight() - 20, { align:'center' }); }
-  const fname = 'Count sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf';
+  const fname = next ? 'Count sheet - next sale.pdf' : 'Count sheet - ' + (setting('eventName') || 'Spirit store').replace(/[^\w\s-]/g, '') + '.pdf';
   const phone = window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(pointer: coarse)').matches) || navigator.standalone === true;
   let file = null;
   try { file = new File([doc.output('blob')], fname, { type:'application/pdf' }); } catch (e) {}
@@ -2118,7 +2301,7 @@ function openCloseout(M){
   const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
   const nd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   openSheet(`<h3>Close out ${esc(M.ev)}</h3>
-    <p>This locks in ${esc(M.ev)} at <b>${money(M.T.rev)}</b> in sales and <b>${money(M.purchTotal)}</b> spent, carries counted leftovers forward as on-hand stock, and clears the cash box for the next sale.${M.T.counted < M.T.n ? ' <b class="warn">' + (M.T.n - M.T.counted) + ' items have no after-sale count; they carry forward as unsold.</b>' : ''}</p>
+    <p>This locks in ${esc(M.ev)} at <b>${money(M.cash.money !== null ? M.cash.money : M.T.rev)}</b> in sales${M.cash.money !== null ? ' (cash plus Cash App)' : ' (from the item counts, since the cash box isn\'t counted yet)'} and <b>${money(M.purchTotal)}</b> spent, carries counted leftovers forward as on-hand stock, and clears the cash box for the next sale.${M.T.counted < M.T.n ? ' <b class="warn">' + (M.T.n - M.T.counted) + ' items have no after-sale count; they carry forward as unsold.</b>' : ''}</p>
     <form id="closeForm" class="form"><div><label class="lbl" for="nName">Next sale name</label><input class="in" id="nName" value="Fall Festival" required></div>
     <div><label class="lbl" for="nDate">Next sale date</label><input class="in" id="nDate" type="date" value="${nd}" required></div>
     <div class="err" id="cErr"></div>
@@ -2138,7 +2321,8 @@ async function doCloseout(name, date){
     if (i.category === 'New' || i.category === 'Restock') set('items', i.id, 'category', 'Carry-over');
   }
   for (const p of M.cur) if (M.liveId && String(p.sale) !== M.liveId) set('purchases', p.id, 'sale', M.liveId);
-  for (const s of M.sales) if (s.live) { set('sales', s.id, 'spent', Math.round(M.purchTotal*100)/100); set('sales', s.id, 'sales', M.T.rev ? Math.round(M.T.rev*100)/100 : ''); set('sales', s.id, 'link', ''); }
+  const realSales = M.cash.money !== null ? M.cash.money : (M.T.rev ? Math.round(M.T.rev*100)/100 : '');
+  for (const s of M.sales) if (s.live) { set('sales', s.id, 'spent', Math.round(M.purchTotal*100)/100); set('sales', s.id, 'sales', realSales); set('sales', s.id, 'link', ''); }
   for (const r of M.mOut) if (r.link === 'purchases') { set('moneyOut', r.id, 'amount', Math.round(M.purchTotal*100)/100); set('moneyOut', r.id, 'link', ''); }
   set('cash', 'end', 'value', ''); set('cash', 'cashapp', 'value', ''); set('cash', 'countedBy', 'value', ''); set('cash', 'notes', 'value', '');
   set('settings', 'eventName', 'value', name); set('settings', 'eventDate', 'value', date); set('settings', 'announcement', 'value', '');
@@ -2239,13 +2423,19 @@ document.addEventListener('click', e => {
     pending.sets[key(r.t, r.id, r.f)] = { op:'set', table:r.t, id:r.id, field:r.f, prev:r.nw, value:r.old };
     render(); toast('Undo is ready. Tap Submit to save it.'); return;
   }
-  if (b.id === 'lockBtn') { if (auth) { if (pendingCount()) { toast('Submit or discard your changes before locking.'); return; } auth = null; store.sset('css-auth', null); showDetails = false; render(); toast('Locked. Viewing only.'); } else openUnlock(); return; }
+  if (b.id === 'lockBtn') { if (auth) { if (pendingCount()) { toast('Submit or discard your changes before locking.'); return; } auth = null; store.sset('css-auth', null); showDetails = false; reqCache = null; render(); toast('Locked. Viewing only.'); } else openUnlock(); return; }
   if (b.id === 'detailsBtn') { showDetails = !showDetails; return render(); }
   if (b.id === 'submitBtn') return submit();
   if (b.id === 'discardBtn') { pending = { sets:{}, adds:[], dels:{} }; render(); toast('Changes discarded.'); return; }
   if (b.id === 'keepTheirs') { pending = { sets:{}, adds:[], dels:{} }; closeSheet(); render(); return; }
   if (b.id === 'keepMine') { closeSheet(); submit(); return; }
   if (b.id === 'closeoutBtn') return openCloseout(model());
+  if (b.id === 'askBtn') return openAsk();
+  if (b.dataset.askx !== undefined) return sendAsk(b.dataset.askx);
+  if (b.dataset.askgo !== undefined) { closeSheet(); return go(b.dataset.askgo); }
+  if (b.id === 'reqSend') return sendRequest(b);
+  if (b.dataset.reqdone !== undefined) return markRequest(b);
+  if (b.id === 'fixEndCash') { const r = serverRow('cash', 'end'); if (!r) return; pending.sets[key('cash', 'end', 'value')] = { op:'set', table:'cash', id:'end', field:'value', prev: r.value ?? '', value: Number(b.dataset.v) }; return submit(); }
   if (b.id === 'saleEditBtn') return openSaleEdit();
   if (b.id === 'adminBtn') return openPins();
   if (b.id === 'printBtn') return openSheetExport();
@@ -2264,6 +2454,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();
+  if (e.target.id === 'askForm') return sendAsk($('#askQ').value);
   if (e.target.id === 'unlockForm') {
     const name = $('#uName').value.trim(), pin = $('#uPin').value.trim();
     if (!name) { $('#uErr').textContent = 'Add your name so changes are labeled.'; return; }
@@ -2277,7 +2468,7 @@ document.addEventListener('submit', async e => {
     } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }
   }
   if (e.target.id === 'pinForm') { savePins(); return; }
-  if (e.target.id === 'sheetForm') { exportCountSheet($('#shHide').checked, $('#shRem').value.trim()); return; }
+  if (e.target.id === 'sheetForm') { exportCountSheet($('#shHide').checked, $('#shRem').value.trim(), (document.querySelector('input[name=shMode]:checked') || {}).value === 'next'); return; }
   if (e.target.id === 'saleForm') { const n = $('#sName').value.trim(); if (!n) { $('#sErr').textContent = 'Give the sale a name.'; return; } const c = (document.querySelector('input[name=sColor]:checked') || {}).value || 'Pink'; saveSaleDetails({ eventName: n, eventDate: $('#sDate').value, eventColor: c, announcement: $('#sAnn').value.trim() }); return; }
   if (e.target.id === 'codeForm') { viewCode = $('#vCode').value.trim(); store.set('css-code', viewCode); closeSheet(); load(); }
   if (e.target.id === 'closeForm') { const n = $('#nName').value.trim(), d = $('#nDate').value; if (!n || !d) { $('#cErr').textContent = 'Add a name and date.'; return; } doCloseout(n, d); }
