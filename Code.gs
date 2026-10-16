@@ -192,9 +192,6 @@ function doPost(e) {
   if (body.action === 'importRead') return json(importRead(body, role.role));
   if (body.action === 'readDoc') return json(readDoc(body, role.role));
   if (body.action === 'ask') return json(ask(body, role.role));
-  if (body.action === 'request') return json(addRequest(body, role.role));
-  if (body.action === 'requests') return json(listRequests(body, role.role));
-  if (body.action === 'requestDone') return json(requestDone(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
@@ -297,18 +294,20 @@ function readDoc(body, role) {
 
 /* ------------------------------ Ask the tracker (admins only) ------------------------------
    A plain-language answer about the live numbers or how to do something. The page sends a short summary of
-   its numbers with the question. Every question, and every "Send to Hunter" request, is kept on the Requests tab. */
+   its numbers with the question. Each question and answer is kept on the Ask Log tab of the Google Sheet, so answers can be checked. */
 var HELP_GUIDE = [
   'How the tracker works (use these exact button and tab names):',
   '- One link for everyone. Looking needs only the access code. Changing anything needs a name and a PIN (button at the top: "Unlock to edit"). Volunteer PIN: counts, deposits, cash box. Admin PIN: everything, including orders, Cash App, sale details, PINs & access.',
   '- Tabs: Overview, Count, Money, Cash Box, Orders, History, Activity.',
-  '- Overview: "Real profit to date" = money in minus spent plus stock on the shelf (valued at cost). The "This sale" card shows Items sold, Sold by count (after-sale counts times prices), Money taken in (cash taken in plus Cash App, once the cash box is counted), Profit (money taken in minus what the sold items cost). The red number on the Overview tab is the to-do list.',
+  '- Overview: "Real profit to date" = money in minus spent plus stock on the shelf (valued at cost). The "This sale" card shows Items sold, Sold by count (after-sale counts times prices), Money taken in (cash taken in plus Cash App, once the cash box is counted), Profit (money taken in minus what the sold items cost). After unlocking, the number on the Overview tab and the "Needs your input" list show what that person can do next (viewers do not see it).',
   '- Sold by count and Money taken in rarely match exactly. Small gaps are normal: Cash App fees (if Cash App was entered after fees), pom pom pairs sold 2 for a deal, miscounts. A big short usually means an item was miscounted or money is missing; a big over usually means an item was missed on the Count tab.',
   '- Count tab: each item has BEFORE (leftovers on hand plus this sale\'s orders) and AFTER (what is left after the sale). Sold = before minus after. Items with nothing on hand do not need an after count.',
   '- Cash Box tab: Starting cash (change put in the box, usually $150), Ending cash (EVERYTHING in the box at closing, including the starting cash), Cash App total for this sale. Cash taken in = ending minus starting. Over/(short) compares cash taken in plus Cash App with Sold by count. If ending cash looks like it leaves out the starting cash, a yellow "Check the ending cash" box offers a one-tap fix.',
   '- Money tab: Money in (bank deposits, Cash App totals) and Money out (orders and other costs). Cash deposits are net of the starting cash.',
   '- Orders tab (admin): what was bought for this sale. Earlier orders are kept below.',
-  '- Upload button (top): add a photo of the count sheet (each page), a deposit slip photo, an Amazon order screenshot or PDF, or the Cash App export file (admin). It reads it, asks one-tap questions about anything that does not add up, and nothing saves until every question is answered and Save is tapped. The green Saved screen has "Undo this upload".',
+  '- Buttons only show for people who can use them. Upload shows after unlocking with a PIN; Ask, PINs & access, Edit sale details, Add and Remove show only for admins.',
+  '- Print report button (on the Overview "Real profit to date" card and at the top of the History tab, anyone can print it): a PDF of every sale with totals, the four headline numbers, and every money in and money out line.',
+  '- Upload button (top, after unlocking): add a photo of the count sheet (each page), a deposit slip photo, an Amazon order screenshot or PDF, or the Cash App export file (admin). It reads it, asks one-tap questions about anything that does not add up, and nothing saves until every question is answered and Save is tapped. The green Saved screen has "Undo this upload".',
   '- Print count sheet button (top): makes a PDF. After the after-sale counts are in, it asks which numbers go in BEFORE: "What\'s left now" (for the next sale) or the current sale\'s starting numbers. "Leave off items with none left" hides zero rows; row numbers never change.',
   '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
   '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
@@ -340,8 +339,8 @@ function ask(body, role, test) {
     'Live numbers from the tracker right now (JSON): ' + ctx,
     'Question from ' + String(body.name || 'an admin').slice(0, 40) + ': ' + q,
     'Answer rules: 1 to 5 short sentences in plain words. Use the live numbers and show the simple math when it helps (for example "$963.93 + $185.35 = $1,149.28"). For how-to questions give the taps in order, using the exact button and tab names. Never invent numbers; if something is not in the numbers, say so. No dashes as punctuation, no markdown, no bullet symbols.',
-    'If the question asks for a change to the tracker itself (a new feature, something broken, something worded confusingly), say Hunter can add it and put a one sentence summary of the change in "request". Otherwise "request" is empty.',
-    'Return ONLY one JSON object, no other text: {"answer":"...","goTo":"one of overview, count, money, cash, orders, history, activity, or empty if no tab helps","request":""}'
+    'If the question asks for a change to the tracker itself (a new feature, something broken, something worded confusingly), say that would be a change to the tracker and to text Hunter the idea.',
+    'Return ONLY one JSON object, no other text: {"answer":"...","goTo":"one of overview, count, money, cash, orders, history, activity, or empty if no tab helps"}'
   ].join('\n\n');
   var r = callClaude([], prompt, { maxTokens: 1200, rawOk: true });
   if (!r.ok) return r;
@@ -349,59 +348,21 @@ function ask(body, role, test) {
   var answer = String(o.answer || '').trim().slice(0, 2500);
   if (!answer) return { ok: false, error: "Couldn't get an answer. Try asking another way." };
   var goTo = ASK_TABS.indexOf(String(o.goTo || '').toLowerCase()) >= 0 ? String(o.goTo).toLowerCase() : '';
-  var request = String(o.request || '').trim().slice(0, 400);
-  if (!test) saveRequest('Question', body.name, q, answer);
-  return { ok: true, answer: answer, goTo: goTo, request: request };
+  if (!test) logAsk(body.name, q, answer);
+  return { ok: true, answer: answer, goTo: goTo };
 }
-var REQ_TAB = 'Requests', REQ_COLS = ['Time', 'Who', 'Kind', 'Text', 'Reply', 'Status'];
-function reqSheet(make) {
-  var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(REQ_TAB);
-  if (!sh && make) {
-    sh = ss.insertSheet(REQ_TAB);
-    sh.getRange(1, 1, 1, REQ_COLS.length).setValues([REQ_COLS]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-function reqText(v, max) { var t = String(v || '').trim().slice(0, max); return /^[=+\-@']/.test(t) ? "'" + t : t; }
-function saveRequest(kind, who, text, reply) {
+var ASK_TAB = 'Ask Log', ASK_COLS = ['Time', 'Who', 'Question', 'Answer'];
+function cellText(v, max) { var t = String(v || '').trim().slice(0, max); return /^[=+\-@']/.test(t) ? "'" + t : t; }
+function logAsk(who, q, answer) {
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return false;
+  if (!lock.tryLock(5000)) return;
   try {
-    var sh = reqSheet(true);
-    var rng = sh.getRange(sh.getLastRow() + 1, 1, 1, REQ_COLS.length);
+    var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(ASK_TAB);
+    if (!sh) { sh = ss.insertSheet(ASK_TAB); sh.getRange(1, 1, 1, ASK_COLS.length).setValues([ASK_COLS]).setFontWeight('bold'); sh.setFrozenRows(1); }
+    var rng = sh.getRange(sh.getLastRow() + 1, 1, 1, ASK_COLS.length);
     rng.setNumberFormat('@');
-    rng.setValues([[new Date().toISOString(), reqText(who || 'Someone', 40), kind, reqText(text, 1000), reqText(reply, 2500), kind === 'Request' ? 'Open' : '']]);
-    return true;
-  } finally { lock.releaseLock(); }
-}
-function addRequest(body, role) {
-  if (role !== 'admin') return { ok: false, error: 'Requests are for admins. Unlock with the admin PIN.' };
-  var t = String(body.text || '').trim();
-  if (!t) return { ok: false, error: 'Type what you would like changed first.' };
-  if (!saveRequest('Request', body.name, t, String(body.context || ''))) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
-  return { ok: true };
-}
-function listRequests(body, role) {
-  if (role !== 'admin') return { ok: false, error: 'Unlock with the admin PIN.' };
-  var sh = reqSheet(false);
-  if (!sh || sh.getLastRow() < 2) return { ok: true, rows: [] };
-  var last = sh.getLastRow(), first = Math.max(2, last - 39);
-  var vals = sh.getRange(first, 1, last - first + 1, REQ_COLS.length).getValues(), out = [];
-  for (var i = vals.length - 1; i >= 0; i--) {
-    var v = vals[i];
-    out.push({ row: first + i, time: String(v[0]), who: String(v[1]), kind: String(v[2]), text: String(v[3]), reply: String(v[4]), status: String(v[5]) });
-  }
-  return { ok: true, rows: out };
-}
-function requestDone(body, role) {
-  if (role !== 'admin') return { ok: false, error: 'Unlock with the admin PIN.' };
-  var sh = reqSheet(false), row = Number(body.row);
-  if (!sh || !(row >= 2) || row > sh.getLastRow()) return { ok: false, error: 'That request is not there anymore.' };
-  var v = sh.getRange(row, 1, 1, REQ_COLS.length).getValues()[0];
-  if (String(v[0]) !== String(body.time)) return { ok: false, error: 'That list changed. Close it and open it again.' };
-  sh.getRange(row, 6).setValue(body.done === false ? 'Open' : 'Done');
-  return { ok: true };
+    rng.setValues([[new Date().toISOString(), cellText(who || 'Someone', 40), cellText(q, 1000), cellText(answer, 2500)]]);
+  } catch (e) {} finally { lock.releaseLock(); }
 }
 
 /* One-time update, Oct 2026: adds the items on the paper count sheet that were not in the tracker yet.
