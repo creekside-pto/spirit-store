@@ -571,7 +571,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '315b734417'; // set by the build; version.json next to this page says which build is live
+const BUILD = 'b23fcd2856'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -1401,7 +1401,11 @@ function pdfSlimHeader(doc, title){
 function pdfBar(doc, x, y, w, label, right){
   doc.setFillColor(...PDF.green); doc.roundedRect(x, y, w, 21, 5, 5, 'F');
   pdfPaw(doc, x + 13, y + 10.5, 12, PDF.mint, 1, -.2);
-  pdfDisplay(doc, 10); doc.setTextColor(...PDF.white); pdfSpaced(doc, label.toUpperCase(), x + 27, y + 14.6, 0.5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); const rw = right ? doc.getTextWidth(right) + 12 : 0;
+  if (right && w - 27 - rw < 60) right = '';
+  const T = label.toUpperCase(); let fs = 10; pdfDisplay(doc, fs);
+  while (fs > 7 && doc.getTextWidth(T) + 0.5 * (T.length - 1) > w - 34 - (right ? rw : 0)) { fs -= 0.5; pdfDisplay(doc, fs); }
+  doc.setTextColor(...PDF.white); pdfSpaced(doc, T, x + 27, y + 14.6 - (10 - fs) * 0.15, 0.5);
   if (right) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PDF.mint); doc.text(right, x + w - 9, y + 14, { align:'right' }); }
   return y + 21;
 }
@@ -1602,15 +1606,21 @@ async function exportPriceSheet(hideZero){
       doc.setTextColor(...PDF.ink); doc.text(nameLines, x + CW / 2, ty, { align:'center' });
       pdfDisplay(doc, pSize); doc.setTextColor(...ACC); doc.text(priceLines, x + CW / 2, ty + nameH + (pSize > 12 ? 9 : 4.5), { align:'center' });
     };
-    for (const g of groups) {
+    // lay out rows: a group with more than six boxes gets full rows; smaller groups sit side by side when they fit
+    const rows = []; let row = null;
+    for (const g of groups) for (let i = 0; i < g.cells.length; i += COLS) {
+      const part = g.cells.slice(i, i + COLS), cont = i > 0, span = g.cells.length > COLS ? part.length : Math.max(2, part.length);
+      if (row && !cont && g.cells.length <= COLS && row.small && row.used + span <= COLS) { row.segs.push({ g, part, col: row.used, span, cont }); row.used += span; }
+      else { row = { segs: [{ g, part, col: 0, span, cont }], used: span, small: g.cells.length <= COLS }; rows.push(row); }
+    }
+    for (const r of rows) {
       if (y + 21 + 5 + RH > BOTTOM) { doc.addPage(); y = PDF_TOP; }
-      y = pdfBar(doc, L, y, W - 2 * L, g.name) + 5;
-      for (let i = 0; i < g.cells.length; i += COLS) {
-        if (y + RH > BOTTOM) { doc.addPage(); y = PDF_TOP; y = pdfBar(doc, L, y, W - 2 * L, g.name, 'continued') + 5; }
-        g.cells.slice(i, i + COLS).forEach((c, j) => cell(c, L + j * (CW + GAP), y));
-        y += RH + GAP;
+      for (const sg of r.segs) {
+        const x0 = L + sg.col * (CW + GAP), bw = r.segs.length === 1 && sg.g.cells.length > COLS ? W - 2 * L : sg.span * CW + (sg.span - 1) * GAP;
+        pdfBar(doc, x0, y, bw, sg.g.name, sg.cont ? 'continued' : '');
+        sg.part.forEach((c, j) => cell(c, x0 + j * (CW + GAP), y + 26));
       }
-      y += 6;
+      y += 26 + RH + 12;
     }
     if (!groups.length) { doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(...PDF.muted); doc.text('Nothing to show. Every item is out of stock or hidden.', W / 2, y + 20, { align:'center' }); }
     pdfFinish(doc, 'Price sheet', 'Prices from the spirit store tracker');
