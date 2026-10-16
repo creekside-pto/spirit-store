@@ -555,6 +555,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
+const BUILD = '8c6125e032'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -2503,7 +2504,26 @@ window.addEventListener('beforeunload', e => { if (pendingCount() || upBusy || $
 openFromCopy(); render(); load();
 setTimeout(() => { const v = document.querySelector('#view .empty-state'); if (!data && !loadError && v) v.textContent = 'Waking up the tracker. The first open of the day can take up to 30 seconds…'; }, 5000);
 if (!DEMO) setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!DEMO && document.visibilityState === 'visible') load(true); });
+document.addEventListener('visibilitychange', () => { if (!DEMO && document.visibilityState === 'visible') { load(true); checkVersion(); } });
+/* Phones and home-screen apps hold on to an old copy of this page. When a newer one is live, switch to it,
+   but never in the middle of something: unsaved changes or an open window wait for the next check. */
+let verAt = 0;
+async function checkVersion(){
+  if (DEMO || !/^[0-9a-f]{6,}$/.test(BUILD) || Date.now() - verAt < 45000) return;
+  verAt = Date.now();
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const v = String((await r.json()).build || '');
+    if (!/^[0-9a-f]{6,}$/.test(v) || v === BUILD) return;
+    let tried = ''; try { tried = sessionStorage.getItem('css-ver-tried') || ''; } catch (e) {}
+    if (tried === v) return; // already switched once for this build; never loop
+    if (pendingCount() || !$('#scrim').hidden || upBusy) { verAt = Date.now() - 30000; return; } // try again in about 15 seconds
+    try { sessionStorage.setItem('css-ver-tried', v); } catch (e) {}
+    location.replace(location.pathname + '?v=' + v + location.hash);
+  } catch (e) {}
+}
+if (!DEMO) { setTimeout(checkVersion, 1500); setInterval(() => { if (document.visibilityState === 'visible') checkVersion(); }, 60000); }
 </script>
 
 </body>
