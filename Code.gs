@@ -63,7 +63,7 @@ function normVal(table, field, v, id) {
   return c;
 }
 function canDo(role, op) {
-  if (role === 'admin') return true;
+  if (role === 'admin' || role === 'super') return true; // super admin can do everything an admin can
   if (role !== 'volunteer') return false;
   // the upload screen's remembered answers live in one settings row that volunteers may update
   if (op.table === 'settings' && (op.op === 'set' ? (op.id === 'learned' && op.field === 'value') : (op.op === 'add' && op.row && op.row.id === 'learned'))) return true;
@@ -127,6 +127,7 @@ var SEED = null;
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Spirit Store')
     .addItem('Set PINs', 'setPins')
+    .addItem('Set super admin PIN', 'setSuperPin')
     .addItem('Require an access code to view (optional)', 'setViewCode')
     .addItem('Set AI key (for importing order screenshots)', 'setAiKey')
     .addItem('Test the AI order reader', 'selfTestAi')
@@ -165,6 +166,20 @@ function setPins() {
   ui.alert('PINs saved. They take effect right away, no redeploy needed.');
 }
 
+/* The super admin PIN unlocks everything an admin can do, plus the Usage page (who opens the tracker and what they do).
+   It can only be set here, by the owner of the Google Sheet, never from the website. */
+function setSuperPin() {
+  var ui = SpreadsheetApp.getUi(), props = PropertiesService.getScriptProperties();
+  var r = ui.prompt('Super admin PIN', 'Unlocks everything plus the Usage page. Pick one only you know (8 or more digits works well). Leave it blank and tap OK to turn super admin off.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var sp = r.getResponseText().trim();
+  if (!sp) { props.deleteProperty('SUPER_PIN'); ui.alert('Super admin is off.'); return; }
+  if (sp.length < 6) { ui.alert('Use at least 6 characters. Nothing was changed.'); return; }
+  if (sp === props.getProperty('VOLUNTEER_PIN') || sp === props.getProperty('ADMIN_PIN')) { ui.alert('That matches another PIN. Pick a different one. Nothing was changed.'); return; }
+  props.setProperty('SUPER_PIN', sp);
+  ui.alert('Super admin PIN saved. Unlock the tracker with it to see the Usage tab.');
+}
+
 function setViewCode() {
   var ui = SpreadsheetApp.getUi(), props = PropertiesService.getScriptProperties();
   var r = ui.prompt('Access code to view', 'Leave blank so anyone with the link can view (they still need a PIN to edit). Or type a code people must enter to see the numbers.', ui.ButtonSet.OK_CANCEL);
@@ -186,13 +201,17 @@ function doPost(e) {
   var body;
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad request.' }); }
   if (!codeOk(body.code)) return json({ ok: false, error: 'code' });
+  if (body.action === 'ping') return json(ping(body));
   var role = roleFor(body.pin);
-  if (role.error) return json({ ok: false, error: role.error });
-  if (body.action === 'auth') return json({ ok: true, role: role.role });
+  if (role.error) { if (body.action === 'auth') logVisit(body, 'wrongpin', '', ''); return json({ ok: false, error: role.error }); }
+  var isSuper = role.role === 'super';
+  if (isSuper) { role = { role: 'admin' }; body.me = true; } // a super admin can do everything an admin can, and the owner's own use stays out of the counts
+  if (body.action === 'auth') { logVisit(body, 'unlock', role.role, role.role); return json({ ok: true, role: isSuper ? 'super' : role.role }); }
+  if (body.action === 'usage') return json(isSuper ? usage() : { ok: false, error: 'Only the super admin PIN can see usage.' });
   if (body.action === 'setPins') return json(setPinsFromWeb(body, role.role));
   if (body.action === 'importRead') return json(importRead(body, role.role));
   if (body.action === 'readDoc') return json(readDoc(body, role.role));
-  if (body.action === 'ask') return json(ask(body, role.role));
+  if (body.action === 'ask') return json(ask(body, role.role, false, isSuper));
   if (body.action === 'setPhoto') return json(setPhoto(body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
   if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
@@ -208,6 +227,7 @@ function doPost(e) {
     if (res.applied) {
       Object.keys(touched).forEach(function (t) { writeTable(t, tables[t]); });
       appendLog(res.log);
+      if (res.log && res.log.length) logVisit(body, 'save', String(res.log.length), role.role);
     }
     return ContentService.createTextOutput('{"ok":true,"applied":' + res.applied + ',"conflicts":' + JSON.stringify(res.conflicts) + ',"data":' + dataJson() + '}').setMimeType(ContentService.MimeType.JSON);
   } finally {
@@ -225,6 +245,8 @@ function setPinsFromWeb(body, role) {
   if (vp && vp.length < 4) return { ok: false, error: 'The volunteer PIN needs at least 4 characters.' };
   if (ap && ap.length < 4) return { ok: false, error: 'The admin PIN needs at least 4 characters.' };
   if (nextV === nextA) return { ok: false, error: 'The volunteer and admin PINs have to be different.' };
+  var spin = props.getProperty('SUPER_PIN');
+  if (spin && (nextV === spin || nextA === spin)) return { ok: false, error: 'That PIN is already taken. Pick a different one.' };
   var mode = body.viewMode || 'keep', code = String(body.viewCode || '').trim();
   if (mode === 'set' && !code) return { ok: false, error: 'Type the new access code, or choose to remove it.' };
   var lock = LockService.getScriptLock();
@@ -327,7 +349,7 @@ function selfTestAsk() {
   Logger.log(JSON.stringify(r));
   return r;
 }
-function ask(body, role, test) {
+function ask(body, role, test, quiet) {
   if (role !== 'admin') return { ok: false, error: 'Ask is for admins. Unlock with the admin PIN.' };
   var q = String(body.q || '').trim().slice(0, 600);
   if (!q) return { ok: false, error: 'Type a question first.' };
@@ -351,7 +373,7 @@ function ask(body, role, test) {
   var answer = String(o.answer || '').trim().slice(0, 2500);
   if (!answer) return { ok: false, error: "Couldn't get an answer. Try asking another way." };
   var goTo = ASK_TABS.indexOf(String(o.goTo || '').toLowerCase()) >= 0 ? String(o.goTo).toLowerCase() : '';
-  if (!test) logAsk(body.name, q, answer);
+  if (!test) { logAsk(body.name, q, answer); if (!quiet) logVisit(body, 'ask', '', role); }
   return { ok: true, answer: answer, goTo: goTo };
 }
 var ASK_TAB = 'Ask Log', ASK_COLS = ['Time', 'Who', 'Question', 'Answer'];
@@ -366,6 +388,44 @@ function logAsk(who, q, answer) {
     rng.setNumberFormat('@');
     rng.setValues([[new Date().toISOString(), cellText(who || 'Someone', 40), cellText(q, 1000), cellText(answer, 2500)]]);
   } catch (e) {} finally { lock.releaseLock(); }
+}
+
+/* ------------------------------ Usage (super admin only) ------------------------------
+   One row per thing that happens: someone opens the tracker, unlocks it, looks around, prints, saves, asks.
+   "Visit" groups one sitting; "Device" is a random ID the page keeps on that phone or computer. No locations,
+   no IP addresses: just the name people typed when they unlocked, if they ever did. */
+var VISIT_TAB = 'Visits', VISIT_COLS = ['Time', 'Visit', 'Device ID', 'Device', 'Name', 'Role', 'What', 'Details'];
+var VISIT_KINDS = { open: 1, tabs: 1, print: 1, unlock: 1, wrongpin: 1, save: 1, ask: 1 };
+function visitSheet() {
+  var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(VISIT_TAB);
+  if (!sh) { sh = ss.insertSheet(VISIT_TAB); sh.getRange(1, 1, 1, VISIT_COLS.length).setValues([VISIT_COLS]).setFontWeight('bold'); sh.setFrozenRows(1); }
+  return sh;
+}
+function logVisit(body, kind, details, role) {
+  try {
+    if (!VISIT_KINDS[kind] || body.me) return; // the owner's own devices stay out of the counts
+    var sh = visitSheet();
+    sh.appendRow([new Date().toISOString(), cellText(body.sid, 24), cellText(body.dev, 24), cellText(body.device, 40), cellText(body.name, 40), cellText(role || '', 12), kind, cellText(details, 200)]);
+    if (sh.getLastRow() > 6000) sh.deleteRows(2, 2000); // keep the tab small: the newest 4,000 or so
+  } catch (e) {}
+}
+function ping(body) {
+  var c = CacheService.getScriptCache(), k = 'ping_' + String(body.dev || 'x').slice(0, 24), n = Number(c.get(k) || 0);
+  if (n > 80) return { ok: true }; // one device can't flood the log
+  try { c.put(k, String(n + 1), 3600); } catch (e) {}
+  var evs = Array.isArray(body.ev) ? body.ev.slice(0, 6) : [];
+  var role = /^(volunteer|admin)$/.test(String(body.role)) ? String(body.role) : ''; // just a label for the usage page; nothing is unlocked by it
+  evs.forEach(function (e) { if (e && (e.k === 'open' || e.k === 'tabs' || e.k === 'print')) logVisit(body, e.k, e.d, role); });
+  return { ok: true };
+}
+function usage() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(VISIT_TAB);
+  if (!sh || sh.getLastRow() < 2) return { ok: true, rows: [] };
+  var last = sh.getLastRow(), first = Math.max(2, last - 3999);
+  var since = new Date(Date.now() - 62 * 864e5).toISOString();
+  var rows = sh.getRange(first, 1, last - first + 1, VISIT_COLS.length).getValues().filter(function (r) { return String(r[0]) >= since; })
+    .map(function (r) { return r.map(function (v) { return String(v); }); });
+  return { ok: true, rows: rows };
 }
 
 /* ------------------------------ Price sheet photos ------------------------------
@@ -517,6 +577,8 @@ function roleFor(pin) {
   var cache = CacheService.getScriptCache();
   if (Number(cache.get('fails') || 0) >= 30) return { error: 'Too many wrong PINs. Wait 10 minutes and try again.' };
   pin = String(pin || '').trim();
+  var sp = props.getProperty('SUPER_PIN');
+  if (pin && sp && pin === sp) return { role: 'super' };
   if (pin && pin === ap) return { role: 'admin' };
   if (pin && pin === vp) return { role: 'volunteer' };
   var lock = LockService.getScriptLock();

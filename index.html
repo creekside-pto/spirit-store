@@ -422,6 +422,28 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
 .psline{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:6px}
 .psline.small{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px}
 .linkbtn{font:inherit;font-size:13px;background:none;border:0;color:var(--accent);text-decoration:underline;padding:0;cursor:pointer}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:8px}
+.seg button{font:inherit;font-size:13px;font-weight:700;padding:7px 14px;background:var(--surface);color:var(--muted);border:0;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.utiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px}
+.utile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:2px;box-shadow:var(--shadow)}
+.utile b{font-family:var(--f-display);font-weight:900;font-size:28px;line-height:1.05;color:var(--ink)}
+.utile span{font-weight:700;font-size:13.5px}.utile small{color:var(--muted);font-size:12px}
+.uh{font-size:15px;font-weight:800;margin:0 0 10px}
+.ubars{display:flex;align-items:flex-end;gap:6px;height:120px}
+.ubar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;min-width:0}
+.ubar i{display:block;width:100%;max-width:34px;min-height:3px;background:var(--event,var(--accent));border-radius:6px 6px 2px 2px}
+.ubar span{font-size:11px;font-weight:700;color:var(--muted)}.ubar em{font-style:normal;font-size:11px;color:var(--muted)}
+.upeople,.ufeed{display:grid}
+.uperson,.uvisit{padding:12px 14px;border-top:1px solid var(--line);display:grid;gap:3px;font-size:14px;overflow-wrap:anywhere}
+.uperson:first-child,.uvisit:first-child{border-top:0}
+.un{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.uperson .muted{font-size:12.5px}
+.uvisit{grid-template-columns:150px minmax(0,1fr);gap:10px}
+.ut{font-size:12.5px;color:var(--muted);padding-top:2px}
+@media (max-width:560px){.uvisit{grid-template-columns:1fr;gap:2px}}
+.pill.muted{background:var(--surface-2);color:var(--muted)}
 </style>
 
 
@@ -511,7 +533,7 @@ function normVal(table, field, v, id) {
   return c;
 }
 function canDo(role, op) {
-  if (role === 'admin') return true;
+  if (role === 'admin' || role === 'super') return true; // super admin can do everything an admin can
   if (role !== 'volunteer') return false;
   // the upload screen's remembered answers live in one settings row that volunteers may update
   if (op.table === 'settings' && (op.op === 'set' ? (op.id === 'learned' && op.field === 'value') : (op.op === 'add' && op.row && op.row.id === 'learned'))) return true;
@@ -571,7 +593,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = 'b23fcd2856'; // set by the build; version.json next to this page says which build is live
+const BUILD = '488b5f942e'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -619,7 +641,8 @@ function rows(t){
 function setting(id){ const r = rows('settings').find(r => r.id === id); return r ? r.value : ''; }
 function pendingCount(){ return Object.keys(pending.sets).length + pending.adds.length + Object.keys(pending.dels).length; }
 function canEdit(t, f){ if (!auth) return false; if (f === 'id') return false; return canDo(auth.role, { op:'set', table:t, field:f }); }
-const isAdmin = () => auth && auth.role === 'admin';
+const isAdmin = () => !!auth && (auth.role === 'admin' || auth.role === 'super'); // super admin can do everything an admin can
+const isSuper = () => !!auth && auth.role === 'super';
 
 /* ---------- the math (mirrors the original spreadsheet) ---------- */
 function liveSale(){ return rows('sales').find(s => s.link === 'current') || null; }
@@ -735,12 +758,13 @@ function renderHeader(M){
   $('#eventTxt').textContent = (setting('eventName') || 'Next sale') + (setting('eventDate') ? ' · ' + fdate(setting('eventDate'), true) : '');
   const ec = EVENT_COLORS.find(c => c[0] === setting('eventColor')); document.documentElement.style.setProperty('--event', ec ? ec[1] : '#D23C74');
   const lb = $('#lockBtn');
-  lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
+  lb.textContent = auth ? (who ? who + ' · ' : '') + (auth.role === 'super' ? 'Super admin' : auth.role === 'admin' ? 'Admin' : 'Volunteer') + ' · Lock' : 'Unlock to edit';
   lb.classList.toggle('on', !!auth);
   $('#adminBtn').hidden = !isAdmin(); $('#askBtn').hidden = !isAdmin(); $('#upBtn').hidden = !auth; // nothing shows that would only ask for a PIN
   $('#sync').textContent = loadError ? loadError : DEMO ? 'Preview mode' : refreshing ? 'Updating…' : lastSync ? 'Updated ' + lastSync.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'Loading…';
   const needs = M ? needsList(M).length : 0;
-  $('#tabs').innerHTML = TABS.map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
+  if (tab === 'usage' && !isSuper()) tab = 'overview';
+  $('#tabs').innerHTML = TABS.concat(isSuper() ? [['usage', 'Usage']] : []).map(([id, name]) => '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="' + (id === tab) + '">' + name + (id === 'overview' && needs ? '<span class="badge">' + needs + '</span>' : '') + '</button>').join('');
   $('#demoWrap').innerHTML = DEMO ? '<div class="notice"><b>Preview mode.</b> Not connected to the shared Google Sheet yet, so changes stay on this device only. Try it: Unlock with PIN <b>1234</b> (volunteer) or <b>0000</b> (admin).</div>' : '';
 }
 
@@ -749,7 +773,7 @@ function render(){
   keepCopy();
   const M = model();
   renderHeader(M);
-  const v = { overview: vOverview, count: vCount, money: vMoney, cash: vCash, orders: vOrders, history: vHistory, activity: vActivity }[tab] || vOverview;
+  const v = { overview: vOverview, count: vCount, money: vMoney, cash: vCash, orders: vOrders, history: vHistory, activity: vActivity, usage: isSuper() ? vUsage : null }[tab] || vOverview;
   $('#view').innerHTML = v(M);
   $('#view').insertAdjacentHTML('beforeend', '<div class="pride" aria-hidden="true"><span class="paw"></span><span class="paw"></span>Lion Country Pride<span class="paw"></span><span class="paw"></span></div>');
   if (tab === 'count') filterItems();
@@ -1096,6 +1120,141 @@ async function sendAsk(q){
     </div>`;
 }
 
+/* ---------- Usage: a light record of who opens the tracker and what they do. Only the super admin sees it. ----------
+   Each phone or computer gets a random ID kept on that device. A "visit" is one sitting; coming back after 30 minutes
+   away starts a new one. Names come from what people typed when they unlocked. No locations or IP addresses. */
+const DEV = (() => { let d = store.get('css-dev', ''); if (!/^[a-z0-9]{8,24}$/.test(String(d))) { d = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4); store.set('css-dev', d); } return d; })();
+let SID = Math.random().toString(36).slice(2, 12), visitTabs = new Set([tab]), visitStart = Date.now(), hiddenAt = 0, openLogged = false, sentTabs = '';
+function deviceLabel(){
+  const u = navigator.userAgent || '', app = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const kind = /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : /Android/.test(u) ? (/Mobile/.test(u) ? 'Android phone' : 'Android tablet') : /CrOS/.test(u) ? 'Chromebook' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows computer' : 'Computer';
+  return kind + (app ? ' (home screen app)' : '');
+}
+function isMe(){ try { return localStorage.getItem('css-me') === '1'; } catch (e) { return false; } }
+function visitBody(){ const o = { dev: DEV, sid: SID, device: deviceLabel() }; if (isMe() || isSuper()) o.me = true; return o; }
+function ping(ev, beacon){
+  if (DEMO) return;
+  const body = JSON.stringify({ action:'ping', code: viewCode, ...visitBody(), name: who || store.get('css-name', ''), role: auth ? auth.role : '', ev: [].concat(ev) });
+  try { if (beacon && navigator.sendBeacon && navigator.sendBeacon(API_URL, new Blob([body], { type:'text/plain' }))) return; } catch (e) {}
+  try { fetch(API_URL, { method:'POST', body, keepalive: true }).catch(() => {}); } catch (e) {}
+}
+function sendTabs(){
+  if (!openLogged) return;
+  const d = [...visitTabs].join(',') + '|' + Math.round((Date.now() - visitStart) / 1000);
+  if (d === sentTabs) return;
+  sentTabs = d; ping({ k:'tabs', d }, true);
+}
+function newVisit(){ SID = Math.random().toString(36).slice(2, 12); visitTabs = new Set([tab]); visitStart = Date.now(); sentTabs = ''; openLogged = false; }
+
+let usageCache = null, usageLoading = false, usageDays = 7;
+async function loadUsage(){
+  if (!isSuper() || usageLoading) return;
+  usageLoading = true;
+  let r;
+  try { r = await apiPost({ action:'usage', pin: auth.pin, name: who }); } catch (e) { r = { ok:false, error:'Could not load usage. Check the internet connection.' }; }
+  usageLoading = false;
+  usageCache = r.ok ? { at: Date.now(), rows: r.rows || [] } : { at: Date.now() - 50000, rows: [], error: r.error };
+  if (tab === 'usage') render();
+}
+const U_TABS = { overview:'Overview', count:'Count', money:'Money', cash:'Cash Box', orders:'Orders', history:'History', activity:'Activity' };
+function agoText(t){
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 2) return 'just now'; if (m < 60) return m + ' minutes ago';
+  const h = Math.round(m / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+  const d = Math.round(h / 24); return d === 1 ? 'yesterday' : d + ' days ago';
+}
+function whenText(t){
+  const d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - day) / 864e5), time = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+  return (diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })) + ', ' + time;
+}
+function usageModel(rows, days){
+  const since = Date.now() - days * 864e5;
+  const ev = rows.map(r => ({ t: Date.parse(r[0]), sid: r[1], dev: r[2], device: r[3], name: String(r[4] || '').trim(), role: r[5], k: r[6], d: r[7] })).filter(e => e.t >= since && e.k);
+  // one name per device: the latest name typed on it
+  const devName = {}, devDevice = {};
+  ev.slice().sort((a, b) => a.t - b.t).forEach(e => { if (e.name) devName[e.dev] = e.name; if (e.device) devDevice[e.dev] = e.device; });
+  const personKey = e => { const n = e.name || devName[e.dev]; return n ? 'n:' + n.toLowerCase() : 'd:' + e.dev; };
+  const visits = {}, people = {};
+  for (const e of ev) {
+    const v = visits[e.sid] = visits[e.sid] || { sid: e.sid, start: e.t, end: e.t, dev: e.dev, device: devDevice[e.dev] || e.device, key: personKey(e), tabs: new Set(), secs: 0, saves: 0, prints: [], unlock: '', wrong: 0, asks: 0, opened: false };
+    v.start = Math.min(v.start, e.t); v.end = Math.max(v.end, e.t);
+    if (e.k === 'open') v.opened = true;
+    if (e.k === 'tabs') { const [tl, sec] = String(e.d).split('|'); tl.split(',').filter(Boolean).forEach(x => v.tabs.add(x)); v.secs = Math.max(v.secs, Number(sec) || 0); }
+    if (e.k === 'save') v.saves += Number(e.d) || 1;
+    if (e.k === 'print') v.prints.push(e.d);
+    if (e.k === 'unlock') v.unlock = e.d || e.role;
+    if (e.k === 'wrongpin') v.wrong++;
+    if (e.k === 'ask') v.asks++;
+    const p = people[v.key] = people[v.key] || { key: v.key, name: e.name || devName[e.dev] || '', devs: new Set(), devices: new Set(), last: 0, visits: new Set(), saves: 0, prints: 0, asks: 0, role: '', app: false };
+    p.devs.add(e.dev); if (devDevice[e.dev]) p.devices.add(devDevice[e.dev].replace(' (home screen app)', ''));
+    if (/home screen/.test(devDevice[e.dev] || '')) p.app = true;
+    p.last = Math.max(p.last, e.t); p.visits.add(e.sid);
+    if (e.k === 'save') p.saves += Number(e.d) || 1;
+    if (e.k === 'print') p.prints++;
+    if (e.k === 'ask') p.asks++;
+    const rk = { admin: 2, volunteer: 1 }, rr = e.k === 'unlock' ? (e.d || e.role) : e.role;
+    if ((rk[rr] || 0) > (rk[p.role] || 0)) p.role = rr;
+  }
+  // unnamed devices get a friendly label: "iPhone 2"
+  const counts = {};
+  const plist = Object.values(people).sort((a, b) => b.last - a.last);
+  for (const p of plist.slice().reverse()) if (!p.name) { const base = [...p.devices][0] || 'Device'; counts[base] = (counts[base] || 0) + 1; p.label = base + ' ' + counts[base]; }
+  plist.forEach(p => { if (!p.name) p.label = p.label + ' (no name yet)'; else p.label = p.name; });
+  const vlist = Object.values(visits).sort((a, b) => b.start - a.start);
+  const daysBack = Math.min(days, 14), perDay = [];
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() - i); const d1 = d0.getTime() + 864e5;
+    perDay.push({ d: d0, n: vlist.filter(v => v.start >= d0.getTime() && v.start < d1).length });
+  }
+  return { people: plist, byKey: people, visits: vlist, perDay,
+    totals: { people: plist.length, visits: vlist.length, saves: vlist.reduce((a, v) => a + v.saves, 0), prints: vlist.reduce((a, v) => a + v.prints.length, 0), app: plist.filter(p => p.app).length } };
+}
+function visitWords(v){
+  const out = [];
+  if (v.opened) out.push('opened the tracker');
+  if (v.wrong) out.push('tried a PIN that did not work');
+  if (v.unlock) out.push('unlocked as ' + (v.unlock === 'admin' ? 'admin' : 'volunteer'));
+  const tabs = [...v.tabs].map(t => U_TABS[t]).filter(Boolean);
+  if (tabs.length) out.push('looked at ' + (tabs.length > 1 ? tabs.slice(0, -1).join(', ') + ' and ' + tabs[tabs.length - 1] : tabs[0]));
+  if (v.saves) out.push('saved ' + v.saves + (v.saves === 1 ? ' change' : ' changes'));
+  const pr = [...new Set(v.prints)].map(x => String(x).toLowerCase());
+  if (pr.length) out.push('printed the ' + pr.join(' and the '));
+  if (v.asks) out.push('asked ' + (v.asks === 1 ? 'a question' : v.asks + ' questions'));
+  const s = out.join(', ');
+  return s ? s[0].toUpperCase() + s.slice(1) + '.' : 'Opened the tracker.';
+}
+function vUsage(){
+  if (!usageCache || (Date.now() - usageCache.at > 60000 && !usageLoading)) loadUsage();
+  const head = `<div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Usage</h2><p>Who is opening the tracker and what they do. Only the super admin sees this page.</p>
+    <div class="seg" role="group" aria-label="Time range"><button type="button" data-udays="7" aria-pressed="${usageDays === 7}">Last 7 days</button><button type="button" data-udays="30" aria-pressed="${usageDays === 30}">Last 30 days</button></div></div>`;
+  if (!usageCache) return head + '<div class="card"><div class="empty-state">Loading…</div></div>';
+  if (usageCache.error) return head + '<div class="card"><div class="empty-state">' + esc(usageCache.error) + '</div></div>';
+  const U = usageModel(usageCache.rows, usageDays), T = U.totals, max = Math.max(1, ...U.perDay.map(x => x.n));
+  const tile = (n, label, sub) => `<div class="utile"><b class="num">${n}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  const role = r => r === 'admin' ? '<span class="pill">Admin</span>' : r === 'volunteer' ? '<span class="pill">Volunteer</span>' : '<span class="pill muted">Just looking</span>';
+  const did = p => [p.visits.size + (p.visits.size === 1 ? ' visit' : ' visits'), p.saves ? p.saves + (p.saves === 1 ? ' change saved' : ' changes saved') : '', p.prints ? p.prints + (p.prints === 1 ? ' printout' : ' printouts') : '', p.asks ? p.asks + (p.asks === 1 ? ' question' : ' questions') : ''].filter(Boolean).join(' · ');
+  return head + `
+    <div class="utiles">
+      ${tile(T.people, T.people === 1 ? 'person' : 'people', 'opened it')}
+      ${tile(T.visits, T.visits === 1 ? 'visit' : 'visits', '')}
+      ${tile(T.saves, T.saves === 1 ? 'change saved' : 'changes saved', '')}
+      ${tile(T.prints, T.prints === 1 ? 'printout' : 'printouts', '')}
+      ${tile(T.app, T.app === 1 ? 'on a home screen' : 'on home screens', 'saved as an app')}
+    </div>
+    <div class="card pad"><h3 class="uh">Visits by day</h3>
+      <div class="ubars">${U.perDay.map(x => `<div class="ubar" title="${x.n} on ${esc(x.d.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' }))}"><span class="num">${x.n || ''}</span><i style="height:${Math.round(x.n / max * 100)}%"></i><em>${esc(x.d.toLocaleDateString('en-US', { weekday:'narrow' }))}</em></div>`).join('')}</div>
+    </div>
+    <section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>People</h2><p>Newest first. People who never unlocked show as their phone or computer.</p></div>
+      <div class="card">${U.people.length ? '<div class="upeople">' + U.people.map(p => `<div class="uperson"><div class="un"><b>${esc(p.label)}</b> ${role(p.role)}${p.app ? ' <span class="pill">Home screen app</span>' : ''}</div><div class="muted">Last here ${esc(agoText(p.last))} · ${esc([...p.devices].join(', ') || 'device')}</div><div>${esc(did(p))}</div></div>`).join('') + '</div>' : '<div class="empty-state">Nobody has opened the tracker in this time. Once people do, they show up here.</div>'}</div>
+    </section>
+    <section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>What happened</h2><p>One line per visit, newest first.</p></div>
+      <div class="card">${U.visits.length ? '<div class="ufeed">' + U.visits.slice(0, 60).map(v => { const p = U.byKey[v.key]; return `<div class="uvisit"><div class="ut num">${esc(whenText(v.start))}</div><div><b>${esc(p ? p.label : 'Someone')}</b> <span class="muted">· ${esc(v.device || 'device')}${v.secs >= 60 ? ' · ' + Math.round(v.secs / 60) + ' min' : ''}</span><div>${esc(visitWords(v))}</div></div></div>`; }).join('') + '</div>' : '<div class="empty-state">Nothing yet.</div>'}</div>
+    </section>
+    <p class="foot">${isMe() ? 'This device is left out of the counts, so your own visits do not show. <button class="linkbtn" type="button" id="uCountMe">Count this device</button>' : 'This device is being counted. <button class="linkbtn" type="button" id="uSkipMe">Leave this device out</button>'} The full record is on the Visits tab of the Google Sheet.</p>`;
+}
+
 /* ---------- editing ---------- */
 function onEdit(el){
   const [t, id, f] = el.dataset.k.split('|');
@@ -1145,7 +1304,7 @@ async function apiPost(body){
     store.set('css-demo-db', d);
     return { ok:true, applied: res.applied, conflicts: res.conflicts, data: { ...d, log: d.log.slice(0, 80) } };
   }
-  const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ ...body, code: viewCode }) });
+  const r = await fetch(API_URL, { method:'POST', body: JSON.stringify({ ...body, ...visitBody(), code: viewCode }) });
   return r.json();
 }
 /* The last numbers are kept on this device so the page opens instantly; fresh numbers replace them a moment later. */
@@ -1169,6 +1328,7 @@ async function load(quiet){
     if (!res.ok && res.error === 'code') { loadError = ''; refreshing = false; if (data) { data = null; dropCopy(); render(); } askCode(); return; }
     if (!res.ok) throw new Error(res.error || 'Could not load');
     data = res.data; lastSync = new Date(); loadError = ''; refreshing = false;
+    if (!openLogged) { openLogged = true; ping({ k:'open', d:'' }); }
     const a = document.activeElement;
     if (quiet && a && a.dataset && a.dataset.k) { renderHeader(model()); return; }
     render();
@@ -1477,6 +1637,7 @@ async function exportCountSheet(hideZero, reminder, next){
 }
 /* Phones get the share sheet (Print, Files, Messages); computers get a download. */
 function deliverPdf(doc, fname, label, after){
+  ping({ k:'print', d: label });
   const phone = window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(pointer: coarse)').matches) || navigator.standalone === true;
   let file = null;
   try { file = new File([doc.output('blob')], fname, { type:'application/pdf' }); } catch (e) {}
@@ -2710,7 +2871,7 @@ async function doCloseout(name, date){
 
 let toastTm;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.toggle('top', !$('#scrim').hidden); t.hidden = false; clearTimeout(toastTm); toastTm = setTimeout(() => t.hidden = true, 3800); }
-function go(t){ tab = t; store.set('css-tab', t); try { history.replaceState(null, '', '#' + t); } catch(e){} render(); window.scrollTo({ top:0 }); }
+function go(t){ if (t === 'usage' && !isSuper()) t = 'overview'; visitTabs.add(t); tab = t; store.set('css-tab', t); try { history.replaceState(null, '', '#' + t); } catch(e){} render(); window.scrollTo({ top:0 }); }
 
 /* ---------- events ---------- */
 document.addEventListener('input', e => {
@@ -2799,6 +2960,9 @@ document.addEventListener('click', e => {
   if (b.id === 'keepMine') { closeSheet(); submit(); return; }
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'askBtn') return openAsk();
+  if (b.dataset.udays !== undefined) { usageDays = Number(b.dataset.udays); return render(); }
+  if (b.id === 'uCountMe') { try { localStorage.removeItem('css-me'); } catch (e) {} toast('This device counts now.'); return render(); }
+  if (b.id === 'uSkipMe') { try { localStorage.setItem('css-me', '1'); } catch (e) {} toast('This device is left out from now on.'); return render(); }
   if (b.dataset.askx !== undefined) return sendAsk(b.dataset.askx);
   if (b.dataset.askgo !== undefined) { closeSheet(); return go(b.dataset.askgo); }
   if (b.id === 'fixEndCash') { const r = serverRow('cash', 'end'); if (!r) return; pending.sets[key('cash', 'end', 'value')] = { op:'set', table:'cash', id:'end', field:'value', prev: r.value ?? '', value: Number(b.dataset.v) }; return submit(); }
@@ -2836,12 +3000,13 @@ document.addEventListener('submit', async e => {
     const name = $('#uName').value.trim(), pin = $('#uPin').value.trim();
     if (!name) { $('#uErr').textContent = 'Add your name so changes are labeled.'; return; }
     try {
-      const res = await apiPost({ action:'auth', pin });
+      const res = await apiPost({ action:'auth', pin, name });
       if (!res.ok) { $('#uErr').textContent = res.error || 'That PIN did not work.'; return; }
       const draftBy = store.get('css-draft-who', '');
       if (pendingCount() && draftBy && draftBy !== name) { pending = { sets:{}, adds:[], dels:{} }; store.set('css-draft', pending); setTimeout(() => toast('Cleared unsaved changes left on this device by ' + draftBy + '.'), 4000); }
       auth = { role: res.role, pin }; who = name; store.sset('css-auth', auth); store.set('css-name', name);
-      closeSheet(); render(); toast(res.role === 'admin' ? 'Unlocked with full access.' : 'Unlocked. You can enter counts, deposits and the cash box.');
+      if (res.role === 'super') { try { localStorage.setItem('css-me', '1'); } catch (e) {} usageCache = null; }
+      closeSheet(); render(); toast(res.role === 'super' ? 'Unlocked as super admin. The Usage tab is at the end.' : res.role === 'admin' ? 'Unlocked with full access.' : 'Unlocked. You can enter counts, deposits and the cash box.');
     } catch (err) { $('#uErr').textContent = 'Could not reach the tracker. Check the connection.'; }
   }
   if (e.target.id === 'pinForm') { savePins(); return; }
@@ -2863,7 +3028,13 @@ window.addEventListener('beforeunload', e => { if (pendingCount() || upBusy || $
 openFromCopy(); render(); load();
 setTimeout(() => { const v = document.querySelector('#view .empty-state'); if (!data && !loadError && v) v.textContent = 'Waking up the tracker. The first open of the day can take up to 30 seconds…'; }, 5000);
 if (!DEMO) setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!DEMO && document.visibilityState === 'visible') { load(true); checkVersion(); } });
+document.addEventListener('visibilitychange', () => {
+  if (DEMO) return;
+  if (document.visibilityState === 'hidden') { sendTabs(); hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 30 * 60000) newVisit(); // back after a while: that's a new visit
+  load(true); checkVersion();
+});
+window.addEventListener('pagehide', () => { if (!DEMO) sendTabs(); });
 /* Phones and home-screen apps hold on to an old copy of this page. When a newer one is live, switch to it,
    but never in the middle of something: unsaved changes or an open window wait for the next check. */
 let verAt = 0;
