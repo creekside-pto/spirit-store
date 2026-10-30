@@ -601,7 +601,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '150b9cfdea'; // set by the build; version.json next to this page says which build is live
+const BUILD = 'b0ba98a817'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -699,7 +699,7 @@ function model(){
     const counted = blank(i.countedAfter) ? null : num(i.countedAfter);
     const gone = counted === null ? 0 : Math.max(avail - counted, 0);
     const flag = counted === null ? '' : counted === 0 ? 'SOLD OUT' : counted <= 10 ? 'Low' : '';
-    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, onHandBlank, avail, counted, gone, flag, bundle: BUN[String(i.id)] || null, inBundles: 0 };
+    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), ownCost: !blank(i.unitCost), onHand, onHandBlank, avail, counted, gone, flag, bundle: BUN[String(i.id)] || null, inBundles: 0 };
   });
   /* Bundles: each bundle sold uses up what's in it, so those units come out of that item's own sales.
      A loose item's count after the sale includes what went into bundles; only the rest sold on its own. */
@@ -713,7 +713,8 @@ function model(){
     i.sold = i.bundle ? i.gone : Math.max(i.gone - i.inBundles, 0);
     i.bundleShort = !i.bundle && i.inBundles > 0 && i.counted !== null && i.inBundles > i.gone ? i.inBundles - i.gone : 0;
     i.bundleUncounted = !i.bundle && i.inBundles > 0 && i.counted === null;
-    const each = i.bundle ? i.partsCost + (i.costFromOrders ? i.unitCost : num(i.unitCost)) : i.unitCost;
+    // a bundle's cost: the cost typed in for it (Edit items and prices) if there is one, which already covers its parts; otherwise what its parts cost
+    const each = i.bundle ? (i.costFromOrders || i.ownCost ? i.unitCost : i.partsCost) : i.unitCost;
     i.rev = i.sold * num(i.price); i.cos = i.sold * each; i.profit = i.rev - i.cos;
     T.onHand += i.onHand; T.received += i.received; T.avail += i.avail; T.sold += i.sold; T.rev += i.rev; T.cos += i.cos; T.profit += i.profit;
     if (!i.bundle) T.shelfAll += i.unitCost * i.avail; // a bundle's parts are already on the shelf as their own items
@@ -1754,7 +1755,7 @@ function drawBundles(){
         <select class="in" data-bd="cid" aria-label="Item">${opts(cid, id => id === b.bid || chosen.has(id))}</select>
         <button class="btn small ghost" type="button" data-bdx="${k}|${j}" aria-label="Take this out of the bundle">Remove</button></div>`).join('')}
       <button class="btn small" type="button" data-bdadd="${k}">Add another item</button>
-      ${me ? `<p class="muted small" style="margin:8px 0 0">Bundle price ${esc(priceLabel(me.price))} · the parts sell for ${esc(money(parts))} on their own</p>` : ''}
+      ${me ? `<p class="muted small" style="margin:8px 0 0">Bundle price ${esc(priceLabel(me.price))} · the parts sell for ${esc(money(parts))} on their own${(() => { const pc = b.list.reduce((s, [cid, q]) => s + (byId[cid] ? (bdCost(cid)) * q : 0), 0); return ' · the parts cost ' + money(pc) + (!blank(me.unitCost) ? ', and the cost typed in for this bundle (' + money(num(me.unitCost)) + ') is the one used' : ''); })()}</p>` : ''}
     </div>`;
   }).join('');
   openSheet(`<h3>Bundles</h3>
@@ -1765,6 +1766,7 @@ function drawBundles(){
     <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="bdSave">Save bundles</button></div>`, true);
   $('#sheet').dataset.guard = '1';
 }
+function bdCost(id){ const i = model().items.find(x => String(x.id) === String(id)); return i ? i.unitCost : 0; }
 async function saveBundles(){
   if (!isAdmin()) return;
   bdRead();
