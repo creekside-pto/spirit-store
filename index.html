@@ -444,6 +444,14 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
 .ut{font-size:12.5px;color:var(--muted);padding-top:2px}
 @media (max-width:560px){.uvisit{grid-template-columns:1fr;gap:2px}}
 .pill.muted{background:var(--surface-2);color:var(--muted)}
+
+.pill.bundle{background:var(--good-soft);color:var(--good)}
+.inb{display:block;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap}
+.bds{display:grid;gap:12px;margin:10px 0 12px}
+.bd{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:6px}
+.bd-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bd-row{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:6px;align-items:center}
+.bd .btn.small{justify-self:start}
 </style>
 
 
@@ -593,7 +601,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '488b5f942e'; // set by the build; version.json next to this page says which build is live
+const BUILD = '150b9cfdea'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -644,6 +652,22 @@ function canEdit(t, f){ if (!auth) return false; if (f === 'id') return false; r
 const isAdmin = () => !!auth && (auth.role === 'admin' || auth.role === 'super'); // super admin can do everything an admin can
 const isSuper = () => !!auth && auth.role === 'super';
 
+/* ---------- Bundles ----------
+   Kept in the "bundles" setting: { b: { bundleItemId: [[partItemId, howMany], ...] } }. A bundle is an item like any other
+   (price, before and after counts); listing its parts tells the math that every bundle sold used those parts. */
+function bundleMap(){
+  let o = null; try { o = JSON.parse(setting('bundles') || 'null'); } catch (e) {}
+  const ids = new Set(rows('items').map(i => String(i.id))), out = {};
+  if (o && o.b && typeof o.b === 'object') for (const [bid, list] of Object.entries(o.b)) {
+    if (!ids.has(bid) || !Array.isArray(list)) continue;
+    const clean = list.filter(x => Array.isArray(x) && ids.has(String(x[0])) && String(x[0]) !== bid && num(x[1]) > 0).map(x => [String(x[0]), Math.max(1, Math.round(num(x[1])))]);
+    if (clean.length) out[bid] = clean;
+  }
+  for (const bid of Object.keys(out)) out[bid] = out[bid].filter(([cid]) => !out[cid]); // no bundles inside bundles
+  for (const bid of Object.keys(out)) if (!out[bid].length) delete out[bid];
+  return out;
+}
+function bundleParts(M, i){ return i.bundle.map(([cid, q]) => { const c = M.items.find(x => String(x.id) === cid); return (q > 1 ? q + ' ' : '') + (c ? psCleanName(c.name) : 'item'); }).join(' + '); }
 /* ---------- the math (mirrors the original spreadsheet) ---------- */
 function liveSale(){ return rows('sales').find(s => s.link === 'current') || null; }
 function saleLabel(key){ const r = rows('sales').find(s => String(s.id) === String(key)); return r ? r.theme : key; }
@@ -666,21 +690,36 @@ function model(){
   for (const p of cur) { const k = String(p.item||'').trim().toLowerCase(); if (!k) continue; byItem[k] = byItem[k] || { units:0, cost:0 }; byItem[k].units += p.units; byItem[k].cost += p.total; }
   const purchTotal = cur.reduce((s,p) => s + p.total, 0), purchUnits = cur.reduce((s,p) => s + p.units, 0);
   const T = { onHand:0, received:0, avail:0, sold:0, rev:0, cos:0, profit:0, shelfAll:0, counted:0, n:0 };
+  const BUN = bundleMap();
   const items = rows('items').map(i => {
     const b = byItem[String(i.name||'').trim().toLowerCase()];
     const received = b ? b.units : 0;
     const unitCost = b && b.units ? b.cost / b.units : num(i.unitCost);
     const onHandBlank = blank(i.onHand), onHand = num(i.onHand), avail = onHand + received;
     const counted = blank(i.countedAfter) ? null : num(i.countedAfter);
-    const sold = counted === null ? 0 : Math.max(avail - counted, 0);
-    const rev = sold * num(i.price), cos = sold * unitCost;
+    const gone = counted === null ? 0 : Math.max(avail - counted, 0);
     const flag = counted === null ? '' : counted === 0 ? 'SOLD OUT' : counted <= 10 ? 'Low' : '';
-    T.onHand += onHand; T.received += received; T.avail += avail; T.sold += sold; T.rev += rev; T.cos += cos; T.profit += rev - cos;
-    T.shelfAll += unitCost * avail;
-    if (counted !== null || avail > 0 || (onHandBlank && !received)) T.n++; // items with none on hand have nothing to count
-    if (counted !== null) T.counted++;
-    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, onHandBlank, avail, counted, sold, rev, cos, profit: rev - cos, flag };
+    return { ...i, received, unitCost, costFromOrders: !!(b && b.units), onHand, onHandBlank, avail, counted, gone, flag, bundle: BUN[String(i.id)] || null, inBundles: 0 };
   });
+  /* Bundles: each bundle sold uses up what's in it, so those units come out of that item's own sales.
+     A loose item's count after the sale includes what went into bundles; only the rest sold on its own. */
+  const byId = {}; items.forEach(i => { byId[String(i.id)] = i; });
+  for (const bi of items) if (bi.bundle) {
+    bi.partsCost = bi.bundle.reduce((s, [cid, q]) => s + (byId[cid] ? byId[cid].unitCost * q : 0), 0);
+    bi.partsPrice = bi.bundle.reduce((s, [cid, q]) => s + (byId[cid] ? num(byId[cid].price) * q : 0), 0);
+    for (const [cid, q] of bi.bundle) if (byId[cid]) byId[cid].inBundles += bi.gone * q;
+  }
+  for (const i of items) {
+    i.sold = i.bundle ? i.gone : Math.max(i.gone - i.inBundles, 0);
+    i.bundleShort = !i.bundle && i.inBundles > 0 && i.counted !== null && i.inBundles > i.gone ? i.inBundles - i.gone : 0;
+    i.bundleUncounted = !i.bundle && i.inBundles > 0 && i.counted === null;
+    const each = i.bundle ? i.partsCost + (i.costFromOrders ? i.unitCost : num(i.unitCost)) : i.unitCost;
+    i.rev = i.sold * num(i.price); i.cos = i.sold * each; i.profit = i.rev - i.cos;
+    T.onHand += i.onHand; T.received += i.received; T.avail += i.avail; T.sold += i.sold; T.rev += i.rev; T.cos += i.cos; T.profit += i.profit;
+    if (!i.bundle) T.shelfAll += i.unitCost * i.avail; // a bundle's parts are already on the shelf as their own items
+    if (i.counted !== null || i.avail > 0 || (i.onHandBlank && !i.received)) T.n++; // items with none on hand have nothing to count
+    if (i.counted !== null) T.counted++;
+  }
   const shelf = T.shelfAll - T.cos;
   const mIn = rows('moneyIn'), mOut = rows('moneyOut').map(r => ({ ...r, amt: r.link === 'purchases' ? purchTotal : num(r.amount) }));
   const totalIn = mIn.reduce((s,r) => s + num(r.amount), 0), totalOut = mOut.reduce((s,r) => s + r.amt, 0);
@@ -750,6 +789,15 @@ function field(t, row, f, o = {}){
   return inp;
 }
 function catPill(c){ const cls = { 'New':'new', 'Restock':'restock', 'Donated':'donated' }[c] || ''; return c ? '<span class="pill ' + cls + '">' + esc(c) + '</span>' : ''; }
+function soldCell(i){
+  const base = i.counted === null ? '<span class="blank">·</span>' : count(i.sold);
+  return base + (i.inBundles ? '<small class="inb">+' + count(i.inBundles) + ' in bundles</small>' : '');
+}
+function bundleFlag(i){
+  if (i.bundleShort) return ' <span class="pill out" title="Bundles used ' + i.inBundles + ' but only ' + i.gone + ' are gone">Check count</span>';
+  if (i.bundleUncounted) return ' <span class="pill low" title="Bundles used ' + i.inBundles + '. Count what is left of this item.">Count it</span>';
+  return '';
+}
 function flagPill(f){ return f === 'SOLD OUT' ? '<span class="pill out">Sold out</span>' : f === 'Low' ? '<span class="pill low">Low</span>' : ''; }
 
 function renderHeader(M){
@@ -783,7 +831,7 @@ const BL = '<span class="blank">·</span>';
 function calcHTML(M, k){
   const [a, b, c] = k.split(':');
   if (a === 'it') { const i = M.items.find(x => String(x.id) === c); if (!i) return null;
-    return { avail: count(i.avail), sold: i.counted === null ? BL : count(i.sold), rev: i.counted === null ? BL : money(i.rev), flag: flagPill(i.flag) }[b]; }
+    return { avail: count(i.avail), sold: soldCell(i), rev: i.counted === null ? BL : money(i.rev), flag: flagPill(i.flag) + bundleFlag(i) }[b]; }
   if (a === 'T') return { onHand: count(M.T.onHand), received: count(M.T.received), avail: count(M.T.avail), sold: count(M.T.sold), rev: money(M.T.rev), profit: money(M.T.profit), realProfit: money(saleProfit(M)) }[b];
   if (a === 'm') return { in: money(M.totalIn), out: money(M.totalOut), net: money(M.net), shelf: money(M.shelf), real: money(M.real) }[b];
   if (a === 'cash' && b === 'line') return moneyLine(M);
@@ -894,9 +942,9 @@ function vCount(M){
   } else {
     body = `<div class="item-head"><span>Item</span><span class="r">${after ? 'Available' : 'Received'}</span><span class="r">${after ? 'Sold' : 'Available'}</span><span>${after ? 'Counted after sale' : 'On hand before sale'}</span><span class="r">${after ? 'Sales' : 'Price'}</span></div>` +
       list.map(i => `<div class="item" data-name="${esc(String(i.name).toLowerCase())}">
-      <div class="nm">${esc(i.name)} ${catPill(i.category)} <span data-calc="it:flag:${esc(i.id)}">${flagPill(i.flag)}</span><small>${money(i.price)} each${i.notes ? ' · ' + esc(i.notes) : ''}</small></div>
+      <div class="nm">${esc(i.name)} ${i.bundle ? '<span class="pill bundle">Bundle</span>' : catPill(i.category)} <span data-calc="it:flag:${esc(i.id)}">${flagPill(i.flag) + bundleFlag(i)}</span><small>${money(i.price)} each${i.bundle ? ' · each one uses ' + esc(bundleParts(M, i)) : ''}${i.notes ? ' · ' + esc(i.notes) : ''}</small></div>
       ${after
-        ? `<div class="cell res num"><span>Available</span><b data-calc="it:avail:${esc(i.id)}">${count(i.avail)}</b></div><div class="cell res num"><span>Sold</span><b data-calc="it:sold:${esc(i.id)}">${i.counted === null ? '<span class="blank">·</span>' : count(i.sold)}</b></div>`
+        ? `<div class="cell res num"><span>Available</span><b data-calc="it:avail:${esc(i.id)}">${count(i.avail)}</b></div><div class="cell res num"><span>${i.bundle ? 'Bundles sold' : 'Sold'}</span><b data-calc="it:sold:${esc(i.id)}">${soldCell(i)}</b></div>`
         : `<div class="cell res num"><span>Received</span><b>${i.received ? '+' + count(i.received) : '<span class="blank">0</span>'}</b></div><div class="cell res num"><span>Available</span><b data-calc="it:avail:${esc(i.id)}">${count(i.avail)}</b></div>`}
       <div class="entry">${after ? field('items', i, 'countedAfter', { stepper:true, int:true, ph:'Count', label:'Counted after: ' + i.name }) : field('items', i, 'onHand', { stepper:true, int:true, ph:'0', label:'On hand before: ' + i.name })}</div>
       <div class="cell res num">${after ? `<span>Sales</span><b data-calc="it:rev:${esc(i.id)}">${i.counted === null ? '<span class="blank">·</span>' : money(i.rev)}</b>` : `<span>Price</span><b>${money(i.price)}</b>`}</div>
@@ -909,8 +957,9 @@ function vCount(M){
       <button type="button" data-phase="after" aria-pressed="${after}">After the sale</button>
     </div>
     <input class="search" id="q" type="search" placeholder="Find an item" value="${esc(query)}" aria-label="Find an item">
-    ${isAdmin() ? `<button class="btn small" type="button" id="detailsBtn">${showDetails ? 'Back to counting' : 'Edit items and prices'}</button><button class="btn small" type="button" data-addrow="items">Add item</button>` : ''}
+    ${isAdmin() ? `<button class="btn small" type="button" id="detailsBtn">${showDetails ? 'Back to counting' : 'Edit items and prices'}</button><button class="btn small" type="button" data-addrow="items">Add item</button><button class="btn small" type="button" id="bundlesBtn">Bundles</button>` : ''}
   </div>
+  ${bundleNotice(M)}
   <div class="chips mt" style="margin:-2px 0 12px">${['All'].concat(CATS).map(c => `<button type="button" data-cat="${c}" aria-pressed="${catFilter === c}">${c} ${counts[c]}</button>`).join('')}</div>
   <p class="muted" style="margin:0 0 12px;font-size:13.5px">${after ? 'Right after closing, count what is left of each item and type it in. Sold, sales and profit work themselves out.' : 'Before opening, count leftovers from past sales. New orders are added automatically from the Orders tab.'}</p>
   <div class="items">${body || '<div class="empty-state">No items in this group.</div>'}</div>
@@ -1040,6 +1089,7 @@ function vHistory(M){
 }
 
 function logEntry(e){
+  if (e.table === 'settings' && String(e.rowId) === 'bundles') return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> changed what is in the bundles <span class="muted">· Count</span></span></div>`;
   if (e.table === 'photos' || (e.table === 'settings' && String(e.rowId) === 'priceSheet')) {
     const it = (data.items || []).find(r => String(r.id) === String(e.rowId));
     return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${e.table === 'photos' ? (e.new === 'no photo' ? 'removed the photo for ' : e.new === 'starter photo' ? 'went back to the starter photo for ' : 'added a photo for ') + '<b>' + esc(it ? it.name : e.rowId) + '</b>' : 'changed the price sheet'} <span class="muted">· Price sheet</span></span></div>`;
@@ -1083,6 +1133,8 @@ function askContext(M){
     todo: needsList(M).map(n => n.title).slice(0, 15),
     itemColumns: 'name, price, before (leftovers plus new orders; null = unknown), after count (null = not counted yet), sold',
     items: M.items.map(i => [i.name, num(i.price), i.onHandBlank && !i.received ? null : i.avail, i.counted, i.sold]).slice(0, 160),
+    bundles: M.items.filter(i => i.bundle).map(i => ({ bundle: i.name, price: num(i.price), sold: i.sold, eachUses: bundleParts(M, i) })),
+    inBundles: M.items.filter(i => i.inBundles).map(i => [i.name, 'went into bundles: ' + i.inBundles, 'gone in total: ' + i.gone, 'sold on its own: ' + i.sold]),
     moneyIn: M.mIn.slice(-15).map(m => [m.date, m.event, m.amount]),
     moneyOut: M.mOut.slice(-15).map(m => [m.date, m.order, r2(m.amt)]),
     pastSales: M.sales.map(x => [x.date, x.theme, x.spentV, x.salesV, x.live ? 'current sale' : '']),
@@ -1461,10 +1513,10 @@ function sheetRows(M, hideZero, next){
     if (next) { // what's left now: the after-sale count, or what should be there if it wasn't counted
       const left = i.counted !== null ? i.counted : (i.onHandBlank && !i.received ? null : i.avail);
       unknown = left === null; before = unknown ? '' : left;
-      note = [unknown ? 'COUNT BEFORE OPENING' : '', i.counted === null && !unknown && i.avail > 0 ? 'NOT COUNTED AFTER LAST SALE' : '', i.notes || ''].filter(Boolean).join(' · ');
+      note = [i.bundle ? 'BUNDLE: ' + bundleParts(M, i) : '', unknown ? 'COUNT BEFORE OPENING' : '', i.counted === null && !unknown && i.avail > 0 ? 'NOT COUNTED AFTER LAST SALE' : '', i.notes || ''].filter(Boolean).join(' · ');
     } else {
       unknown = i.onHandBlank && !i.received; before = unknown ? '' : i.avail;
-      note = [unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
+      note = [i.bundle ? 'BUNDLE: ' + bundleParts(M, i) : '', unknown ? 'COUNT BEFORE OPENING' : '', i.received ? 'new: +' + i.received : '', i.notes || ''].filter(Boolean).join(' · ');
     }
     g.items.push({ id: i.id, name: i.name, price: priceLabel(i.price), before, note, hide: hideZero && !unknown && num(before) === 0 });
   }
@@ -1656,6 +1708,89 @@ async function shareSheet(){
   catch (e) { if (e && e.name !== 'AbortError') { sheetPdf.doc.save(sheetPdf.fname); closeSheet(); toast(sheetPdf.label + ' downloaded.'); } }
 }
 
+function bundleNotice(M){
+  const short = M.items.filter(i => i.bundleShort), unc = M.items.filter(i => i.bundleUncounted);
+  if (!short.length && !unc.length) return '';
+  const nm = i => esc(psCleanName(i.name));
+  return '<div class="warnbox mt" style="margin-bottom:12px">'
+    + (short.length ? '<b>Bundles used more than went missing.</b> ' + short.map(i => nm(i) + ': ' + i.inBundles + ' in bundles, ' + i.gone + ' gone').join('; ') + '. Check the after count, or what is in the bundle.' : '')
+    + (short.length && unc.length ? '<br>' : '')
+    + (unc.length ? '<b>Count what is left of:</b> ' + unc.map(nm).join(', ') + '. Bundles sold used some, and the rest can only be worked out once it is counted.' : '')
+    + '</div>';
+}
+
+/* ---------- Bundles editor (admins): say what is in each bundle ---------- */
+let bdDraft = null;
+function openBundles(){
+  if (!isAdmin()) return;
+  const map = bundleMap();
+  bdDraft = Object.entries(map).map(([bid, list]) => ({ bid, list: list.map(x => x.slice()) }));
+  if (!bdDraft.length) {
+    const guess = rows('items').filter(i => /bundle|pre.?order|combo/i.test(i.name)).map(i => ({ bid: String(i.id), list: [['', 1]] }));
+    bdDraft = guess.length ? guess : [{ bid: '', list: [['', 1]] }];
+  }
+  drawBundles();
+}
+function bdRead(){
+  document.querySelectorAll('.bd').forEach((el, k) => {
+    if (!bdDraft[k]) return;
+    bdDraft[k].bid = el.querySelector('[data-bd="bid"]').value;
+    bdDraft[k].list = [...el.querySelectorAll('.bd-row')].map(r => [r.querySelector('[data-bd="cid"]').value, Math.max(1, Math.round(num(r.querySelector('[data-bd="qty"]').value) || 1))]);
+  });
+}
+function drawBundles(){
+  const all = rows('items').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const byId = {}; all.forEach(i => { byId[String(i.id)] = i; });
+  const chosen = new Set(bdDraft.map(b => b.bid).filter(Boolean));
+  const opts = (sel, skip) => '<option value="">Pick an item</option>' + all.filter(i => !skip(String(i.id)) || String(i.id) === sel).map(i => `<option value="${esc(i.id)}"${String(i.id) === sel ? ' selected' : ''}>${esc(i.name)} · ${esc(priceLabel(i.price))}</option>`).join('');
+  const cards = bdDraft.map((b, k) => {
+    const me = byId[b.bid], parts = b.list.reduce((s, [cid, q]) => s + (byId[cid] ? num(byId[cid].price) * q : 0), 0);
+    return `<div class="bd">
+      <div class="bd-h"><label class="lbl" for="bd${k}">Bundle</label><button class="linkbtn" type="button" data-bdrm="${k}">Remove this bundle</button></div>
+      <select class="in" id="bd${k}" data-bd="bid">${opts(b.bid, id => chosen.has(id))}</select>
+      <div class="lbl" style="margin-top:10px">Each one sold uses</div>
+      ${b.list.map(([cid, q], j) => `<div class="bd-row">
+        <input class="in num" type="number" inputmode="numeric" min="1" max="50" step="1" data-bd="qty" value="${q}" aria-label="How many">
+        <select class="in" data-bd="cid" aria-label="Item">${opts(cid, id => id === b.bid || chosen.has(id))}</select>
+        <button class="btn small ghost" type="button" data-bdx="${k}|${j}" aria-label="Take this out of the bundle">Remove</button></div>`).join('')}
+      <button class="btn small" type="button" data-bdadd="${k}">Add another item</button>
+      ${me ? `<p class="muted small" style="margin:8px 0 0">Bundle price ${esc(priceLabel(me.price))} · the parts sell for ${esc(money(parts))} on their own</p>` : ''}
+    </div>`;
+  }).join('');
+  openSheet(`<h3>Bundles</h3>
+    <p>A bundle is sold as one thing but is made of other items. Pick the bundle, then what goes in it. Every bundle sold is taken out of those items' counts, so nothing is counted as sold twice. The bundle itself is counted like any item: how many you had before the sale, and how many are left after. For pre-orders that were all picked up, that is how many were ordered before, and 0 after.</p>
+    <div class="bds">${cards}</div>
+    <button class="btn" type="button" id="bdAdd">Add a bundle</button>
+    <div class="err" id="bdErr"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="bdSave">Save bundles</button></div>`, true);
+  $('#sheet').dataset.guard = '1';
+}
+async function saveBundles(){
+  if (!isAdmin()) return;
+  bdRead();
+  const err = m => { $('#bdErr').textContent = m; };
+  const b = {}, all = new Set(rows('items').map(i => String(i.id)));
+  for (const d of bdDraft) {
+    const list = d.list.filter(([cid]) => cid);
+    if (!d.bid && !list.length) continue;
+    if (!d.bid) return err('Pick which item is the bundle, or remove that bundle.');
+    if (!list.length) return err('Add at least one item to each bundle.');
+    if (b[d.bid]) return err('The same bundle is listed twice.');
+    const merged = {};
+    for (const [cid, q] of list) { if (cid === d.bid) return err('A bundle can not contain itself.'); merged[cid] = (merged[cid] || 0) + q; }
+    b[d.bid] = Object.entries(merged);
+  }
+  for (const [bid, list] of Object.entries(b)) for (const [cid] of list) if (b[cid]) return err('A bundle can not go inside another bundle. Take it out, or list its items instead.');
+  for (const k of Object.keys(b)) if (!all.has(k)) delete b[k];
+  const val = JSON.stringify({ b }), row = serverRow('settings', 'bundles');
+  const ops = !row ? [{ op:'add', table:'settings', row:{ id:'bundles', value: val } }] : String(row.value) === val ? [] : [{ op:'set', table:'settings', id:'bundles', field:'value', prev: row.value ?? '', value: val }];
+  if (!ops.length) { closeSheet(); return toast('No changes to the bundles.'); }
+  const btn = $('#bdSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  let r;
+  try { r = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); } catch (e) { r = { ok:false, error:'Could not reach the tracker. Check the internet connection.' }; }
+  if (!r.ok || (r.conflicts && r.conflicts.length)) { btn.disabled = false; btn.textContent = 'Save bundles'; return err(r.ok ? 'Someone else changed the bundles just now. Close this and open it again.' : (r.error || 'Not saved. Try again.')); }
+  data = r.data; closeSheet(); render(); toast("Bundles saved. Bundles sold now come out of those items' counts.");
+}
 /* ---------- Print: one button, three PDFs ---------- */
 function openPrintMenu(){
   openSheet(`<h3>Print</h3><p>Pick what to print. Each one makes a PDF from the numbers in the tracker right now.</p>
@@ -1705,7 +1840,7 @@ function psRows(M, cfg){
   for (const i of M.items) { const c = byId[i.id]; if (c && !c.hide) { const pk = String(num(i.price)); groupOfPrice[pk] = groupOfPrice[pk] || {}; groupOfPrice[pk][c.group] = (groupOfPrice[pk][c.group] || 0) + 1; } }
   return M.items.map((i, n) => {
     const c = byId[i.id], price = num(i.price);
-    const guess = groupOfPrice[String(price)] ? Object.entries(groupOfPrice[String(price)]).sort((a, b) => b[1] - a[1])[0][0] : (price >= 10 ? 'Spirit wear & extras' : priceLabel(price));
+    const guess = i.bundle ? 'Bundles' : groupOfPrice[String(price)] ? Object.entries(groupOfPrice[String(price)]).sort((a, b) => b[1] - a[1])[0][0] : (price >= 10 ? 'Spirit wear & extras' : priceLabel(price));
     return { item: i, id: i.id, order: c ? c.k : 1000 + n, name: c ? c.name : psCleanName(i.name), group: c ? c.group : guess, ptext: c ? c.ptext : '', hide: c ? c.hide : false, price,
              inStock: (i.onHandBlank && !i.received) || i.avail > 0 };
   });
@@ -2960,6 +3095,12 @@ document.addEventListener('click', e => {
   if (b.id === 'keepMine') { closeSheet(); submit(); return; }
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'askBtn') return openAsk();
+  if (b.id === 'bundlesBtn') return openBundles();
+  if (b.id === 'bdAdd') { bdRead(); bdDraft.push({ bid: '', list: [['', 1]] }); return drawBundles(); }
+  if (b.dataset.bdadd !== undefined) { bdRead(); bdDraft[+b.dataset.bdadd].list.push(['', 1]); return drawBundles(); }
+  if (b.dataset.bdx !== undefined) { bdRead(); const [k, j] = b.dataset.bdx.split('|').map(Number); bdDraft[k].list.splice(j, 1); if (!bdDraft[k].list.length) bdDraft[k].list.push(['', 1]); return drawBundles(); }
+  if (b.dataset.bdrm !== undefined) { bdRead(); bdDraft.splice(+b.dataset.bdrm, 1); if (!bdDraft.length) bdDraft.push({ bid: '', list: [['', 1]] }); return drawBundles(); }
+  if (b.id === 'bdSave') return saveBundles();
   if (b.dataset.udays !== undefined) { usageDays = Number(b.dataset.udays); return render(); }
   if (b.id === 'uCountMe') { try { localStorage.removeItem('css-me'); } catch (e) {} toast('This device counts now.'); return render(); }
   if (b.id === 'uSkipMe') { try { localStorage.setItem('css-me', '1'); } catch (e) {} toast('This device is left out from now on.'); return render(); }
