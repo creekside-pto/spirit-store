@@ -601,7 +601,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = 'b0ba98a817'; // set by the build; version.json next to this page says which build is live
+const BUILD = 'd2ab713ab2'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -667,6 +667,8 @@ function bundleMap(){
   for (const bid of Object.keys(out)) if (!out[bid].length) delete out[bid];
   return out;
 }
+const BUNDLE_LIKE = /bundle|pre.?order|combo|kit deal|pack deal/i;
+function unsetBundles(M){ return M.items.filter(i => !i.bundle && BUNDLE_LIKE.test(i.name || '') && (i.avail > 0 || i.counted !== null)); }
 function bundleParts(M, i){ return i.bundle.map(([cid, q]) => { const c = M.items.find(x => String(x.id) === cid); return (q > 1 ? q + ' ' : '') + (c ? psCleanName(c.name) : 'item'); }).join(' + '); }
 /* ---------- the math (mirrors the original spreadsheet) ---------- */
 function liveSale(){ return rows('sales').find(s => s.link === 'current') || null; }
@@ -759,6 +761,8 @@ function needsList(M){
   if (M.cash.endBlank) out.push({ who:'vol', t:'cash', title:'Count the cash box after closing', sub:'Over or short is checked against the item counts' });
   if (M.unmatched.length) out.push({ who:'admin', t:'orders', title: M.unmatched.length + ' order line' + (M.unmatched.length>1?'s don\'t':' doesn\'t') + ' match an item on the Count tab', sub: M.unmatched.map(p => p.item).slice(0,3).join(', ') + '. Fix the item name so those units get counted (admin)' });
   const nocost = M.items.filter(i => !i.unitCost && i.category !== 'Donated');
+  const unset = unsetBundles(M);
+  if (unset.length) out.unshift({ who:'admin', t:'count', open:'bundles', title: 'Say what is in your ' + (unset.length === 1 ? 'bundle' : unset.length + ' bundles'), sub: 'Until then, ' + (unset.length === 1 ? 'it is' : 'they are') + ' counted as sold on top of the items inside ' + (unset.length === 1 ? 'it' : 'them') + '. Tap to set ' + (unset.length === 1 ? 'it' : 'them') + ' up.' });
   if (nocost.length) out.push({ who:'admin', t:'count', details:true, title: nocost.length + ' item' + (nocost.length>1?'s have':' has') + ' no cost yet', sub: nocost.map(i => i.name).slice(0,3).join(', ') + (nocost.length>3?'…':'') });
   return out.filter(n => n.who === 'admin' ? isAdmin() : !!auth); // only what this person can do something about
 
@@ -874,6 +878,8 @@ function moneyLine(M){
   const still = left > 0 ? ' ' + count(left) + (left === 1 ? ' item still needs' : ' items still need') + ' an after count.' : '';
   if (a < 0.01) return parts + '<b class="good">Matches the counts exactly.</b>' + still;
   const gap = '<b class="' + (a < 25 ? 'good' : 'bad') + '">' + money(a) + (d < 0 ? ' short of' : ' over') + ' the counts.</b> ';
+  const unsetB = unsetBundles(M).filter(i => i.sold > 0);
+  if (d < 0 && a >= 25 && unsetB.length) return parts + gap + '<b>Your ' + (unsetB.length === 1 ? 'bundle is' : 'bundles are') + ' counted on top of the items inside ' + (unsetB.length === 1 ? 'it' : 'them') + '.</b> ' + (isAdmin() ? 'On the Count tab, tap Bundles and pick what goes in each one, and this gap should shrink.' : 'An admin can fix that on the Count tab.') + still;
   return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' : (d < 0 ? 'A big short usually means an item was miscounted on the Count tab, or some money is missing from the cash box.' : 'A big over usually means an item was missed on the Count tab.')) + still;
 }
 function startLeftOutHTML(M){
@@ -1710,14 +1716,16 @@ async function shareSheet(){
 }
 
 function bundleNotice(M){
+  const unset = isAdmin() ? unsetBundles(M) : [];
+  const setup = unset.length ? '<div class="warnbox mt" style="margin-bottom:12px"><b>' + (unset.length === 1 ? 'This looks like a bundle' : 'These look like bundles') + ':</b> ' + unset.map(i => esc(i.name)).join(', ') + '. Tell the tracker what is inside ' + (unset.length === 1 ? 'it' : 'each one') + ', or ' + (unset.length === 1 ? 'it is' : 'they are') + ' counted as sold on top of the items inside. <button class="btn small primary" type="button" id="bundlesBtn2">Set up bundles</button></div>' : '';
   const short = M.items.filter(i => i.bundleShort), unc = M.items.filter(i => i.bundleUncounted);
-  if (!short.length && !unc.length) return '';
+  if (!short.length && !unc.length) return setup;
   const nm = i => esc(psCleanName(i.name));
   return '<div class="warnbox mt" style="margin-bottom:12px">'
     + (short.length ? '<b>Bundles used more than went missing.</b> ' + short.map(i => nm(i) + ': ' + i.inBundles + ' in bundles, ' + i.gone + ' gone').join('; ') + '. Check the after count, or what is in the bundle.' : '')
     + (short.length && unc.length ? '<br>' : '')
     + (unc.length ? '<b>Count what is left of:</b> ' + unc.map(nm).join(', ') + '. Bundles sold used some, and the rest can only be worked out once it is counted.' : '')
-    + '</div>';
+    + '</div>' + setup;
 }
 
 /* ---------- Bundles editor (admins): say what is in each bundle ---------- */
@@ -1743,7 +1751,10 @@ function drawBundles(){
   const all = rows('items').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const byId = {}; all.forEach(i => { byId[String(i.id)] = i; });
   const chosen = new Set(bdDraft.map(b => b.bid).filter(Boolean));
-  const opts = (sel, skip) => '<option value="">Pick an item</option>' + all.filter(i => !skip(String(i.id)) || String(i.id) === sel).map(i => `<option value="${esc(i.id)}"${String(i.id) === sel ? ' selected' : ''}>${esc(i.name)} · ${esc(priceLabel(i.price))}</option>`).join('');
+  const Mx = model(), recent = new Set(Mx.items.filter(i => i.category === 'New' || i.received > 0 || i.gone > 0).map(i => String(i.id)));
+  const opt = (i, sel) => `<option value="${esc(i.id)}"${String(i.id) === sel ? ' selected' : ''}>${esc(i.name)} · ${esc(priceLabel(i.price))}</option>`;
+  const opts = (sel, skip) => { const ok = all.filter(i => !skip(String(i.id)) || String(i.id) === sel), a = ok.filter(i => recent.has(String(i.id))), b2 = ok.filter(i => !recent.has(String(i.id)));
+    return '<option value="">Pick an item</option>' + (a.length ? '<optgroup label="New or sold this sale">' + a.map(i => opt(i, sel)).join('') + '</optgroup><optgroup label="Everything else">' : '') + b2.map(i => opt(i, sel)).join('') + (a.length ? '</optgroup>' : ''); };
   const cards = bdDraft.map((b, k) => {
     const me = byId[b.bid], parts = b.list.reduce((s, [cid, q]) => s + (byId[cid] ? num(byId[cid].price) * q : 0), 0);
     return `<div class="bd">
@@ -3073,6 +3084,7 @@ document.addEventListener('click', e => {
     if (n.phase) { phase = n.phase; store.set('css-phase', phase); }
     if (n.details && isAdmin()) showDetails = true;
     go(n.t);
+    if (n.open === 'bundles' && isAdmin()) return openBundles();
     if (n.id) { const [t, id] = n.id.split('|'); const row = document.getElementById('row-' + t + '-' + id); if (row) { row.scrollIntoView({ block:'center' }); const inp = row.querySelector('.amt input'); if (inp) inp.focus({ preventScroll:true }); } }
     return;
   }
@@ -3097,7 +3109,7 @@ document.addEventListener('click', e => {
   if (b.id === 'keepMine') { closeSheet(); submit(); return; }
   if (b.id === 'closeoutBtn') return openCloseout(model());
   if (b.id === 'askBtn') return openAsk();
-  if (b.id === 'bundlesBtn') return openBundles();
+  if (b.id === 'bundlesBtn' || b.id === 'bundlesBtn2') return openBundles();
   if (b.id === 'bdAdd') { bdRead(); bdDraft.push({ bid: '', list: [['', 1]] }); return drawBundles(); }
   if (b.dataset.bdadd !== undefined) { bdRead(); bdDraft[+b.dataset.bdadd].list.push(['', 1]); return drawBundles(); }
   if (b.dataset.bdx !== undefined) { bdRead(); const [k, j] = b.dataset.bdx.split('|').map(Number); bdDraft[k].list.splice(j, 1); if (!bdDraft[k].list.length) bdDraft[k].list.push(['', 1]); return drawBundles(); }
