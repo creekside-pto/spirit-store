@@ -146,7 +146,7 @@ function setupTabs() {
       .setFontWeight('bold').setBackground('#0C482D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
     var rows = ((SEED && SEED[t]) || []).map(function (r) { return SCHEMA[t].cols.map(function (c) { var v = r[c[0]]; return v === undefined || v === null ? '' : v; }); });
-    if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    if (rows.length) { ensureRows(sh, rows.length + 1); sh.getRange(2, 1, rows.length, headers.length).setValues(rows); }
     sh.autoResizeColumns(1, headers.length);
   });
   var first = ss.getSheetByName('Sheet1');
@@ -385,6 +385,7 @@ function logAsk(who, q, answer) {
   try {
     var ss = SpreadsheetApp.getActive(), sh = ss.getSheetByName(ASK_TAB);
     if (!sh) { sh = ss.insertSheet(ASK_TAB); sh.getRange(1, 1, 1, ASK_COLS.length).setValues([ASK_COLS]).setFontWeight('bold'); sh.setFrozenRows(1); }
+    ensureRows(sh, sh.getLastRow() + 1);
     var rng = sh.getRange(sh.getLastRow() + 1, 1, 1, ASK_COLS.length);
     rng.setNumberFormat('@');
     rng.setValues([[new Date().toISOString(), cellText(who || 'Someone', 40), cellText(q, 1000), cellText(answer, 2500)]]);
@@ -452,7 +453,7 @@ function setPhoto(body, role) {
     var n = sh.getLastRow(), ids = n > 1 ? sh.getRange(2, 1, n - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
     var at = ids.indexOf(id), had = at >= 0;
     if (had) { sh.getRange(at + 2, 1, 1, 2).setValues([[id, pic]]); }
-    else { var rng = sh.getRange(n + 1, 1, 1, 2); rng.setNumberFormat('@'); rng.setValues([[id, pic]]); }
+    else { ensureRows(sh, n + 1); var rng = sh.getRange(n + 1, 1, 1, 2); rng.setNumberFormat('@'); rng.setValues([[id, pic]]); }
     appendLog([{ time: new Date().toISOString(), name: String(body.name || 'Someone').slice(0, 40), role: role, table: 'photos', rowId: id, field: 'photo',
                  old: had ? 'photo' : '', new: pic === 'none' ? 'no photo' : pic ? 'new photo' : 'starter photo' }]);
     return { ok: true };
@@ -636,6 +637,7 @@ function writeTable(t, rows) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
   var header = normHeader(sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]);
   var height = Math.max(sh.getLastRow() - 1, rows.length, 1);
+  ensureRows(sh, height + 1);
   SCHEMA[t].cols.forEach(function (c) {
     var col = header.indexOf(c[1].toLowerCase()) + 1;
     if (col < 1) throw new Error('The "' + SCHEMA[t].tab + '" tab is missing its "' + c[1] + '" column.');
@@ -645,11 +647,23 @@ function writeTable(t, rows) {
   });
 }
 
+/* A tab has a set number of rows (1,000 when it is new) and writing below the last one fails,
+   which would stop saves once the Change Log fills up. So rows are added first, 500 spare at a time. */
+function ensureRows(sh, lastRowNeeded) {
+  var max = sh.getMaxRows();
+  if (lastRowNeeded > max) sh.insertRowsAfter(max, lastRowNeeded - max + 500);
+}
+function ensureCols(sh, lastColNeeded) {
+  var max = sh.getMaxColumns();
+  if (lastColNeeded > max) sh.insertColumnsAfter(max, lastColNeeded - max);
+}
+
 function appendLog(entries) {
   if (!entries || !entries.length) return;
   dropCache();
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA.log.tab);
   var rows = entries.map(function (e) { return SCHEMA.log.cols.map(function (c) { return e[c[0]] === undefined ? '' : String(e[c[0]]); }); });
+  ensureRows(sh, sh.getLastRow() + rows.length);
   var rng = sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length);
   rng.setNumberFormat('@'); // keep log entries as plain text so dates and numbers are not reinterpreted
   rng.setValues(rows);
