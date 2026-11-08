@@ -640,7 +640,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '42fe1812c2'; // set by the build; version.json next to this page says which build is live
+const BUILD = '62ad049c86'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -2074,7 +2074,7 @@ function spRead(){
   const v = id => { const el = $('#' + id); return el ? el.value : null; };
   ['cut', 'pieces', 'price', 'name'].forEach(k => { const x = v('sp' + k[0].toUpperCase() + k.slice(1)); if (x !== null) spDraft[k] = x; });
 }
-function spDefaultName(i){ return psCleanName(i.name) + ' (single)'; }
+function spDefaultName(i){ return psCleanName(i.name).replace(/\s*\([^)]*\)\s*$/, '') + ' (single)'; } // "Stickers (single paws)" suggests "Stickers (single)", never "(single paws) (single)"
 function spPlan(){
   const M = model(), i = M.items.find(x => String(x.id) === spDraft.id);
   if (!i) return { M, err: '' };
