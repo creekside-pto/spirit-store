@@ -323,6 +323,7 @@ function readDoc(body, role) {
     '"order" = an online store cart, order confirmation, invoice or receipt for things bought to sell (usually Amazon).',
     '"countSheet" = the printed "Inventory Count Sheet" with numbered rows that volunteers filled in by hand.',
     '"deposit" = a bank deposit slip, deposit receipt, or bank record showing money put into the PTO account.',
+    '"bags" = a handwritten list for mystery bags (or grab bags): how many bags at each price, and the products used to fill them with how many of each.',
     '"other" = anything else.',
     'Then return ONLY one JSON object, no other text, matching the type:',
     'For "order": {"type":"order","store":"Amazon","orderDate":"YYYY-MM-DD or empty","orderTotal":number or null,"lines":[{"title":"product title as shown","name":"short clean item name with pack size, e.g. Pink ribbon bracelets (24-pack)","match":"exact existing item name if the same product, else null","packs":integer,"packCost":price of ONE pack,"unitsPerPack":pieces in one pack or null if unclear,"note":""}]}',
@@ -332,6 +333,8 @@ function readDoc(body, role) {
     'Rows printed on the count sheet (n = row number): ' + JSON.stringify(rows),
     'Count sheet rules: include a row only if something is handwritten on it; for before give the final correct number (a handwritten correction beats a crossed-out printed number); null for blanks; never guess, mark unclear instead; include extra handwritten lines with n = null.',
     'For "deposit": {"type":"deposit","date":"YYYY-MM-DD or empty","amount":number,"what":"short description, e.g. Cash deposit or Checks","note":""}',
+    'For "bags": {"type":"bags","name":"the list title as written, e.g. Halloween Mystery Bags","bags":[{"price":number,"count":integer}],"items":[{"name":"product as written","count":integer,"match":"exact existing item name from the list above if it is clearly the same product, else null"}],"more":"title of any other bag list on the page, else empty"}',
+    'Bag list rules: "17 - $5" means 17 bags at $5; items are the totals used in all the bags together; read only the first complete list and name any other list in "more"; never invent numbers.',
     'For "other": {"type":"other","what":"one short sentence saying what it looks like"}'
   ].join('\n');
   return callClaude(files, prompt);
@@ -359,6 +362,7 @@ var HELP_GUIDE = [
   '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
   '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
   '- Activity tab: every saved change with name and time. Admins can Undo a change there.',
+  '- Mystery bags (Count tab, admins): for bags filled with a mix of items (Halloween mystery bags, spirit grab bags). Tap Mystery bags, give them a name, enter each bag price with how many sold and how many were left over, then list how many of each item went into ALL the bags together (the totals off the list; nobody has to say what went in each bag). The tracker makes one item per bag price, takes the items inside out of their own sales (they show "+N in mystery bags" in the Sold column), counts the bags at the bag price, and spreads what the items inside cost over the bags by price, so profit is right. If the list says more of an item went in than the count shows gone, the item gets a "Check count" tag. A photo of a handwritten bag list can be uploaded with Upload and it fills in Mystery bags to check. Close-out marks the bags done for that sale. Without this, the items inside count as sold at full price, which makes the sale look short (Oct 30, 2026: $123.92 short before the Halloween bags were entered). If a sale is well short when closing out, the close-out screen asks about mystery bags and bundles first.',
   '- Cut up or split (Count tab, admins): for packs cut into pieces sold one at a time, like sticker sheets cut into single paws. Pick the item, say how many were cut up (blank means all), how many pieces there are now (count them; cutting rarely comes out even), the price for each piece, and a name. What the pack cost is spread over the pieces so profit stays right. All of it: the item changes in place, and this sale\'s order for it changes with it. Some of it: the pieces become their own item and the rest stay. It can not be done once the item has an after count for this sale; close out the sale first. The Saved screen has Undo. Print a new count sheet or price sheet afterward if one was already printed.',
   '- Uploads tab (admins only): every count sheet photo, deposit slip, Amazon order and Cash App file uploaded since Nov 7, 2026 is kept there, newest first, with who uploaded it, when, for which sale, and whether it was saved. Tap one to see it full size (tap the picture to zoom), then "Save or share" to keep a copy or print it, or "Delete this upload". Deleting only removes the picture; the numbers it saved stay. Uploads from before Nov 7, 2026 were not kept. "See past uploads" on the Upload screen opens the same page.',
   '- "Edit sale details" on the Overview card (admin) changes the sale name, date and color.',
@@ -492,7 +496,7 @@ function setPhoto(body, role) {
 var UP_COLS = ['File ID', 'Upload ID', 'Time', 'Who', 'Role', 'What', 'Sale', 'Page', 'Pages', 'Type', 'File name', 'Summary', 'Status', 'Size', 'Small picture', 'Parts'];
 var UP_C = { id: 0, up: 1, t: 2, who: 3, role: 4, kind: 5, sale: 6, page: 7, pages: 8, type: 9, name: 10, sum: 11, st: 12, size: 13, thumb: 14, parts: 15 };
 var UP_META = UP_COLS.length, UP_CHUNK = 40000, UP_BOOK_LIMIT = 20000000, UP_FILE_MAX = 3200000;
-var UP_KINDS = { countSheet: 'Count sheet', order: 'Amazon order', deposit: 'Deposit slip', cashapp: 'Cash App file' };
+var UP_KINDS = { countSheet: 'Count sheet', order: 'Amazon order', deposit: 'Deposit slip', cashapp: 'Cash App file', bags: 'Mystery bag list' };
 var UP_TYPES = { 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'image/gif': 1, 'application/pdf': 1, 'text/csv': 1 };
 var UP_ID = /^[a-z0-9]{4,20}$/;
 
@@ -727,6 +731,52 @@ function fixPawStickersNov7() {
       var res = applyOps(tables, ops, 'admin', 'Hunter (correction)', new Date().toISOString(), true);
       if (res.applied) { writeTable('items', tables.items); appendLog(res.log); }
       msg = res.applied ? 'Done. Pink paw print glitter eye stickers (single paws): 196 on hand, 50 cents each, cost ' + cost + ' each.' : 'Not changed: ' + JSON.stringify(res.conflicts);
+    }
+    Logger.log(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+    return msg;
+  } finally { lock.releaseLock(); }
+}
+
+/* One-time entry, Nov 8, 2026: the Oct 30 Halloween mystery bags from Brittany's list. 17 bags at $5 and 12 at $3,
+   filled with 114 items. Where her list had more of an item than the count showed gone, the matching similar item
+   that sold out makes up the rest (5 mini mochi, 3 pumpkin paint kits, 2 glitter cubes). The 4-in-1 pens stay at 21
+   as written, so the tracker flags that count to check. Same result as Count > Mystery bags. Run once from the
+   script editor. It checks everything first and changes nothing if the tracker no longer matches. */
+var OCT30_BAG_PARTS = [
+  ['itmvg56r7ju14', 'Halloween mochi squishies (60-pack)', 24], ['it37', 'Mini mochi squishies', 5],
+  ['it15', 'Stretchy skeletons (48-pack)', 12], ['itmvkgke2wu16', 'Halloween paint kits', 6], ['itmvab30u7u1', 'Pumpkin paint kit $4', 3],
+  ['itmvg56r7ju18', 'Bone skeleton pens (100-pack)', 6], ['itmvg56r7ju11', 'Witch broom pencils (24-pack)', 6],
+  ['it12', 'Halloween 4-in-1 pens (50-pack)', 21], ['itmvg56r7ju5', 'Halloween cube squishies (12-pack)', 29], ['it27', 'Glitter cube squishies', 2]
+];
+function fixMysteryBagsOct30() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('The tracker is busy. Try again in a minute.');
+  try {
+    var tables = { items: readTable('items').rows, settings: readTable('settings').rows }, msg = '';
+    var byId = {}; tables.items.forEach(function (r) { byId[String(r.id)] = r; });
+    var setting = function (id) { var r = tables.settings.filter(function (x) { return String(x.id) === id; })[0]; return r ? r : null; };
+    var ev = setting('eventName'), bun = setting('bundles'), raw = {};
+    try { raw = bun && String(bun.value).trim() ? JSON.parse(String(bun.value)) : {}; } catch (e) { raw = null; }
+    if (!ev || String(ev.value) !== 'Spirit Store 10/30/2026') msg = 'Not changed: the current sale is "' + (ev ? ev.value : '') + '", not Spirit Store 10/30/2026.';
+    else if (!raw || typeof raw !== 'object' || Array.isArray(raw)) msg = 'Not changed: the bundles setting could not be read.';
+    else if (raw.m && raw.m.mbhalloween1030) msg = 'Not changed: the Oct 30 Halloween bags are already entered.';
+    else if (byId.itmb1030d5 || byId.itmb1030d3 || tables.items.some(function (r) { return /^halloween mystery bag/i.test(String(r.name)); })) msg = 'Not changed: there is already a Halloween mystery bag item. Use Count > Mystery bags instead.';
+    else {
+      var missing = OCT30_BAG_PARTS.filter(function (p) { return !byId[p[0]] || String(byId[p[0]].name) !== p[1]; });
+      if (missing.length) msg = 'Not changed: these items are not as expected: ' + missing.map(function (p) { return p[1]; }).join(', ') + '. Use Count > Mystery bags instead.';
+    }
+    if (!msg) {
+      raw.m = raw.m && typeof raw.m === 'object' && !Array.isArray(raw.m) ? raw.m : {};
+      raw.m.mbhalloween1030 = { name: 'Halloween mystery bags', bags: ['itmb1030d5', 'itmb1030d3'], parts: OCT30_BAG_PARTS.map(function (p) { return [p[0], p[2]]; }), done: '', at: '2026-10-30' };
+      var ops = [
+        { op: 'add', table: 'items', row: { id: 'itmb1030d5', name: 'Halloween mystery bag ($5)', category: 'New', price: 5, unitCost: '', onHand: 17, countedAfter: 0, notes: 'Mystery bag. 17 sold at $5 (Brittany\'s list, Oct 30, 2026)' } },
+        { op: 'add', table: 'items', row: { id: 'itmb1030d3', name: 'Halloween mystery bag ($3)', category: 'New', price: 3, unitCost: '', onHand: 12, countedAfter: 0, notes: 'Mystery bag. 12 sold at $3 (Brittany\'s list, Oct 30, 2026)' } },
+        bun ? { op: 'set', table: 'settings', id: 'bundles', field: 'value', prev: bun.value, value: JSON.stringify(raw) } : { op: 'add', table: 'settings', row: { id: 'bundles', value: JSON.stringify(raw) } }
+      ];
+      var res = applyOps(tables, ops, 'admin', 'Hunter (correction)', new Date().toISOString(), true);
+      if (res.applied) { writeTable('items', tables.items); writeTable('settings', tables.settings); appendLog(res.log); }
+      msg = res.applied === ops.length ? 'Done. Halloween mystery bags for Oct 30: 17 at $5 and 12 at $3, with the 114 items from the list taken out of their own sales.' : 'Not changed: ' + JSON.stringify(res.conflicts);
     }
     Logger.log(msg);
     try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}

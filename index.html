@@ -445,6 +445,15 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
 @media (max-width:560px){.uvisit{grid-template-columns:1fr;gap:2px}}
 .pill.muted{background:var(--surface-2);color:var(--muted)}
 .pill.good{background:var(--good-soft);color:var(--good)}
+.mbg{margin:10px 0}
+.mbh{margin:14px 0 6px;font-size:14px}
+.mbgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 36px;gap:6px;align-items:center;margin-bottom:6px}
+.mbhead{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.mbgrid2{display:grid;grid-template-columns:minmax(0,1fr) 88px 36px;gap:6px;align-items:center;margin-bottom:6px}
+.mbhint{grid-column:1 / -1;margin-top:-2px}
+.mbsum{margin-top:10px}
+.iconbtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:18px;cursor:pointer}
+.iconbtn:hover{color:var(--bad);border-color:var(--bad)}
 .tour{text-align:center}
 .tour h3{margin:6px 0 8px;font-size:21px}
 .tour p{margin:0 auto 10px;max-width:46ch;line-height:1.5}
@@ -640,7 +649,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '62ad049c86'; // set by the build; version.json next to this page says which build is live
+const BUILD = '607a1c4ad0'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -706,8 +715,32 @@ function bundleMap(){
   for (const bid of Object.keys(out)) if (!out[bid].length) delete out[bid];
   return out;
 }
-const BUNDLE_LIKE = /bundle|pre.?order|combo|kit deal|pack deal/i;
-function unsetBundles(M){ return M.items.filter(i => !i.bundle && BUNDLE_LIKE.test(i.name || '') && (i.avail > 0 || i.counted !== null)); }
+const BUNDLE_LIKE = /bundle|pre.?order|combo|kit deal|pack deal/i, BAG_LIKE = /myst[ae]ry|grab.?bag|surprise.?bag|goodie.?bag|blind.?bag/i;
+function unsetBundles(M){ return M.items.filter(i => !i.bundle && !i.bagGroup && !BAG_LIKE.test(i.name || '') && BUNDLE_LIKE.test(i.name || '') && (i.avail > 0 || i.counted !== null)); }
+function unsetBags(M){ return M.items.filter(i => !i.bundle && !i.bagGroup && BAG_LIKE.test(i.name || '') && (i.avail > 0 || i.counted !== null)); }
+function bundleRaw(){ let o = null; try { o = JSON.parse(setting('bundles') || 'null'); } catch (e) {} return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+/* Mystery bags: bags filled with a mix of items, where what's known is how many of each item went into all the bags
+   together, not what is in each bag. Kept in the "bundles" setting under "m":
+   { m: { groupId: { name, bags: [bagItemId, ...], parts: [[itemId, totalUsed], ...], done: "" or the sale it closed with } } }
+   The bags are items like any other (price, before, after). While the sale is open, each item used comes out of that
+   item's own sales, and what those items cost is spread over the bags by price. Close-out marks the group done. */
+function mysteryGroups(withDone){
+  const o = bundleRaw(), ids = new Set(rows('items').map(i => String(i.id))), B = bundleMap(), out = [];
+  const raw = o.m && typeof o.m === 'object' && !Array.isArray(o.m) ? Object.entries(o.m).filter(([, g]) => g && typeof g === 'object' && !Array.isArray(g)) : [];
+  const allBags = new Set(); raw.forEach(([, g]) => { if (!g.done && Array.isArray(g.bags)) g.bags.forEach(id => allBags.add(String(id))); });
+  const taken = new Set();
+  for (const [gid, g] of raw) {
+    if (g.done && !withDone) continue;
+    const bags = (Array.isArray(g.bags) ? g.bags : []).map(String).filter(id => ids.has(id) && !B[id] && !taken.has(id));
+    bags.forEach(id => taken.add(id));
+    const tot = {};
+    (Array.isArray(g.parts) ? g.parts : []).forEach(x => { if (!Array.isArray(x)) return; const pid = String(x[0]), q = Math.round(num(x[1])); if (!ids.has(pid) || allBags.has(pid) || B[pid] || !(q > 0) || q > 100000) return; tot[pid] = (tot[pid] || 0) + q; });
+    const parts = Object.entries(tot);
+    if (!bags.length && !parts.length) continue;
+    out.push({ id: gid, name: String(g.name || 'Mystery bags').slice(0, 60), bags, parts, done: g.done ? String(g.done) : '' });
+  }
+  return out;
+}
 function bundleParts(M, i){ return i.bundle.map(([cid, q]) => { const c = M.items.find(x => String(x.id) === cid); return (q > 1 ? q + ' ' : '') + (c ? psCleanName(c.name) : 'item'); }).join(' + '); }
 /* ---------- the math (mirrors the original spreadsheet) ---------- */
 function liveSale(){ return rows('sales').find(s => s.link === 'current') || null; }
@@ -750,6 +783,16 @@ function model(){
     bi.partsPrice = bi.bundle.reduce((s, [cid, q]) => s + (byId[cid] ? num(byId[cid].price) * q : 0), 0);
     for (const [cid, q] of bi.bundle) if (byId[cid]) byId[cid].inBundles += bi.gone * q;
   }
+  /* Mystery bags: every item that went into the bags comes out of that item's own sales (like a bundle part),
+     and the bags carry what those items cost, shared by price, so a $5 bag carries more of it than a $3 bag. */
+  const MG = mysteryGroups();
+  for (const g of MG) {
+    g.partsCost = 0; g.partsPrice = 0; g.used = 0;
+    for (const [pid, q] of g.parts) { const p = byId[pid]; if (!p) continue; p.inBundles += q; p.inBags = (p.inBags || 0) + q; g.partsCost += p.unitCost * q; g.partsPrice += num(p.price) * q; g.used += q; }
+    const bags = g.bags.map(id => byId[id]).filter(Boolean), weight = bags.reduce((s, b) => s + num(b.price) * b.avail, 0);
+    for (const b of bags) { b.bagGroup = g; b.unitCost = weight > 0 ? num(b.price) * g.partsCost / weight : 0; b.costFromBags = true; }
+    g.made = bags.reduce((s, b) => s + b.avail, 0);
+  }
   for (const i of items) {
     i.sold = i.bundle ? i.gone : Math.max(i.gone - i.inBundles, 0);
     i.bundleShort = !i.bundle && i.inBundles > 0 && i.counted !== null && i.inBundles > i.gone ? i.inBundles - i.gone : 0;
@@ -758,10 +801,11 @@ function model(){
     const each = i.bundle ? (i.costFromOrders || i.ownCost ? i.unitCost : i.partsCost) : i.unitCost;
     i.rev = i.sold * num(i.price); i.cos = i.sold * each; i.profit = i.rev - i.cos;
     T.onHand += i.onHand; T.received += i.received; T.avail += i.avail; T.sold += i.sold; T.rev += i.rev; T.cos += i.cos; T.profit += i.profit;
-    if (!i.bundle) T.shelfAll += i.unitCost * i.avail; // a bundle's parts are already on the shelf as their own items
+    if (!i.bundle && !i.bagGroup) T.shelfAll += i.unitCost * i.avail; // what's in a bundle or a mystery bag is already on the shelf as its own items
     if (i.counted !== null || i.avail > 0 || (i.onHandBlank && !i.received)) T.n++; // items with none on hand have nothing to count
     if (i.counted !== null) T.counted++;
   }
+  for (const g of MG) { const bags = g.bags.map(id => byId[id]).filter(Boolean); g.sold = bags.reduce((s, b) => s + b.sold, 0); g.rev = bags.reduce((s, b) => s + b.rev, 0); g.cos = bags.reduce((s, b) => s + b.cos, 0); }
   const shelf = T.shelfAll - T.cos;
   const mIn = rows('moneyIn'), mOut = rows('moneyOut').map(r => ({ ...r, amt: r.link === 'purchases' ? purchTotal : num(r.amount) }));
   const totalIn = mIn.reduce((s,r) => s + num(r.amount), 0), totalOut = mOut.reduce((s,r) => s + r.amt, 0);
@@ -785,7 +829,7 @@ function model(){
   });
   const itemNames = new Set(items.map(i => String(i.name || '').trim().toLowerCase()));
   const unmatched = cur.filter(p => !blank(p.item) && !itemNames.has(String(p.item).trim().toLowerCase()));
-  return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
+  return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, bags: MG, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
            cash: { start, end, endBlank, cashapp, taken, money: moneyIn, startLeftOut, expected: T.rev, over: taken === null ? null : taken + cashapp - T.rev }, sales };
 }
 
@@ -801,6 +845,8 @@ function needsList(M){
   if (M.unmatched.length) out.push({ who:'admin', t:'orders', title: M.unmatched.length + ' order line' + (M.unmatched.length>1?'s don\'t':' doesn\'t') + ' match an item on the Count tab', sub: M.unmatched.map(p => p.item).slice(0,3).join(', ') + '. Fix the item name so those units get counted (admin)' });
   const nocost = M.items.filter(i => !i.unitCost && i.category !== 'Donated');
   const unset = unsetBundles(M);
+  const ubags = unsetBags(M);
+  if (ubags.length) out.unshift({ who:'admin', t:'count', open:'mystery', title: 'Say what went into your mystery bags', sub: 'Until then, what is inside is counted as sold at full price on top of the bags. Tap to set them up.' });
   if (unset.length) out.unshift({ who:'admin', t:'count', open:'bundles', title: 'Say what is in your ' + (unset.length === 1 ? 'bundle' : unset.length + ' bundles'), sub: 'Until then, ' + (unset.length === 1 ? 'it is' : 'they are') + ' counted as sold on top of the items inside ' + (unset.length === 1 ? 'it' : 'them') + '. Tap to set ' + (unset.length === 1 ? 'it' : 'them') + ' up.' });
   if (nocost.length) out.push({ who:'admin', t:'count', details:true, title: nocost.length + ' item' + (nocost.length>1?'s have':' has') + ' no cost yet', sub: nocost.map(i => i.name).slice(0,3).join(', ') + (nocost.length>3?'…':'') });
   return out.filter(n => n.who === 'admin' ? isAdmin() : !!auth); // only what this person can do something about
@@ -835,11 +881,12 @@ function field(t, row, f, o = {}){
 function catPill(c){ const cls = { 'New':'new', 'Restock':'restock', 'Donated':'donated' }[c] || ''; return c ? '<span class="pill ' + cls + '">' + esc(c) + '</span>' : ''; }
 function soldCell(i){
   const base = i.counted === null ? '<span class="blank">·</span>' : count(i.sold);
-  return base + (i.inBundles ? '<small class="inb">+' + count(i.inBundles) + ' in bundles</small>' : '');
+  return base + (i.inBundles ? '<small class="inb">+' + count(i.inBundles) + (i.inBags ? (i.inBags === i.inBundles ? ' in mystery bags' : ' in bundles and bags') : ' in bundles') + '</small>' : '');
 }
 function bundleFlag(i){
-  if (i.bundleShort) return ' <span class="pill out" title="Bundles used ' + i.inBundles + ' but only ' + i.gone + ' are gone">Check count</span>';
-  if (i.bundleUncounted) return ' <span class="pill low" title="Bundles used ' + i.inBundles + '. Count what is left of this item.">Count it</span>';
+  const what = i.inBags ? (i.inBags === i.inBundles ? 'Mystery bags' : 'Bundles and mystery bags') : 'Bundles';
+  if (i.bundleShort) return ' <span class="pill out" title="' + what + ' used ' + i.inBundles + ' but only ' + i.gone + ' are gone">Check count</span>';
+  if (i.bundleUncounted) return ' <span class="pill low" title="' + what + ' used ' + i.inBundles + '. Count what is left of this item.">Count it</span>';
   return '';
 }
 function flagPill(f){ return f === 'SOLD OUT' ? '<span class="pill out">Sold out</span>' : f === 'Low' ? '<span class="pill low">Low</span>' : ''; }
@@ -920,7 +967,9 @@ function moneyLine(M){
   const gap = '<b class="' + (a < 25 ? 'good' : 'bad') + '">' + money(a) + (d < 0 ? ' short of' : ' over') + ' the counts.</b> ';
   const unsetB = unsetBundles(M).filter(i => i.sold > 0);
   if (d < 0 && a >= 25 && unsetB.length) return parts + gap + '<b>Your ' + (unsetB.length === 1 ? 'bundle is' : 'bundles are') + ' counted on top of the items inside ' + (unsetB.length === 1 ? 'it' : 'them') + '.</b> ' + (isAdmin() ? 'On the Count tab, tap Bundles and pick what goes in each one, and this gap should shrink.' : 'An admin can fix that on the Count tab.') + still;
-  return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' : (d < 0 ? 'A big short usually means an item was miscounted on the Count tab, or some money is missing from the cash box.' : 'A big over usually means an item was missed on the Count tab.')) + still;
+  const unsetM = unsetBags(M).filter(i => i.sold > 0);
+  if (d < 0 && a >= 25 && unsetM.length) return parts + gap + '<b>What went into your mystery bags is counted as sold at full price.</b> ' + (isAdmin() ? 'On the Count tab, tap Mystery bags and list what went in, and this gap should shrink.' : 'An admin can fix that on the Count tab.') + still;
+  return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' : (d < 0 ? 'A big short usually means mystery bags or bundles that are not set up yet (their items count as sold at full price), an item miscounted on the Count tab, or money missing from the cash box.' + (isAdmin() && !M.bags.length ? ' Sold mystery bags? Count tab, Mystery bags.' : '') : 'A big over usually means an item was missed on the Count tab.')) + still;
 }
 function startLeftOutHTML(M){
   const c = M.cash, fixed = Math.round((c.end + c.start) * 100) / 100;
@@ -1004,7 +1053,7 @@ function vCount(M){
       <button type="button" data-phase="after" aria-pressed="${after}">After the sale</button>
     </div>
     <input class="search" id="q" type="search" placeholder="Find an item" value="${esc(query)}" aria-label="Find an item">
-    ${isAdmin() ? `<button class="btn small" type="button" id="detailsBtn">${showDetails ? 'Back to counting' : 'Edit items and prices'}</button><button class="btn small" type="button" data-addrow="items">Add item</button><button class="btn small" type="button" id="bundlesBtn">Bundles</button><button class="btn small" type="button" id="splitBtn">Cut up or split</button>` : ''}
+    ${isAdmin() ? `<button class="btn small" type="button" id="detailsBtn">${showDetails ? 'Back to counting' : 'Edit items and prices'}</button><button class="btn small" type="button" data-addrow="items">Add item</button><button class="btn small" type="button" id="bundlesBtn">Bundles</button><button class="btn small" type="button" id="mysteryBtn">Mystery bags</button><button class="btn small" type="button" id="splitBtn">Cut up or split</button>` : ''}
   </div>
   ${bundleNotice(M)}
   <div class="chips mt" style="margin:-2px 0 12px">${['All'].concat(CATS).map(c => `<button type="button" data-cat="${c}" aria-pressed="${catFilter === c}">${c} ${counts[c]}</button>`).join('')}</div>
@@ -1167,7 +1216,7 @@ function renderSavebar(){
 /* ---------- past uploads: every upload is kept, so the paper is never the only copy ----------
    The files live in a second Google Sheet the tracker makes on its own. Anyone who can upload adds to it;
    only admins can look at it, because deposit slips and orders show account numbers and addresses. */
-const UP_KIND_NAMES = { countSheet:'Count sheet', order:'Amazon order', deposit:'Deposit slip', cashapp:'Cash App file' };
+const UP_KIND_NAMES = { countSheet:'Count sheet', order:'Amazon order', deposit:'Deposit slip', cashapp:'Cash App file', bags:'Mystery bag list' };
 const UP_SINCE = 'Nov 7, 2026';
 const UP_MAX = 3200000; // one file, in base64 characters (about 2.4 MB)
 let upKeep = null, uploadsCache = null, uploadsLoading = false, upKindF = 'all', upView = null;
@@ -1178,6 +1227,7 @@ function upSummary(kind, r){
   if (kind === 'countSheet') { const n = (r.rows || []).length; return n ? plural(n, 'line') + ' filled in' : ''; }
   if (kind === 'order') return [(r.lines || []).length ? plural(r.lines.length, 'item') : '', num(r.orderTotal) ? 'total ' + money(r.orderTotal) : '', upDay(r.orderDate) ? 'ordered ' + upDay(r.orderDate) : ''].filter(Boolean).join(', ');
   if (kind === 'deposit') return [num(r.amount) ? money(r.amount) : '', r.what || '', upDay(r.date) ? 'deposited ' + upDay(r.date) : ''].filter(Boolean).join(', ');
+  if (kind === 'bags') { const n = (r.bags || []).reduce((t, b) => t + Math.max(0, Math.round(num(b.count))), 0); return [r.name || '', n ? plural(n, 'bag') : '', (r.items || []).length ? plural(r.items.length, 'item') + ' listed' : ''].filter(Boolean).join(', '); }
   return '';
 }
 function b64text(t){ try { return btoa(unescape(encodeURIComponent(String(t)))); } catch (e) { return ''; } }
@@ -1220,7 +1270,7 @@ function upStatus(st){ return st === 'saved' ? '<span class="pill good">Saved</s
 function upTile(f){ return f.thumb && /^data:image\/jpeg;base64,/.test(f.thumb) ? `<img src="${esc(f.thumb)}" alt="">` : `<span class="uptile">${f.type === 'text/csv' ? 'CSV' : f.type === 'application/pdf' ? 'PDF' : 'Photo'}</span>`; }
 function vUploads(){
   if (!uploadsCache || (!uploadsCache.paged && Date.now() - uploadsCache.at > 60000 && !uploadsLoading)) loadUploads();
-  const chips = [['all','All'],['countSheet','Count sheets'],['order','Orders'],['deposit','Deposits'],['cashapp','Cash App']];
+  const chips = [['all','All'],['countSheet','Count sheets'],['order','Orders'],['deposit','Deposits'],['cashapp','Cash App'],['bags','Bag lists']];
   const head = `<div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Uploads</h2><p>Every count sheet, deposit slip, order and Cash App file uploaded since ${UP_SINCE}, newest first. Tap one to see it full size or save a copy. Only admins see this page.</p>
     <div class="seg upseg" role="group" aria-label="Show">${chips.map(([k, n]) => `<button type="button" data-ukind="${k}" aria-pressed="${upKindF === k}">${n}</button>`).join('')}</div></div>`;
   const foot = `<p class="foot">Uploads from before ${UP_SINCE} were not kept. The files are stored in a Google Sheet called "Creekside Spirit Store Uploads" that the tracker made on its own. Leave that Sheet where it is.</p>`;
@@ -1307,8 +1357,9 @@ async function delUpGroup(){
    Opens on its own after unlocking with the admin or super admin PIN (and when the page opens already unlocked),
    up to 3 times on each phone or computer, or until "Don't show this again". "What's new" at the bottom of every
    page opens it any time. To announce the next batch of changes, give TOUR_ID a new name and write new slides. */
-const TOUR_ID = 'nov7', TOUR_TIMES = 3;
+const TOUR_ID = 'nov8', TOUR_TIMES = 3;
 const TOUR_ART = {
+  bags: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l1.2 12.2a1 1 0 0 1-1 1.1H5.8a1 1 0 0 1-1-1.1z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="18.5" font-size="8" font-weight="800" text-anchor="middle" fill="#fff">?</text></svg>',
   hello: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.6 6.3L21 9l-5 4.4L17.5 21 12 17.3 6.5 21 8 13.4 3 9l6.4-.7z"/></svg>',
   uploads: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h12v12H4z" opacity=".45"/><path d="M8 3h12v12H8z"/><path d="M10 12l2.5-3 2 2.2L16 10l2 3z" fill="#fff"/></svg>',
   split: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.2 7.8L20 18M8.2 16.2L20 6" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
@@ -1317,14 +1368,23 @@ const TOUR_ART = {
 };
 function tourSlides(){
   const paw = (rows('items').find(i => String(i.id) === 'it16') || {});
-  return [
-    { art:'hello', t:"What's new in the tracker", b:'A few things changed on Nov 7, 2026. This takes about a minute. Tap Next to see each one, or Skip to look later.' },
+  let seen7 = false; try { const v = JSON.parse(localStorage.getItem('css-tour-nov7') || 'null'); seen7 = !!(v && (v.n > 0 || v.off)); } catch (e) {}
+  let M = null; try { M = model(); } catch (e) {}
+  const hb = M && M.bags.find(g => g.id === 'mbhalloween1030'); // the Oct 30 bags entered from Brittany's list
+  const nov8 = [
+    { art:'bags', t:'Mystery bags', b:'Mystery bags have their own button now: Count tab, Mystery bags. Say how many bags sold at each price, then how many of each item went into all of them, right off your list. The items inside come out of their own sales, the bags count at the bag price, and profit comes out right. You never have to say what went in each bag.', go:'count', goBtn:'mysteryBtn', goText:'Show me on the Count tab' },
+    hb ? { art:'bags', t:'Your Oct 30 Halloween bags are in', b:count(hb.sold) + ' bags for ' + money(hb.rev) + ', with the ' + count(hb.used) + ' items from your list taken out of their own sales. The 5 mini mochi, 3 pumpkin paint kits and 2 glitter cubes were counted as part of the bags, since that is what the counts showed. Anything marked "Check count" is a count to look at again before you close out.', go:'count', goBtn:'mysteryBtn', goText:'Look at them' } : null,
+    { art:'uploads', t:'Or just upload your list', b:'A photo of a handwritten bag list works too. Tap Upload, add the picture, and the tracker fills in Mystery bags for you to check before saving.' },
+    { art:'last', t:'It asks before closing a short sale', b:'If a sale is well short of the counts when you go to close it out, the tracker asks first whether you sold mystery bags or bundles, with buttons to set them up. So this gets caught every time.' }
+  ].filter(Boolean);
+  const nov7 = seen7 ? [] : [
     { art:'uploads', t:'Every upload is kept now', b:'Count sheets, deposit slips, Amazon orders and Cash App files are saved when they are uploaded. The new Uploads tab lists them, newest first, with who uploaded it, when, and whether it was saved. Tap one to see it full size, zoom in, or save a copy. The paper is never the only copy anymore. Only admins see this tab.', go:'uploads', goText:'Show me Uploads' },
     { art:'split', t:'Cut up or split a pack', b:'When you cut a pack into pieces to sell one at a time, go to Count and tap Cut up or split. Say how many you cut up, how many pieces you have now, and the price for each. The tracker spreads what the pack cost over the pieces, so profit stays right. The Saved screen has Undo.', go:'count', goText:'Show me on the Count tab' },
     /single paws/i.test(paw.name || '') ? { art:'paw', t:'Your paw stickers are fixed', b:'Pink paw print glitter eye stickers are now counted and sold as single paws: ' + count(num(paw.onHand)) + ' on hand at ' + priceLabel(paw.price) + ' each. What they cost is spread over the pieces, so each paw costs about ' + priceLabel(Math.round(num(paw.unitCost) * 100) / 100) + '. Nothing for you to change.' } : null,
-    { art:'last', t:'Built to last', b:'The tracker now has room for years of sales, items, uploads and changes. One fix tonight stopped saves from failing once the change history filled up. If the AI reader\'s model is ever retired, it finds the newest one on its own. Nothing for you to do.' },
-    { art:'hello', t:"That's everything", b:"You can open this again any time: tap What's new at the very bottom of any page." }
+    { art:'last', t:'Built to last', b:'The tracker now has room for years of sales, items, uploads and changes. One fix stopped saves from failing once the change history filled up. If the AI reader\'s model is ever retired, it finds the newest one on its own. Nothing for you to do.' }
   ].filter(Boolean);
+  return [{ art:'hello', t:"What's new in the tracker", b:'A few things changed this week. This takes about a minute. Tap Next to see each one, or Skip to look later.' }]
+    .concat(nov8, nov7, [{ art:'hello', t:"That's everything", b:"You can open this again any time: tap What's new at the very bottom of any page." }]);
 }
 let tourAt = 0;
 function tourState(){ try { const v = JSON.parse(localStorage.getItem('css-tour-' + TOUR_ID) || 'null'); return v && typeof v === 'object' ? v : { n: 0, off: false }; } catch (e) { return { n: 0, off: false }; } }
@@ -1348,14 +1408,14 @@ function drawTour(first){
     <div class="tour-top"><span class="tour-step">${tourAt + 1} of ${S.length}</span><button class="linkbtn" type="button" id="tourOff">Don't show this again</button></div>
     <div class="tour-art">${TOUR_ART[x.art] || ''}</div>
     <h3>${esc(x.t)}</h3><p>${esc(x.b)}</p>
-    ${x.go ? `<p><button class="btn small" type="button" data-tourgo="${esc(x.go)}">${esc(x.goText)}</button></p>` : ''}
+    ${x.go ? `<p><button class="btn small" type="button" data-tourgo="${esc(x.go)}"${x.goBtn ? ` data-tourbtn="${esc(x.goBtn)}"` : ''}>${esc(x.goText)}</button></p>` : ''}
     <div class="tour-dots" aria-hidden="true">${S.map((_, k) => `<i class="${k === tourAt ? 'on' : ''}"></i>`).join('')}</div>
     <div class="acts">${last ? '' : '<button class="btn ghost" type="button" id="tourSkip">Skip</button>'}${tourAt ? '<button class="btn ghost" type="button" id="tourBack">Back</button>' : ''}<button class="btn primary" type="button" id="tourNext">${last ? 'Done' : 'Next'}</button></div></div>`;
   if (first) openSheet(html); else { $('#sheet').innerHTML = html; const n = $('#tourNext'); if (n) n.focus(); }
 }
-function tourGo(t){
+function tourGo(t, btn){
   closeSheet(); go(t);
-  if (t === 'count') setTimeout(() => { const b = $('#splitBtn'); if (b) { b.scrollIntoView({ block:'center', behavior:'smooth' }); b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 4000); } }, 150);
+  if (t === 'count') setTimeout(() => { const b = $('#' + (btn || 'splitBtn')); if (b) { b.scrollIntoView({ block:'center', behavior:'smooth' }); b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 4000); } }, 150);
 }
 
 /* ---------- Ask the tracker (admins only) ----------
@@ -1969,15 +2029,19 @@ async function shareSheet(){
 }
 
 function bundleNotice(M){
-  const unset = isAdmin() ? unsetBundles(M) : [];
+  const unset = isAdmin() ? unsetBundles(M) : [], ub = isAdmin() ? unsetBags(M) : [];
+  const bagSetup = ub.length ? '<div class="warnbox mt" style="margin-bottom:12px"><b>' + (ub.length === 1 ? 'This looks like a mystery bag' : 'These look like mystery bags') + ':</b> ' + ub.map(i => esc(i.name)).join(', ') + '. Tell the tracker what went into the bags, or what is inside is counted as sold at full price on top of the bags. <button class="btn small" type="button" id="mysteryBtn2">Set up mystery bags</button></div>' : '';
+  return bagSetup + bundleNotice0(M, unset);
+}
+function bundleNotice0(M, unset){
   const setup = unset.length ? '<div class="warnbox mt" style="margin-bottom:12px"><b>' + (unset.length === 1 ? 'This looks like a bundle' : 'These look like bundles') + ':</b> ' + unset.map(i => esc(i.name)).join(', ') + '. Tell the tracker what is inside ' + (unset.length === 1 ? 'it' : 'each one') + ', or ' + (unset.length === 1 ? 'it is' : 'they are') + ' counted as sold on top of the items inside. <button class="btn small primary" type="button" id="bundlesBtn2">Set up bundles</button></div>' : '';
   const short = M.items.filter(i => i.bundleShort), unc = M.items.filter(i => i.bundleUncounted);
   if (!short.length && !unc.length) return setup;
   const nm = i => esc(psCleanName(i.name));
   return '<div class="warnbox mt" style="margin-bottom:12px">'
-    + (short.length ? '<b>Bundles used more than went missing.</b> ' + short.map(i => nm(i) + ': ' + i.inBundles + ' in bundles, ' + i.gone + ' gone').join('; ') + '. Check the after count, or what is in the bundle.' : '')
+    + (short.length ? '<b>' + (short.some(i => i.inBags) ? 'Bundles or mystery bags used' : 'Bundles used') + ' more than went missing.</b> ' + short.map(i => nm(i) + ': ' + i.inBundles + (i.inBags ? ' in bags' : ' in bundles') + ', ' + i.gone + ' gone').join('; ') + '. Check the after count, or what went into them.' : '')
     + (short.length && unc.length ? '<br>' : '')
-    + (unc.length ? '<b>Count what is left of:</b> ' + unc.map(nm).join(', ') + '. Bundles sold used some, and the rest can only be worked out once it is counted.' : '')
+    + (unc.length ? '<b>Count what is left of:</b> ' + unc.map(nm).join(', ') + '. Bundles or bags used some, and the rest can only be worked out once it is counted.' : '')
     + '</div>' + setup;
 }
 
@@ -2048,7 +2112,7 @@ async function saveBundles(){
   }
   for (const [bid, list] of Object.entries(b)) for (const [cid] of list) if (b[cid]) return err('A bundle can not go inside another bundle. Take it out, or list its items instead.');
   for (const k of Object.keys(b)) if (!all.has(k)) delete b[k];
-  const val = JSON.stringify({ b }), row = serverRow('settings', 'bundles');
+  const val = JSON.stringify(Object.assign({}, bundleRaw(), { b })), row = serverRow('settings', 'bundles');
   const ops = !row ? [{ op:'add', table:'settings', row:{ id:'bundles', value: val } }] : String(row.value) === val ? [] : [{ op:'set', table:'settings', id:'bundles', field:'value', prev: row.value ?? '', value: val }];
   if (!ops.length) { closeSheet(); return toast('No changes to the bundles.'); }
   const btn = $('#bdSave'); btn.disabled = true; btn.textContent = 'Saving…';
@@ -2057,6 +2121,181 @@ async function saveBundles(){
   if (!r.ok || (r.conflicts && r.conflicts.length)) { btn.disabled = false; btn.textContent = 'Save bundles'; return err(r.ok ? 'Someone else changed the bundles just now. Close this and open it again.' : (r.error || 'Not saved. Try again.')); }
   data = r.data; closeSheet(); render(); toast("Bundles saved. Bundles sold now come out of those items' counts.");
 }
+/* ---------- Mystery bags ----------
+   For bags filled with a mix of items: how many bags sold at each price, and how many of each item went into all
+   of them together (straight off a list like Brittany's). Nobody has to say what went in each bag. The bags become
+   items (one per price) so they count like anything else; the items inside come out of their own sales. */
+let mbDraft = null;
+function mbBagName(name, price){ return String(name || 'Mystery bags').trim().replace(/s$/i, '') + ' (' + priceLabel(price) + ')'; }
+function openMystery(prefill){
+  if (!isAdmin()) return;
+  const M = model(), byId = {}; M.items.forEach(i => { byId[String(i.id)] = i; });
+  const raw = id => serverRow('items', id) || {};
+  const groups = M.bags.map(g => ({ gid: g.id, name: g.name, orig: g.bags.slice(),
+    bags: g.bags.map(id => { const r = raw(id), left = blank(r.countedAfter) ? 0 : num(r.countedAfter); return { id, price: String(num(r.price)), sold: String(Math.max(num(r.onHand) - left, 0)), left: String(left) }; }),
+    parts: g.parts.map(([pid, q]) => ({ id: pid, qty: String(q), hint: '' })) }));
+  mbDraft = { groups, fromUp: null };
+  if (prefill) {
+    const names = {}; M.items.forEach(i => { names[String(i.name).trim().toLowerCase()] = String(i.id); });
+    const bagIds = new Set(groups.flatMap(g => g.bags.map(b => b.id)));
+    const g = { gid: 'mb' + Date.now().toString(36), name: String(prefill.name || 'Mystery bags').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Mystery bags', orig: [],
+      bags: (Array.isArray(prefill.bags) ? prefill.bags : []).filter(b => num(b.price) > 0).map(b => ({ id: '', price: String(num(b.price)), sold: String(Math.max(0, Math.round(num(b.count)))), left: '0' })),
+      parts: (Array.isArray(prefill.items) ? prefill.items : []).filter(x => num(x.count) > 0).map(x => { const id = names[String(x.match || '').trim().toLowerCase()] || ''; return { id: id && !bagIds.has(id) && byId[id] && !byId[id].bundle ? id : '', qty: String(Math.round(num(x.count))), hint: String(x.name || '').slice(0, 60) }; }) };
+    if (!g.bags.length) g.bags.push({ id: '', price: '', sold: '', left: '0' });
+    groups.push(g); mbDraft.fromUp = upId || null; mbDraft.more = String(prefill.more || '').slice(0, 80);
+  }
+  if (!groups.length) groups.push(mbNewGroup());
+  drawMystery(!prefill);
+}
+function mbNewGroup(){ return { gid: 'mb' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: 'Mystery bags', orig: [], bags: [{ id: '', price: '', sold: '', left: '0' }], parts: [{ id: '', qty: '', hint: '' }] }; }
+function mbRead(){
+  if (!mbDraft) return;
+  document.querySelectorAll('.mbg').forEach(card => {
+    const g = mbDraft.groups[Number(card.dataset.g)]; if (!g) return;
+    const nm = card.querySelector('[data-mb="name"]'); if (nm) g.name = nm.value;
+    card.querySelectorAll('.mbbag').forEach(r => { const b = g.bags[Number(r.dataset.r)]; if (!b) return; ['price', 'sold', 'left'].forEach(k => { const el = r.querySelector('[data-mb="' + k + '"]'); if (el) b[k] = el.value; }); });
+    card.querySelectorAll('.mbpart').forEach(r => { const x = g.parts[Number(r.dataset.r)]; if (!x) return; const sel = r.querySelector('[data-mb="pid"]'), q = r.querySelector('[data-mb="qty"]'); if (sel) x.id = sel.value; if (q) x.qty = q.value; });
+  });
+}
+/* what each group will do, and anything that doesn't add up */
+function mbPlan(){
+  const M = model(), byId = {}; M.items.forEach(i => { byId[String(i.id)] = i; });
+  const myBags = new Set(mbDraft.groups.flatMap(g => g.orig)), errs = [], plans = [];
+  const otherNames = new Set(M.items.filter(i => !myBags.has(String(i.id))).map(i => String(i.name).trim().toLowerCase()));
+  const bagNamesSeen = new Set();
+  mbDraft.groups.forEach((g, gi) => {
+    const label = mbDraft.groups.length > 1 ? (g.name.trim() || 'Mystery bags') + ': ' : '';
+    const bags = g.bags.filter(b => String(b.price).trim() !== '' || String(b.sold).trim() !== '' || (String(b.left).trim() !== '' && String(b.left).trim() !== '0')).map(b => ({ ...b, p: cash$(b.price), s: num(b.sold), l: String(b.left).trim() === '' ? 0 : num(b.left) }));
+    const parts = {}; let partErr = '';
+    g.parts.forEach(x => { if (!x.id && String(x.qty).trim() === '') return; const q = num(x.qty); if (!x.id) partErr = partErr || 'Pick the item for every line in "What went in"' + (x.hint ? ' (your list says "' + x.hint + '")' : '') + '.'; else if (!Number.isInteger(q) || q < 1) partErr = partErr || 'Each item needs how many went in, as a whole number.'; else parts[x.id] = (parts[x.id] || 0) + q; });
+    if (!String(g.name).trim()) errs.push(label + 'Give these bags a name, like Halloween mystery bags.');
+    if (!bags.length) errs.push(label + 'Add at least one bag price and how many sold.');
+    bags.forEach(b => {
+      if (!(b.p > 0) || b.p > 1000) errs.push(label + 'Every bag needs a price.');
+      else if (!Number.isInteger(b.s) || b.s < 0 || !Number.isInteger(b.l) || b.l < 0) errs.push(label + 'Sold and left over have to be whole numbers.');
+      const nm = mbBagName(g.name, b.p).toLowerCase();
+      if (bagNamesSeen.has(nm)) errs.push(label + 'Two bag lines have the same price. Put them on one line.');
+      else if (otherNames.has(nm)) errs.push(label + 'There is already an item called ' + mbBagName(g.name, b.p) + '. Change the name of these bags a little.');
+      bagNamesSeen.add(nm);
+    });
+    if (bags.length && bags.every(b => b.s + b.l === 0)) errs.push(label + 'How many bags sold?');
+    if (partErr) errs.push(label + partErr);
+    if (!Object.keys(parts).length && !partErr) errs.push(label + 'List what went into the bags (the totals for all of them).');
+    // the numbers
+    const made = bags.reduce((s, b) => s + b.s + b.l, 0), sold = bags.reduce((s, b) => s + b.s, 0), rev = bags.reduce((s, b) => s + b.s * (b.p || 0), 0);
+    let cost = 0, worth = 0; const flags = [];
+    for (const [pid, q] of Object.entries(parts)) {
+      const it = byId[pid]; if (!it) continue;
+      cost += it.unitCost * q; worth += num(it.price) * q;
+      const forBags = it.gone - Math.max(it.inBundles - (it.inBags || 0), 0); // what went missing that fixed bundles didn't already use
+      if (it.counted === null) flags.push(esc(psCleanName(it.name)) + ' has no after count yet. Count what is left of it.');
+      else if (q > forBags) flags.push('Your list says ' + count(q) + ' ' + esc(psCleanName(it.name)) + ' went in, but the count shows only ' + count(Math.max(forBags, 0)) + ' gone. Check that count, or whether some came from another item.');
+    }
+    const weight = bags.reduce((s, b) => s + (b.p || 0) * (b.s + b.l), 0);
+    const costSold = weight > 0 ? bags.reduce((s, b) => s + (b.p || 0) * b.s, 0) * cost / weight : 0;
+    plans.push({ g, gi, bags, parts, made, sold, rev, cost, worth, weight, costSold, flags });
+  });
+  return { M, byId, errs, plans };
+}
+function mbSummary(pl){
+  if (!pl.made) return '';
+  if (!Object.keys(pl.parts).length) return `<div class="banner wait"><span class="ico">i</span><span><b>${count(pl.sold)} bag${pl.sold === 1 ? '' : 's'} sold for ${money(pl.rev)}.</b> Now add what went in, and this shows what the bags made.</span></div>`;
+  return `<div class="banner ok"><span class="ico">✓</span><span><b>${count(pl.sold)} bag${pl.sold === 1 ? '' : 's'} sold for ${money(pl.rev)}.</b> What went inside would sell for ${money(pl.worth)} on its own and cost ${money(pl.cost)}${pl.made > pl.sold ? ' (' + count(pl.made - pl.sold) + ' bags left over hold some of that)' : ''}. ${pl.sold ? 'The bags sold made ' + money(pl.rev - pl.costSold) + ' over what was in them.' : ''}</span></div>`
+    + (pl.flags.length ? `<div class="warnbox mt"><b>Check these:</b><br>${pl.flags.join('<br>')}<br><small class="muted">You can still save. The tracker marks those items "Check count" until the numbers line up.</small></div>` : '');
+}
+function drawMystery(first){
+  const P = mbPlan(), M = P.M, byId = P.byId;
+  const draftBags = new Set(mbDraft.groups.flatMap(g => g.orig));
+  const choices = M.items.filter(i => !i.bundle && !draftBags.has(String(i.id)) && !(i.bagGroup && !draftBags.has(String(i.id)))).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const goneNow = choices.filter(i => i.gone > 0), rest = choices.filter(i => !(i.gone > 0));
+  const opt = (sel) => i => `<option value="${esc(i.id)}"${String(i.id) === sel ? ' selected' : ''}>${esc(i.name)} · ${i.counted === null ? 'not counted' : count(i.gone) + ' gone'}</option>`;
+  const options = sel => '<option value="">Pick an item</option>' + (goneNow.length ? '<optgroup label="Went missing this sale">' + goneNow.map(opt(sel)).join('') + '</optgroup>' : '') + (rest.length ? '<optgroup label="Everything else">' + rest.map(opt(sel)).join('') + '</optgroup>' : '');
+  const cards = mbDraft.groups.map((g, gi) => {
+    const pl = P.plans[gi];
+    return `<div class="card pad mbg" data-g="${gi}">
+      <div class="form"><div><label class="lbl" for="mbName${gi}">Name for these bags</label><input class="in" id="mbName${gi}" data-mb="name" maxlength="60" value="${esc(g.name)}" placeholder="Halloween mystery bags"></div></div>
+      <h4 class="mbh">Bags</h4>
+      <div class="mbgrid mbhead" aria-hidden="true"><span>Price each</span><span>Sold</span><span>Left over</span><span></span></div>
+      ${g.bags.map((b, r) => `<div class="mbgrid mbbag" data-r="${r}"><input class="in" data-mb="price" inputmode="decimal" aria-label="Price each" placeholder="$" value="${esc(b.price)}"><input class="in" data-mb="sold" inputmode="numeric" aria-label="How many sold" value="${esc(b.sold)}"><input class="in" data-mb="left" inputmode="numeric" aria-label="How many left over" value="${esc(b.left)}"><button class="iconbtn" type="button" data-mbx="bag" data-r="${r}" aria-label="Remove this price">×</button></div>`).join('')}
+      <button class="btn small ghost" type="button" data-mbadd="bag">Another price</button>
+      <h4 class="mbh">What went in all the bags together</h4>
+      <p class="muted small" style="margin:0 0 8px">The total for all the bags, straight off your list. No need to say what went in each bag.</p>
+      ${g.parts.map((x, r) => `<div class="mbgrid2 mbpart" data-r="${r}"><select class="in" data-mb="pid" aria-label="Item">${options(x.id)}</select><input class="in" data-mb="qty" inputmode="numeric" aria-label="How many went in" placeholder="Total" value="${esc(x.qty)}"><button class="iconbtn" type="button" data-mbx="part" data-r="${r}" aria-label="Remove this item">×</button>${x.hint ? `<small class="muted mbhint">Your list: "${esc(x.hint)}"</small>` : ''}</div>`).join('')}
+      <button class="btn small ghost" type="button" data-mbadd="part">Add an item</button>
+      <div class="mbsum" data-sum="${gi}">${mbSummary(pl)}</div>
+      <p class="updel"><button class="linkbtn danger" type="button" data-mbdelg="${gi}">Remove these bags</button></p>
+    </div>`;
+  }).join('');
+  const html = `<h3>Mystery bags</h3><p>For bags filled with a mix of items. Say how many bags sold at each price, then how many of each item went into all of them. The tracker takes those items out of their own sales, counts the bags at the bag price, and spreads what was inside over the bags so profit stays right.</p>
+    ${mbDraft.more ? `<div class="warnbox" style="margin-bottom:10px">Your page also has <b>${esc(mbDraft.more)}</b>. Upload a separate photo of that list, or add it below with "Add another set of bags".</div>` : ''}
+    ${cards}
+    <button class="btn ghost mt" type="button" id="mbAddGroup">Add another set of bags</button>
+    <div class="err" id="mbErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="mbSave">Save</button></div>`;
+  if (first) openSheet(html, true); else reSheet(html);
+  guard(true);
+}
+function mbRefresh(){
+  mbRead();
+  const P = mbPlan();
+  P.plans.forEach(pl => { const el = document.querySelector('[data-sum="' + pl.gi + '"]'); if (el) el.innerHTML = mbSummary(pl); });
+  const e = $('#mbErr'); if (e && e.textContent) e.textContent = '';
+}
+async function saveMystery(){
+  mbRead();
+  const P = mbPlan();
+  if (P.errs.length) { $('#mbErr').textContent = P.errs[0]; return; }
+  const M = P.M, set = (t, id, f, prev, value) => ({ op:'set', table: t, id, field: f, prev: prev ?? '', value });
+  const r4 = v => Math.round(v * 10000) / 10000, ops = [], braw = bundleRaw(), m = (braw.m && typeof braw.m === 'object' && !Array.isArray(braw.m)) ? braw.m : {};
+  const keep = new Set();
+  P.plans.forEach((pl, gi) => {
+    const g = pl.g, name = String(g.name).replace(/\s+/g, ' ').trim().slice(0, 60), ids = [];
+    pl.bags.forEach((b, k) => {
+      const bname = mbBagName(name, b.p), each = pl.weight > 0 ? r4(b.p * pl.cost / pl.weight) : '';
+      if (b.id) {
+        const row = serverRow('items', b.id) || {};
+        if (String(row.name) !== bname) ops.push(set('items', b.id, 'name', row.name, bname));
+        if (cash$(row.price) !== b.p || blank(row.price)) ops.push(set('items', b.id, 'price', row.price, b.p));
+        if (num(row.onHand) !== b.s + b.l || blank(row.onHand)) ops.push(set('items', b.id, 'onHand', row.onHand, b.s + b.l));
+        if (blank(row.countedAfter) || num(row.countedAfter) !== b.l) ops.push(set('items', b.id, 'countedAfter', row.countedAfter, b.l));
+        if (each !== '' && (blank(row.unitCost) || Math.abs(num(row.unitCost) - each) > 0.00005)) ops.push(set('items', b.id, 'unitCost', row.unitCost, each));
+        ids.push(b.id); keep.add(b.id);
+      } else {
+        const id = 'it' + Date.now().toString(36) + 'mb' + gi + k;
+        ops.push({ op:'add', table:'items', row:{ id, name: bname, category:'New', price: b.p, unitCost: each, onHand: b.s + b.l, countedAfter: b.l, notes:'Mystery bag' } });
+        ids.push(id); keep.add(id);
+      }
+    });
+    m[g.gid] = { name, bags: ids, parts: Object.entries(pl.parts), done: '', at: setting('eventDate') || '' };
+  });
+  // bags and sets that were removed
+  const kept = new Set(mbDraft.groups.map(g => g.gid));
+  for (const g of M.bags) if (!kept.has(g.id)) delete m[g.id];
+  for (const g of M.bags) for (const id of g.bags) if (!keep.has(id)) { const row = serverRow('items', id); if (row) ops.push({ op:'del', table:'items', id, prev: row }); }
+  const val = JSON.stringify(Object.assign({}, braw, { m })), srow = serverRow('settings', 'bundles');
+  if (!srow) ops.push({ op:'add', table:'settings', row:{ id:'bundles', value: val } });
+  else if (String(srow.value) !== val) ops.push(set('settings', 'bundles', 'value', srow.value, val));
+  if (!ops.length) { closeSheet(); return toast('No changes to save.'); }
+  const b = $('#mbSave'); b.disabled = true; b.textContent = 'Saving…';
+  let r;
+  try { r = await apiPost({ action:'save', pin: auth.pin, name: who, ops, atomic: true }); } catch (e) { r = { ok:false, error:'Could not reach the tracker. Check the internet connection.' }; }
+  if (!r.ok || (r.conflicts && r.conflicts.length)) {
+    if (r.data) data = r.data;
+    b.disabled = false; b.textContent = 'Save';
+    $('#mbErr').textContent = r.ok ? 'Someone changed these items while you were working. Nothing was saved. Close this and open Mystery bags again.' : (r.error || 'Not saved. Try again.');
+    return;
+  }
+  const fromUp = mbDraft.fromUp;
+  data = r.data; lastUpload = { ops, uid: fromUp || '', what: fromUp ? 'upload' : 'bags' }; render();
+  if (fromUp) markUpload(fromUp, 'saved');
+  const M2 = model(), tot = M2.bags.reduce((s, g) => s + g.sold, 0), rev = M2.bags.reduce((s, g) => s + g.rev, 0);
+  reSheet(`<div class="saved" role="status"><div class="bigcheck" aria-hidden="true">✓</div><h3>Saved</h3><p>${M2.bags.length ? '<b>' + count(tot) + ' mystery bag' + (tot === 1 ? '' : 's') + ' sold for ' + money(rev) + '</b>. What went inside is out of those items\' own sales.' : 'No mystery bags for this sale now.'}</p>
+    <p class="muted">${esc(moneyLine(M2).replace(/<[^>]+>/g, ''))}</p></div>
+    <div class="acts"><button class="btn ghost" type="button" id="undoUp">Undo this</button><button class="btn primary" type="button" data-close>Done</button></div>`);
+  guard(false); mbDraft = null;
+  toast('Mystery bags saved.');
+}
+
 /* ---------- Cut up or split a pack ----------
    For packs that get cut into pieces sold one at a time (sticker sheets cut into single paws, a dozen split up).
    Like "breaking a case" in store systems: what was cut comes off the pack item, the pieces get their own count,
@@ -2651,6 +2890,11 @@ async function readUpload(){
   }
   if (r.type === 'countSheet') { keepUpload('countSheet', upSummary('countSheet', r)); cntResult = r; return buildCountLines(M, rowsAll); }
   if (r.type === 'deposit') { keepUpload('deposit', upSummary('deposit', r)); return startDeposit(r); }
+  if (r.type === 'bags') {
+    if (!isAdmin()) return readFailed('This looks like a mystery bag list. Only the admin PIN can set up mystery bags, so ask the admin to upload it.', true);
+    keepUpload('bags', upSummary('bags', r));
+    return openMystery(r);
+  }
   return readFailed("This doesn't look like a count sheet, an Amazon order or a deposit slip" + (r.what ? '. It looks like ' + String(r.what).replace(/\.$/, '') : '') + '. Try a clearer photo of the whole page, or a different file.', true);
 }
 
@@ -2805,6 +3049,7 @@ async function undoUpload(){
     if (op.op === 'set') inv.push({ op:'set', table: op.table, id: op.id, field: op.field, prev: op.value, value: op.prev });
     else if (op.op === 'add' && op.table === 'settings' && op.row.id === 'learned') { const r = serverRow('settings', 'learned'); if (r) inv.push({ op:'set', table:'settings', id:'learned', field:'value', prev: r.value ?? '', value:'{}' }); }
     else if (op.op === 'add') inv.push({ op:'del', table: op.table, id: op.row.id });
+    else if (op.op === 'del' && op.prev) inv.push({ op:'add', table: op.table, row: op.prev });
   }
   const b = $('#undoUp'); if (b) { b.disabled = true; b.textContent = 'Undoing…'; } upBusy = true;
   const res = await sendOps(inv); upBusy = false;
@@ -2815,7 +3060,7 @@ async function undoUpload(){
     if (b) { b.disabled = false; b.textContent = 'Undo this upload'; } return;
   }
   markUpload(lastUpload.uid, 'undone');
-  const what = lastUpload.what === 'split' ? 'change' : 'upload';
+  const what = lastUpload.what === 'split' || lastUpload.what === 'bags' ? 'change' : 'upload';
   data = res.data; lastUpload = null; render();
   reSheet(`<div class="saved undone" role="status"><div class="bigcheck" aria-hidden="true">↺</div><h3>Undone</h3><p>Everything from that ${what} was taken back out. The tracker is back the way it was.</p></div>
     <div class="acts"><button class="btn primary" type="button" data-close>Done</button></div>`);
@@ -3369,7 +3614,11 @@ function openCloseout(M){
   if (pendingCount()) { toast('Submit or discard your open changes first.'); return; }
   const d = parseDate(setting('eventDate')) || new Date(); d.setDate(d.getDate() + 14);
   const nd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-  openSheet(`<h3>Close out ${esc(M.ev)}</h3>
+  const short = M.cash.money !== null && M.T.counted ? Math.round((M.T.rev - M.cash.money) * 100) / 100 : 0;
+  const ask = short >= 25 && short >= M.T.rev * 0.05 ? `<div class="warnbox" style="margin-bottom:12px"><b>${esc(M.ev)} is ${money(short)} short of the counts.</b> If you sold mystery bags or bundles, set them up first so each item's numbers come out right. What's inside them counts as sold at full price until you do.
+      <div class="acts" style="justify-content:flex-start;margin-top:8px"><button class="btn small" type="button" id="mysteryBtn3">Mystery bags</button><button class="btn small" type="button" id="bundlesBtn3">Bundles</button></div>
+      <small class="muted">${M.bags.length ? 'Mystery bags already set up: ' + esc(M.bags.map(g => g.name).join(', ')) + '. ' : ''}Nothing to set up? Close out below.</small></div>` : '';
+  openSheet(`<h3>Close out ${esc(M.ev)}</h3>${ask}
     <p>This locks in ${esc(M.ev)} at <b>${money(M.cash.money !== null ? M.cash.money : M.T.rev)}</b> in sales${M.cash.money !== null ? ' (cash plus Cash App)' : ' (from the item counts, since the cash box isn\'t counted yet)'} and <b>${money(M.purchTotal)}</b> spent, carries counted leftovers forward as on-hand stock, and clears the cash box for the next sale.${M.T.counted < M.T.n ? ' <b class="warn">' + (M.T.n - M.T.counted) + ' items have no after-sale count; they carry forward as unsold.</b>' : ''}</p>
     <form id="closeForm" class="form"><div><label class="lbl" for="nName">Next sale name</label><input class="in" id="nName" value="Fall Festival" required></div>
     <div><label class="lbl" for="nDate">Next sale date</label><input class="in" id="nDate" type="date" value="${nd}" required></div>
@@ -3386,7 +3635,7 @@ async function doCloseout(name, date){
   for (const i of M.items) {
     set('items', i.id, 'onHand', i.counted === null ? i.avail : i.counted);
     set('items', i.id, 'countedAfter', '');
-    if (i.costFromOrders) set('items', i.id, 'unitCost', Math.round(i.unitCost * 10000) / 10000);
+    if (i.costFromOrders || i.costFromBags) set('items', i.id, 'unitCost', Math.round(i.unitCost * 10000) / 10000);
     if (i.category === 'New' || i.category === 'Restock') set('items', i.id, 'category', 'Carry-over');
   }
   for (const p of M.cur) if (M.liveId && String(p.sale) !== M.liveId) set('purchases', p.id, 'sale', M.liveId);
@@ -3396,6 +3645,8 @@ async function doCloseout(name, date){
   set('cash', 'end', 'value', ''); set('cash', 'cashapp', 'value', ''); set('cash', 'countedBy', 'value', ''); set('cash', 'notes', 'value', '');
   set('settings', 'eventName', 'value', name); set('settings', 'eventDate', 'value', date); set('settings', 'announcement', 'value', '');
   const sid = Date.now().toString(36);
+  const braw = bundleRaw(); // this sale's mystery bags are done; fixed bundles stay set up
+  if (braw.m && typeof braw.m === 'object') { let ch = false; for (const g of Object.values(braw.m)) if (g && typeof g === 'object' && !g.done) { g.done = 'sh' + sid; ch = true; } if (ch) set('settings', 'bundles', 'value', JSON.stringify(braw)); }
   ops.push({ op:'add', table:'sales', row:{ id:'sh' + sid, date, theme:name, spent:'', sales:'', other:'', what:'', link:'current' } });
   ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'a', date, event: name + ' (cash deposit)', amount:'', notes:'Enter the deposit' } });
   ops.push({ op:'add', table:'moneyIn', row:{ id:'mi' + sid + 'b', date, event: name + ' (Cash App)', amount:'', notes:'Enter the Cash App total' } });
@@ -3424,11 +3675,13 @@ document.addEventListener('input', e => {
   if (e.target.id === 'impDate') { impDateVal = e.target.value; impDateEdited = true; qRefresh(); return; }
   if (e.target.id === 'impStore') { impStoreVal = e.target.value; return; }
   if (/^sp(Cut|Pieces|Price|Name)$/.test(e.target.id) && spDraft) return spRefresh();
+  if (e.target.dataset && e.target.dataset.mb && mbDraft) return mbRefresh();
   if (e.target.dataset && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'q') { query = e.target.value; filterItems(); }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'spItem' && spDraft) { spRead(); spDraft.id = e.target.value; spDraft.cut = ''; return drawSplit(); }
+  if (e.target.dataset && e.target.dataset.mb === 'pid' && mbDraft) { mbRead(); return mbRefresh(); }
   if (e.target.id === 'psFile') return psPicked(e.target.files && e.target.files[0]);
   if (e.target.tagName === 'SELECT' && e.target.dataset.k) onEdit(e.target);
   if (e.target.id === 'impFiles') { addImpFiles(e.target.files); e.target.value = ''; }
@@ -3480,6 +3733,7 @@ document.addEventListener('click', e => {
     if (n.details && isAdmin()) showDetails = true;
     go(n.t);
     if (n.open === 'bundles' && isAdmin()) return openBundles();
+    if (n.open === 'mystery' && isAdmin()) return openMystery();
     if (n.id) { const [t, id] = n.id.split('|'); const row = document.getElementById('row-' + t + '-' + id); if (row) { row.scrollIntoView({ block:'center' }); const inp = row.querySelector('.amt input'); if (inp) inp.focus({ preventScroll:true }); } }
     return;
   }
@@ -3506,12 +3760,19 @@ document.addEventListener('click', e => {
   if (b.id === 'askBtn') return openAsk();
   if (b.id === 'bundlesBtn' || b.id === 'bundlesBtn2') return openBundles();
   if (b.id === 'splitBtn') return openSplit();
+  if (b.id === 'mysteryBtn' || b.id === 'mysteryBtn2' || b.id === 'mysteryBtn3') return openMystery();
+  if (b.id === 'bundlesBtn3') return openBundles();
+  if (b.id === 'mbSave') return saveMystery();
+  if (b.id === 'mbAddGroup') { mbRead(); mbDraft.groups.push(mbNewGroup()); return drawMystery(); }
+  if (b.dataset.mbadd !== undefined && mbDraft) { mbRead(); const g = mbDraft.groups[Number(b.closest('.mbg').dataset.g)]; if (b.dataset.mbadd === 'bag') g.bags.push({ id:'', price:'', sold:'', left:'0' }); else g.parts.push({ id:'', qty:'', hint:'' }); return drawMystery(); }
+  if (b.dataset.mbx !== undefined && mbDraft) { mbRead(); const g = mbDraft.groups[Number(b.closest('.mbg').dataset.g)], r = Number(b.dataset.r); if (b.dataset.mbx === 'bag') { g.bags.splice(r, 1); if (!g.bags.length) g.bags.push({ id:'', price:'', sold:'', left:'0' }); } else { g.parts.splice(r, 1); if (!g.parts.length) g.parts.push({ id:'', qty:'', hint:'' }); } return drawMystery(); }
+  if (b.dataset.mbdelg !== undefined && mbDraft) { mbRead(); mbDraft.groups.splice(Number(b.dataset.mbdelg), 1); return drawMystery(); }
   if (b.id === 'tourOpen') return openTour();
   if (b.id === 'tourNext') { if (tourAt >= tourSlides().length - 1) { closeSheet(); return toast("That's everything. What's new is at the bottom of the page if you want it again."); } tourAt++; return drawTour(); }
   if (b.id === 'tourBack') { tourAt--; return drawTour(); }
   if (b.id === 'tourSkip') { closeSheet(); return toast("Skipped. What's new is at the bottom of the page any time."); }
   if (b.id === 'tourOff') { const st = tourState(); tourSave({ n: st.n, off: true }); closeSheet(); return toast("It won't open on its own again. What's new is at the bottom of the page."); }
-  if (b.dataset.tourgo) return tourGo(b.dataset.tourgo);
+  if (b.dataset.tourgo) return tourGo(b.dataset.tourgo, b.dataset.tourbtn);
   if (b.id === 'spSave') return saveSplit();
   if (b.dataset.spprice !== undefined && spDraft) { const el = $('#spPrice'); if (el) el.value = String(b.dataset.spprice); return spRefresh(); }
   if (b.id === 'bdAdd') { bdRead(); bdDraft.push({ bid: '', list: [['', 1]] }); return drawBundles(); }
