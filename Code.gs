@@ -120,6 +120,103 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
   return res;
 }
 
+/* ===== Sale numbers that follow Money In =====
+   A closed sale's store sales and other fundraising should be the money that actually came in for it. Every Money In
+   line belongs to a sale by its date and its name, and counts as store money unless its name says it is something else
+   (class sponsors, face painting, donations and the like). Within reason the sale follows Money In by itself. A big
+   difference is asked about instead of changed, and so is a sale whose Money In is still waiting on an amount.
+   The page and the backend both use this, so the report, the History tab and the Google Sheet always agree. */
+var OTHER_MONEY_RE = /sponsor|face ?paint|donat|grant\b|raffle|auction|bake sale|concession|book ?fair|membership|\bdues\b|\(other\)/i;
+var NOT_STORE_NOTE_RE = /\bnot (the )?(spirit )?store\b/i;
+var MS_GENERIC = { spirit: 1, store: 1, stores: 1, sale: 1, sales: 1, shop: 1, school: 1, pto: 1, creekside: 1, lion: 1, lions: 1, the: 1, and: 1, of: 1, a: 1, cash: 1, app: 1, deposit: 1, deposits: 1, zeffy: 1, zelle: 1, venmo: 1, paypal: 1, total: 1 };
+function msNorm(s) { return String(s === undefined || s === null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+function msBase(ev) { var s = String(ev === undefined || ev === null ? '' : ev), prev; do { prev = s; s = s.replace(/\s*\([^()]*\)\s*$/, ''); } while (s !== prev); return msNorm(s); }
+function msBlank(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function msNum(v) { var n = Number(String(v === undefined || v === null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; }
+function msR2(n) { return Math.round(n * 100) / 100; }
+function msDay(d) {
+  if (Object.prototype.toString.call(d) === '[object Date]') return isNaN(d.getTime()) ? null : Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+  var t = String(d === undefined || d === null ? '' : d).trim(), m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5);
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // typed straight into the Sheet as 10/22/2026
+  return m ? Math.round(Date.UTC(+m[3], +m[1] - 1, +m[2]) / 864e5) : null;
+}
+/* how well a line's name matches a sale's theme: 0 = not at all; spec = the match has a real word, not just "spirit store" */
+function msMatch(line, sale) {
+  var th = msNorm(sale.theme); if (!th) return { n: 0, spec: false };
+  var ev = ' ' + msNorm(line.event) + ' ', base = msBase(line.event), hit = '';
+  if (ev.indexOf(' ' + th + ' ') >= 0) hit = th;
+  else if (base.length >= 4 && (' ' + th + ' ').indexOf(' ' + base + ' ') >= 0) hit = base;
+  if (!hit) return { n: 0, spec: false };
+  return { n: hit.length, spec: hit.split(' ').some(function (w) { return !MS_GENERIC[w]; }) };
+}
+/* other fundraising: its name says so (a word the sale's own name does not have: money called "Book Fair Night" at a
+   sale called Book Fair Night is that sale's store money), or its note says it is not store money */
+function msIsOther(line, sale) {
+  if (NOT_STORE_NOTE_RE.test(String(line.notes || ''))) return true;
+  var re = new RegExp(OTHER_MONEY_RE.source, 'gi'), ev = String(line.event || ''), th = String((sale && sale.theme) || '').toLowerCase(), m;
+  while ((m = re.exec(ev))) if (th.indexOf(m[0].toLowerCase()) < 0) return true;
+  return false;
+}
+/* a line still waiting on its amount: blank, or $0 with the "Enter the ..." note the close-out left on it */
+function msOpen(line) { return msBlank(line.amount) || (msNum(line.amount) === 0 && /^\s*enter\b/i.test(String(line.notes || ''))); }
+/* which sale a Money In line is for, or null. unsure = two sales that day and the name doesn't say which */
+function msSaleFor(line, sales) {
+  var d = msDay(line.date); if (d === null) return { sale: null };
+  var best = function (list, needSpec) {
+    var top = null, topN = 0, tie = false;
+    list.forEach(function (s) { var m = msMatch(line, s); if (!m.n || (needSpec && !m.spec)) return; if (m.n > topN) { top = s; topN = m.n; tie = false; } else if (m.n === topN) tie = true; });
+    return tie ? 'tie' : top;
+  };
+  var same = sales.filter(function (s) { return msDay(s.date) === d; });
+  var b = best(same, false);                       // 1. a sale that day with the line's name
+  if (b && b !== 'tie') return { sale: b };
+  if (b === 'tie') return { sale: null, unsure: same };
+  var near = sales.filter(function (s) { var sd = msDay(s.date); return sd !== null && d - sd >= -3 && d - sd <= 14; });
+  b = best(near, true);                            // 2. a sale a few days around it with its own name in the line (a deposit made later)
+  if (b && b !== 'tie') return { sale: b };
+  if (same.length === 1) return { sale: same[0] }; // 3. the only sale that day
+  if (same.length > 1) return { sale: null, unsure: same };
+  return { sale: null };
+}
+function reconcileSales(sales, moneyIn, keep) {
+  sales = sales || []; moneyIn = moneyIn || []; keep = keep && typeof keep === 'object' ? keep : {};
+  var out = { sales: {}, lines: {}, unsure: [], ops: [] };
+  sales.forEach(function (s) { out.sales[String(s.id)] = { store: { sum: 0, n: 0, open: [], lines: [] }, other: { sum: 0, n: 0, open: [], lines: [] } }; });
+  moneyIn.forEach(function (m) {
+    var f = msSaleFor(m, sales);
+    if (!f.sale) { if (f.unsure) out.unsure.push({ line: m, sales: f.unsure }); return; }
+    var kind = msIsOther(m, f.sale) ? 'other' : 'store', g = out.sales[String(f.sale.id)][kind];
+    out.lines[String(m.id)] = { sale: String(f.sale.id), kind: kind };
+    g.lines.push(m);
+    if (msOpen(m)) g.open.push(m); else { g.sum += msNum(m.amount); g.n++; }
+  });
+  sales.forEach(function (s) {
+    var r = out.sales[String(s.id)], live = s.link === 'current';
+    ['store', 'other'].forEach(function (kind) {
+      var g = r[kind], field = kind === 'store' ? 'sales' : 'other', stored = msBlank(s[field]) ? null : msNum(s[field]);
+      var mi = msR2(g.sum), k = keep[String(s.id)] && keep[String(s.id)][field];
+      g.stored = stored; g.mi = g.n ? mi : null; g.v = stored;
+      if (live && kind === 'store') { g.status = 'live'; return; } // the current sale uses the cash box until it is closed out
+      if (!g.n && !g.open.length) { g.status = 'none'; return; }
+      if (g.open.length) { g.status = 'open'; if (stored === null && g.n) g.v = mi; return; }
+      var diff = stored === null ? null : msR2(mi - stored);
+      if (diff !== null && Math.abs(diff) < 0.005) { g.status = 'ok'; g.v = mi; return; }
+      if (k !== undefined && k !== null && Math.abs(msNum(k) - mi) < 0.005) { g.status = 'kept'; return; }
+      var ok = stored === null || (kind === 'store' ? Math.abs(diff) <= Math.max(100, 0.25 * Math.max(Math.abs(stored), Math.abs(mi))) : diff > 0);
+      if (!ok) { g.status = 'ask'; return; }
+      g.status = 'fix'; g.v = mi;
+      out.ops.push({ op: 'set', table: 'sales', id: s.id, field: field, prev: msBlank(s[field]) ? '' : s[field], value: mi });
+    });
+  });
+  return out;
+}
+function salesKeepFrom(settingsRows) {
+  var r = (settingsRows || []).filter(function (x) { return String(x.id) === 'salesKeep'; })[0];
+  if (!r || msBlank(r.value)) return {};
+  try { var o = JSON.parse(String(r.value)); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; }
+}
+
 
 var SEED = null;
 
@@ -132,6 +229,7 @@ function onOpen() {
     .addItem('Set AI key (for importing order screenshots)', 'setAiKey')
     .addItem('Test the AI order reader', 'selfTestAi')
     .addSeparator()
+    .addItem('Match sale numbers to Money In', 'fixSalesFromMoneyIn')
     .addItem('Rebuild any missing tabs', 'setupTabs')
     .addToUi();
 }
@@ -228,8 +326,10 @@ function doPost(e) {
     body.ops.forEach(function (op) { if (op && SCHEMA[op.table] && op.table !== 'log') touched[op.table] = true; });
     Object.keys(touched).forEach(function (t) { tables[t] = readTable(t).rows; });
     var who = String(body.name || 'Someone').slice(0, 40);
-    var res = applyOps(tables, body.ops, role.role, who, new Date().toISOString(), !!body.atomic);
+    var now = new Date().toISOString();
+    var res = applyOps(tables, body.ops, role.role, who, now, !!body.atomic);
     if (res.applied) {
+      res.log = res.log.concat(autoFixSales(tables, touched, now)); // closed sales follow Money In, every save
       Object.keys(touched).forEach(function (t) { writeTable(t, tables[t]); });
       appendLog(res.log);
       if (res.log && res.log.length) logVisit(body, 'save', String(res.log.length), role.role);
@@ -238,6 +338,47 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* After every save, each closed sale's store sales and other fundraising are brought in line with its Money In lines,
+   within reason (reconcileSales in the shared rules), so the Sheet stays right and each change shows in Activity as
+   "Tracker auto-fix". Bigger differences, and sales whose Money In is still waiting on an amount, are left for the
+   admin to settle on the page. It reads only what the save did not already read, and it never stops a save. */
+function autoFixSales(tables, touched, now) {
+  try {
+    ['sales', 'moneyIn', 'settings'].forEach(function (t) { if (!tables[t]) tables[t] = readTable(t).rows; });
+    var rc = reconcileSales(tables.sales, tables.moneyIn, salesKeepFrom(tables.settings));
+    if (!rc.ops.length) return [];
+    var fx = applyOps(tables, rc.ops, 'admin', 'Tracker auto-fix', now, false);
+    if (!fx.applied) return [];
+    touched.sales = true;
+    fx.log.forEach(function (e) { e.role = 'auto'; });
+    return fx.log;
+  } catch (e) { return []; }
+}
+/* Run from the menu (Spirit Store > Match sale numbers to Money In) or the script editor any time. Safe to run again. */
+function fixSalesFromMoneyIn() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('The tracker is busy. Try again in a minute.');
+  try {
+    var tables = {}, touched = {}, log = autoFixSales(tables, touched, new Date().toISOString());
+    if (touched.sales) { writeTable('sales', tables.sales); appendLog(log); }
+    var name = {}; tables.sales.forEach(function (s) { name[String(s.id)] = s.theme || s.id; });
+    var said = log.map(function (e) { return name[e.rowId] + ' ' + (e.field === 'sales' ? 'store sales' : 'other fundraising') + ' ' + e.old + ' to ' + e['new']; });
+    var rc = reconcileSales(tables.sales, tables.moneyIn, salesKeepFrom(tables.settings)), left = [];
+    tables.sales.forEach(function (s) {
+      var r = rc.sales[String(s.id)];
+      ['store', 'other'].forEach(function (k) {
+        var g = r[k], lab = k === 'store' ? 'store sales' : 'other fundraising';
+        if (g.status === 'open') left.push(name[String(s.id)] + ' ' + lab + ': waiting on ' + g.open.map(function (m) { return m.event; }).join(' and '));
+        if (g.status === 'ask') left.push(name[String(s.id)] + ' ' + lab + ': the sale says ' + g.stored + ', Money In shows ' + g.mi);
+      });
+    });
+    var msg = (said.length ? 'Fixed ' + said.length + ': ' + said.join('; ') + '.' : 'Nothing needed fixing.') + (left.length ? ' Left for the admin to settle on the page: ' + left.join('; ') + '.' : ' Every closed sale matches Money In.');
+    Logger.log(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+    return msg;
+  } finally { lock.releaseLock(); }
 }
 
 /* Admins can change PINs and the access code from the website. The values are never sent back out. */
@@ -362,6 +503,7 @@ var HELP_GUIDE = [
   '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
   '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
   '- Activity tab: every saved change with name and time. Admins can Undo a change there.',
+  '- Sale numbers follow Money In: once a sale is closed, its store sales and other fundraising come from its lines on the Money tab (lines belong to a sale by date and name; class sponsors, face painting, donations and the like count as other fundraising, everything else as store sales). Small differences fix themselves on the next save and show in Activity as "Tracker auto-fix". A difference over $100 and over a quarter of the sale shows as a to-do ("Check <sale> store sales") where the admin picks Use or Keep. A Money In line still at $0 with the note "Enter the ..." keeps the sale from being final: type the real amount, or tap "It was $0" on that line. In History those numbers say "from Money In"; to change one, fix the Money In line.',
   '- Mystery bags (Count tab, admins): for bags filled with a mix of items (Halloween mystery bags, spirit grab bags). Tap Mystery bags, give them a name, enter each bag price with how many sold and how many were left over, then list how many of each item went into ALL the bags together (the totals off the list; nobody has to say what went in each bag). The tracker makes one item per bag price, takes the items inside out of their own sales (they show "+N in mystery bags" in the Sold column), counts the bags at the bag price, and spreads what the items inside cost over the bags by price, so profit is right. If the list says more of an item went in than the count shows gone, the item gets a "Check count" tag. A photo of a handwritten bag list can be uploaded with Upload and it fills in Mystery bags to check. Close-out marks the bags done for that sale. Without this, the items inside count as sold at full price, which makes the sale look short (Oct 30, 2026: $123.92 short before the Halloween bags were entered). If a sale is well short when closing out, the close-out screen asks about mystery bags and bundles first.',
   '- Cut up or split (Count tab, admins): for packs cut into pieces sold one at a time, like sticker sheets cut into single paws. Pick the item, say how many were cut up (blank means all), how many pieces there are now (count them; cutting rarely comes out even), the price for each piece, and a name. What the pack cost is spread over the pieces so profit stays right. All of it: the item changes in place, and this sale\'s order for it changes with it. Some of it: the pieces become their own item and the rest stay. It can not be done once the item has an after count for this sale; close out the sale first. The Saved screen has Undo. Print a new count sheet or price sheet afterward if one was already printed.',
   '- Uploads tab (admins only): every count sheet photo, deposit slip, Amazon order and Cash App file uploaded since Nov 7, 2026 is kept there, newest first, with who uploaded it, when, for which sale, and whether it was saved. Tap one to see it full size (tap the picture to zoom), then "Save or share" to keep a copy or print it, or "Delete this upload". Deleting only removes the picture; the numbers it saved stay. Uploads from before Nov 7, 2026 were not kept. "See past uploads" on the Upload screen opens the same page.',

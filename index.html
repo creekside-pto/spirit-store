@@ -204,6 +204,14 @@ textarea.in{min-height:84px;resize:vertical;font:inherit}
 .row .what{font-weight:700;min-width:0}
 .row .note{color:var(--muted);font-size:13px;min-width:0}
 .row .amt{text-align:right;font-weight:700}
+.row .msale{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:3px}
+.row .msale.warn{color:var(--warn);font-weight:700}
+.row .note [data-zero]{margin-top:6px}
+.mi-src{display:block;font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap}
+.mi-src.warn{color:var(--warn);font-weight:700}
+.sc-lines{display:grid;gap:4px;margin:10px 0;font-size:14px}
+.sc-lines div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:3px 0}
+.sc-lines .tot{font-weight:800;border-bottom:0}
 .row.need-it{border-color:var(--input-line);background:linear-gradient(0deg,var(--surface),var(--surface))}
 @media (max-width:760px){.row{grid-template-columns:minmax(0,1fr) 140px}.row .when{grid-column:1/-1;order:-1}.row .note{grid-column:1/-1}.row .act{grid-column:1/-1}}
 .sumline{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:800;font-size:16px}
@@ -468,6 +476,7 @@ input[type=radio],input[type=checkbox]{accent-color:var(--accent)}
 .btn.pulse{animation:pulse 1s ease-in-out 3;box-shadow:0 0 0 0 color-mix(in srgb,var(--event,var(--accent)) 55%,transparent)}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--event,var(--accent)) 55%,transparent)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.btn.pulse{animation:none;outline:3px solid var(--event,var(--accent))}}
+.row.pulse{outline:3px solid var(--event,var(--accent));outline-offset:2px}
 .upseg{margin-top:8px;max-width:100%;overflow-x:auto;scrollbar-width:none}.upseg::-webkit-scrollbar{display:none}.upseg button{white-space:nowrap;flex:none}
 .uplist{display:grid}
 .upcard{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--line);padding:12px 14px;cursor:pointer}
@@ -646,10 +655,107 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
   return res;
 }
 
+/* ===== Sale numbers that follow Money In =====
+   A closed sale's store sales and other fundraising should be the money that actually came in for it. Every Money In
+   line belongs to a sale by its date and its name, and counts as store money unless its name says it is something else
+   (class sponsors, face painting, donations and the like). Within reason the sale follows Money In by itself. A big
+   difference is asked about instead of changed, and so is a sale whose Money In is still waiting on an amount.
+   The page and the backend both use this, so the report, the History tab and the Google Sheet always agree. */
+var OTHER_MONEY_RE = /sponsor|face ?paint|donat|grant\b|raffle|auction|bake sale|concession|book ?fair|membership|\bdues\b|\(other\)/i;
+var NOT_STORE_NOTE_RE = /\bnot (the )?(spirit )?store\b/i;
+var MS_GENERIC = { spirit: 1, store: 1, stores: 1, sale: 1, sales: 1, shop: 1, school: 1, pto: 1, creekside: 1, lion: 1, lions: 1, the: 1, and: 1, of: 1, a: 1, cash: 1, app: 1, deposit: 1, deposits: 1, zeffy: 1, zelle: 1, venmo: 1, paypal: 1, total: 1 };
+function msNorm(s) { return String(s === undefined || s === null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+function msBase(ev) { var s = String(ev === undefined || ev === null ? '' : ev), prev; do { prev = s; s = s.replace(/\s*\([^()]*\)\s*$/, ''); } while (s !== prev); return msNorm(s); }
+function msBlank(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function msNum(v) { var n = Number(String(v === undefined || v === null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; }
+function msR2(n) { return Math.round(n * 100) / 100; }
+function msDay(d) {
+  if (Object.prototype.toString.call(d) === '[object Date]') return isNaN(d.getTime()) ? null : Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+  var t = String(d === undefined || d === null ? '' : d).trim(), m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5);
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // typed straight into the Sheet as 10/22/2026
+  return m ? Math.round(Date.UTC(+m[3], +m[1] - 1, +m[2]) / 864e5) : null;
+}
+/* how well a line's name matches a sale's theme: 0 = not at all; spec = the match has a real word, not just "spirit store" */
+function msMatch(line, sale) {
+  var th = msNorm(sale.theme); if (!th) return { n: 0, spec: false };
+  var ev = ' ' + msNorm(line.event) + ' ', base = msBase(line.event), hit = '';
+  if (ev.indexOf(' ' + th + ' ') >= 0) hit = th;
+  else if (base.length >= 4 && (' ' + th + ' ').indexOf(' ' + base + ' ') >= 0) hit = base;
+  if (!hit) return { n: 0, spec: false };
+  return { n: hit.length, spec: hit.split(' ').some(function (w) { return !MS_GENERIC[w]; }) };
+}
+/* other fundraising: its name says so (a word the sale's own name does not have: money called "Book Fair Night" at a
+   sale called Book Fair Night is that sale's store money), or its note says it is not store money */
+function msIsOther(line, sale) {
+  if (NOT_STORE_NOTE_RE.test(String(line.notes || ''))) return true;
+  var re = new RegExp(OTHER_MONEY_RE.source, 'gi'), ev = String(line.event || ''), th = String((sale && sale.theme) || '').toLowerCase(), m;
+  while ((m = re.exec(ev))) if (th.indexOf(m[0].toLowerCase()) < 0) return true;
+  return false;
+}
+/* a line still waiting on its amount: blank, or $0 with the "Enter the ..." note the close-out left on it */
+function msOpen(line) { return msBlank(line.amount) || (msNum(line.amount) === 0 && /^\s*enter\b/i.test(String(line.notes || ''))); }
+/* which sale a Money In line is for, or null. unsure = two sales that day and the name doesn't say which */
+function msSaleFor(line, sales) {
+  var d = msDay(line.date); if (d === null) return { sale: null };
+  var best = function (list, needSpec) {
+    var top = null, topN = 0, tie = false;
+    list.forEach(function (s) { var m = msMatch(line, s); if (!m.n || (needSpec && !m.spec)) return; if (m.n > topN) { top = s; topN = m.n; tie = false; } else if (m.n === topN) tie = true; });
+    return tie ? 'tie' : top;
+  };
+  var same = sales.filter(function (s) { return msDay(s.date) === d; });
+  var b = best(same, false);                       // 1. a sale that day with the line's name
+  if (b && b !== 'tie') return { sale: b };
+  if (b === 'tie') return { sale: null, unsure: same };
+  var near = sales.filter(function (s) { var sd = msDay(s.date); return sd !== null && d - sd >= -3 && d - sd <= 14; });
+  b = best(near, true);                            // 2. a sale a few days around it with its own name in the line (a deposit made later)
+  if (b && b !== 'tie') return { sale: b };
+  if (same.length === 1) return { sale: same[0] }; // 3. the only sale that day
+  if (same.length > 1) return { sale: null, unsure: same };
+  return { sale: null };
+}
+function reconcileSales(sales, moneyIn, keep) {
+  sales = sales || []; moneyIn = moneyIn || []; keep = keep && typeof keep === 'object' ? keep : {};
+  var out = { sales: {}, lines: {}, unsure: [], ops: [] };
+  sales.forEach(function (s) { out.sales[String(s.id)] = { store: { sum: 0, n: 0, open: [], lines: [] }, other: { sum: 0, n: 0, open: [], lines: [] } }; });
+  moneyIn.forEach(function (m) {
+    var f = msSaleFor(m, sales);
+    if (!f.sale) { if (f.unsure) out.unsure.push({ line: m, sales: f.unsure }); return; }
+    var kind = msIsOther(m, f.sale) ? 'other' : 'store', g = out.sales[String(f.sale.id)][kind];
+    out.lines[String(m.id)] = { sale: String(f.sale.id), kind: kind };
+    g.lines.push(m);
+    if (msOpen(m)) g.open.push(m); else { g.sum += msNum(m.amount); g.n++; }
+  });
+  sales.forEach(function (s) {
+    var r = out.sales[String(s.id)], live = s.link === 'current';
+    ['store', 'other'].forEach(function (kind) {
+      var g = r[kind], field = kind === 'store' ? 'sales' : 'other', stored = msBlank(s[field]) ? null : msNum(s[field]);
+      var mi = msR2(g.sum), k = keep[String(s.id)] && keep[String(s.id)][field];
+      g.stored = stored; g.mi = g.n ? mi : null; g.v = stored;
+      if (live && kind === 'store') { g.status = 'live'; return; } // the current sale uses the cash box until it is closed out
+      if (!g.n && !g.open.length) { g.status = 'none'; return; }
+      if (g.open.length) { g.status = 'open'; if (stored === null && g.n) g.v = mi; return; }
+      var diff = stored === null ? null : msR2(mi - stored);
+      if (diff !== null && Math.abs(diff) < 0.005) { g.status = 'ok'; g.v = mi; return; }
+      if (k !== undefined && k !== null && Math.abs(msNum(k) - mi) < 0.005) { g.status = 'kept'; return; }
+      var ok = stored === null || (kind === 'store' ? Math.abs(diff) <= Math.max(100, 0.25 * Math.max(Math.abs(stored), Math.abs(mi))) : diff > 0);
+      if (!ok) { g.status = 'ask'; return; }
+      g.status = 'fix'; g.v = mi;
+      out.ops.push({ op: 'set', table: 'sales', id: s.id, field: field, prev: msBlank(s[field]) ? '' : s[field], value: mi });
+    });
+  });
+  return out;
+}
+function salesKeepFrom(settingsRows) {
+  var r = (settingsRows || []).filter(function (x) { return String(x.id) === 'salesKeep'; })[0];
+  if (!r || msBlank(r.value)) return {};
+  try { var o = JSON.parse(String(r.value)); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; }
+}
+
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '11f65c7124'; // set by the build; version.json next to this page says which build is live
+const BUILD = '7ab3222dde'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -820,22 +926,33 @@ function model(){
   const off = taken === null ? 0 : taken + cashapp - T.rev;
   const startLeftOut = !endBlank && start > 0 && (end < start || (T.counted > 0 && off < 0 && (
     (deposit && Math.abs(num(deposit.amount) - end) < 0.01 && Math.abs(off + start) < Math.abs(off)) || Math.abs(off + start) < 5)));
+  // each closed sale's store sales and other fundraising follow Money In (shared.js reconcileSales), so the report always matches the money that came in
+  const REC = reconcileSales(rows('sales'), mIn, salesKeepFrom(rows('settings')));
   const sales = rows('sales').map(s => {
     const live = s.link === 'current';
+    const rc = REC.sales[String(s.id)];
     const spent = live ? purchTotal : (blank(s.spent) ? null : num(s.spent));
-    const sl = live ? (moneyIn !== null ? moneyIn : T.rev ? T.rev : null) : (blank(s.sales) ? null : num(s.sales));
+    const sl = live ? (moneyIn !== null ? moneyIn : T.rev ? T.rev : null) : rc.store.v;
+    const ot = rc.other.v;
     const profit = sl === null ? null : sl - (spent || 0);
-    return { ...s, live, spentV: spent, salesV: sl, profit, total: profit === null ? null : profit + num(s.other) };
+    return { ...s, live, spentV: spent, salesV: sl, otherV: ot, rc, profit, total: profit === null ? null : profit + (ot || 0) };
   });
   const itemNames = new Set(items.map(i => String(i.name || '').trim().toLowerCase()));
   const unmatched = cur.filter(p => !blank(p.item) && !itemNames.has(String(p.item).trim().toLowerCase()));
-  return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, bags: MG, mIn, mOut, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
+  return { ev, liveId, unmatched, allP, cur, purchTotal, purchUnits, items, T, shelf, bags: MG, mIn, mOut, rec: REC, totalIn, totalOut, net: totalIn - totalOut, real: totalIn - totalOut + shelf,
            cash: { start, end, endBlank, cashapp, taken, money: moneyIn, startLeftOut, expected: T.rev, over: taken === null ? null : taken + cashapp - T.rev }, sales };
 }
 
 function needsList(M){
   const out = [];
   for (const r of M.mIn) if (blank(r.amount)) out.push({ who:'vol', t:'money', id:'moneyIn|'+r.id, title:'Enter amount: ' + r.event, sub: fdate(r.date, true) + (r.notes ? ' · ' + r.notes : '') });
+  // a $0 that still has the close-out's "Enter the ..." note: the sale can't be checked against Money In until someone says it really was $0
+  for (const r of M.mIn) if (!blank(r.amount) && msOpen(r)) out.push({ who:'vol', t:'money', id:'moneyIn|'+r.id, title:'Enter the real amount: ' + r.event, sub: 'It shows $0 but still says "' + String(r.notes).trim() + '". Type the real total, or tap "It was $0" on that line.' });
+  for (const u of M.rec.unsure) out.push({ who:'admin', t:'money', id:'moneyIn|'+u.line.id, title:'Which sale is this money for? ' + (u.line.event || 'Money in'), sub: u.sales.length + ' sales are on ' + fdate(u.line.date, true) + '. Start its name with the sale\'s name, like "' + (u.sales[0].theme || 'Sale name') + ' (Cash App)".' });
+  for (const s of M.sales) for (const [kind, f, lab] of [['store', 'sales', 'store sales'], ['other', 'other', 'other fundraising']]) {
+    const g = s.rc[kind];
+    if (g.status === 'ask') out.push({ who:'admin', t:'history', check: s.id + '|' + f, title:'Check ' + (s.theme || 'a sale') + ' ' + lab, sub:'The sale says ' + money(g.stored) + '. Money In shows ' + money(g.mi) + '. Tap to pick which is right.' });
+  }
   for (const r of M.mOut) if (r.link !== 'purchases' && blank(r.amount)) out.push({ who:'admin', t:'money', id:'moneyOut|'+r.id, title:'Enter cost: ' + r.order, sub: r.notes || 'Money out' });
   const uncounted = M.items.filter(i => i.onHandBlank && !i.received);
   if (uncounted.length) out.push({ who:'vol', t:'count', phase:'before', title:'Count what is on hand: ' + uncounted.map(i => i.name).slice(0,3).join(', ') + (uncounted.length > 3 ? ' and ' + (uncounted.length-3) + ' more' : ''), sub:'Before the sale' });
@@ -1080,12 +1197,22 @@ function vCount(M){
 function moneyRow(t, r, M){
   const isLink = t === 'moneyOut' && r.link === 'purchases';
   const labelF = t === 'moneyIn' ? 'event' : 'order';
-  const need = !isLink && blank(r.amount);
+  const zero = t === 'moneyIn' && !blank(r.amount) && msOpen(r);
+  const need = !isLink && (blank(r.amount) || zero);
+  // which sale this money counts toward, so it is clear where the report gets its numbers
+  let forSale = '';
+  if (t === 'moneyIn') {
+    const L = M.rec.lines[String(r.id)], s = L && M.sales.find(x => String(x.id) === L.sale);
+    const unsure = !L && M.rec.unsure.some(u => String(u.line.id) === String(r.id));
+    forSale = s ? '<small class="msale">Counts for ' + esc(s.theme || 'a sale') + (L.kind === 'other' ? ' · other fundraising' : ' · store sales') + '</small>'
+      : unsure ? '<small class="msale warn">Two sales that day. Start the name with the sale\'s name.</small>' : '';
+  }
+  const zeroBtn = zero && auth && !pending.sets[key(t, r.id, 'notes')] ? `<button class="btn small" type="button" data-zero="${esc(r.id)}">It was $0</button>` : '';
   return `<div class="row ${need ? 'need-it' : ''}" id="row-${t}-${esc(r.id)}">
     <div class="when">${isAdmin() ? field(t, r, 'date', { type:'date' }) : esc(fdate(r.date, true)) || '<span class="blank">No date</span>'}</div>
-    <div class="what">${isAdmin() ? field(t, r, labelF) : esc(r[labelF])}</div>
+    <div class="what">${isAdmin() ? field(t, r, labelF) : esc(r[labelF])}${forSale}</div>
     <div class="amt num">${isLink ? money(M.purchTotal) + '<br><small class="muted" style="font-weight:500">from Orders</small>' : field(t, r, 'amount', { ph:'Enter amount', blankText:'Not entered', fmt: money })}</div>
-    <div class="note">${field(t, r, 'notes', { ph:'Notes' })}</div>
+    <div class="note">${field(t, r, 'notes', { ph:'Notes' })}${zeroBtn}</div>
     <div class="act">${isAdmin() ? `<button class="btn small danger" type="button" data-del="${t}|${esc(r.id)}">Remove</button>` : ''}</div>
   </div>`;
 }
@@ -1167,9 +1294,30 @@ function vOrders(M){
   ${past.length ? `<section><div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Earlier orders</h2><p>${past.length} lines from past sales</p></div><div class="tablewrap"><table><thead><tr><th>Sale</th><th>Date</th><th>Item</th><th class="r">Units</th><th class="r">Total</th></tr></thead><tbody>${past.map(p => `<tr><td>${esc(saleLabel(p.sale))}</td><td>${esc(fdate(p.date))}</td><td>${esc(p.item)}</td><td class="r num">${count(p.units)}</td><td class="r num">${money(p.total)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
 }
 
+/* A sale's store sales or other fundraising in History: from Money In when that is where it comes from (change it there),
+   otherwise the number typed in, with a note when Money In is not finished or does not agree. */
+/* Under a sale's name on the report: what it was, and anything that keeps its numbers from being final */
+function saleNotes(x){
+  const n = x.what ? [String(x.what)] : [];
+  for (const [kind, lab] of [['store', 'store sales'], ['other', 'other fundraising']]) {
+    const g = x.rc[kind];
+    if (g.status === 'open') n.push('Not final: waiting on ' + g.open.map(m => m.event || 'a Money In line').join(' and ') + ' on the Money tab');
+    if (g.status === 'ask') n.push('Check ' + lab + ': Money In shows ' + money(g.mi));
+  }
+  return n.length ? '\n' + n.join('\n') : '';
+}
+function miCell(s, kind){
+  const f = kind === 'store' ? 'sales' : 'other', g = s.rc[kind], v = kind === 'store' ? s.salesV : s.otherV;
+  if (g.status === 'ok' || g.status === 'fix') return money(v) + '<small class="mi-src" title="Change it on the Money tab">from Money In</small>';
+  const typed = field('sales', s, f, { fmt: money });
+  if (g.status === 'open') return typed + '<small class="mi-src warn" title="A Money In line for this sale has no amount yet">Money In not done</small>';
+  if (g.status === 'ask') return typed + (isAdmin() ? `<button class="linkbtn mi-src warn" type="button" data-salecheck="${esc(s.id + '|' + f)}">Money In shows ${money(g.mi)}</button>` : '<small class="mi-src warn">Money In shows ' + money(g.mi) + '</small>');
+  if (g.status === 'kept') return typed + '<small class="mi-src">kept · Money In ' + money(g.mi) + '</small>';
+  return typed;
+}
 function vHistory(M){
   const adm = isAdmin();
-  const tot = M.sales.reduce((a, s) => ({ spent: a.spent + (s.spentV || 0), sales: a.sales + (s.salesV || 0), other: a.other + num(s.other), profit: a.profit + (s.profit || 0), total: a.total + (s.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
+  const tot = M.sales.reduce((a, s) => ({ spent: a.spent + (s.spentV || 0), sales: a.sales + (s.salesV || 0), other: a.other + (s.otherV || 0), profit: a.profit + (s.profit || 0), total: a.total + (s.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
   return `
   <div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Sale history</h2><p>One row per sale. Leftovers carry to the next sale, so true profit runs a little higher.</p><button class="btn small" type="button" data-report>Print report</button></div>
   <div class="tablewrap"><table>
@@ -1178,21 +1326,27 @@ function vHistory(M){
       <td>${adm ? field('sales', s, 'date', { type:'date' }) : esc(fdate(s.date))}</td>
       <td>${field('sales', s, 'theme')} ${s.live ? '<span class="pill new">Live</span>' : ''}</td>
       <td class="r num">${s.live ? money(s.spentV) : field('sales', s, 'spent', { fmt: money })}</td>
-      <td class="r num">${s.live ? (s.salesV === null ? '<span class="blank">After counts</span>' : money(s.salesV)) : field('sales', s, 'sales', { fmt: money })}</td>
+      <td class="r num">${s.live ? (s.salesV === null ? '<span class="blank">After counts</span>' : money(s.salesV)) : miCell(s, 'store')}</td>
       <td class="r num" data-calc="sh:profit:${esc(s.id)}">${s.profit === null ? '<span class="blank">·</span>' : money(s.profit)}</td>
-      <td class="r num">${field('sales', s, 'other', { fmt: money })}</td>
+      <td class="r num">${miCell(s, 'other')}</td>
       <td>${field('sales', s, 'what')}</td>
       <td class="r num"><b data-calc="sh:total:${esc(s.id)}">${s.total === null ? '<span class="blank">·</span>' : money(s.total)}</b></td>
       ${adm ? `<td>${s.live ? '' : `<button class="btn small danger" type="button" data-del="sales|${esc(s.id)}">Remove</button>`}</td>` : ''}
     </tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="2">All sales</td><td class="r num">${money(tot.spent)}</td><td class="r num">${money(tot.sales)}</td><td class="r num">${money(tot.profit)}</td><td class="r num">${money(tot.other)}</td><td></td><td class="r num">${money(tot.total)}</td>${adm ? '<td></td>' : ''}</tr></tfoot>
   </table></div>
-  <p class="foot">Sales are the money that came in: cash (not counting the starting cash) plus Cash App. The live row uses the cash box once it is counted, and the item counts until then. ${HISTORY_NOTE}</p>
+  <p class="foot">Sales are the money that came in: cash (not counting the starting cash) plus Cash App. Once a sale is closed, its store sales and other fundraising come from its lines on the Money tab, so fix a wrong number there. The live row uses the cash box once it is counted, and the item counts until then. ${HISTORY_NOTE}</p>
   ${adm ? `<section><div class="card pad"><h3 style="font-size:16px;font-weight:800">Done with ${esc(M.ev)}?</h3><p class="muted" style="margin:6px 0 12px">Close it out to lock in its numbers and start the next sale. Counted-after numbers become the next sale's on-hand counts.</p><button class="btn primary" type="button" id="closeoutBtn">Close out and start next sale</button></div></section>` : ''}`;
 }
 
 function logEntry(e){
   if (e.table === 'settings' && String(e.rowId) === 'bundles') return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> changed what is in the bundles <span class="muted">· Count</span></span></div>`;
+  if (e.table === 'settings' && String(e.rowId) === 'salesKeep') { // Keep on a sale that does not match Money In
+    const pj = v => { try { const o = JSON.parse(v || '{}'); return o && typeof o === 'object' ? o : {}; } catch (x) { return {}; } };
+    const was = pj(e.old), now = pj(e.new), lab = { sales:'store sales', other:'other fundraising' }, parts = [];
+    for (const [sid, v] of Object.entries(now)) for (const f of Object.keys(v || {})) if (!was[sid] || was[sid][f] !== v[f]) { const sr = (data.sales || []).find(r => String(r.id) === sid); parts.push((sr ? sr.theme : 'a sale') + ' ' + (lab[f] || f)); }
+    return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> kept <b>${esc(parts.join(', ') || 'a sale\'s number')}</b> as typed, after checking it against Money In <span class="muted">· History</span></span></div>`;
+  }
   if (e.table === 'photos' || (e.table === 'settings' && String(e.rowId) === 'priceSheet')) {
     const it = (data.items || []).find(r => String(r.id) === String(e.rowId));
     return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${e.table === 'photos' ? (e.new === 'no photo' ? 'removed the photo for ' : e.new === 'starter photo' ? 'went back to the starter photo for ' : 'added a photo for ') + '<b>' + esc(it ? it.name : e.rowId) + '</b>' : 'changed the price sheet'} <span class="muted">· Price sheet</span></span></div>`;
@@ -1200,12 +1354,13 @@ function logEntry(e){
   const tname = { items:'Count', purchases:'Orders', moneyIn:'Money in', moneyOut:'Money out', sales:'History', cash:'Cash box', settings:'Settings', uploads:'Uploads' }[e.table] || e.table;
   const live = (data[e.table] || []).find(r => String(r.id) === String(e.rowId));
   const what = e.field === '(security)' ? esc(e.new) : e.field === '(added)' ? 'added <b>' + esc(e.new) + '</b>' : e.field === '(removed)' ? 'removed <b>' + esc(e.old) + '</b>' :
-    'set <b>' + esc(FIELD_NAMES[e.field] || e.field) + '</b>' + (live ? ' for <b>' + esc(labelOf(e.table, live)) + '</b>' : '') + ' from ' + (blank(e.old) ? 'blank' : '<b>' + esc(e.old) + '</b>') + ' to ' + (blank(e.new) ? 'blank' : '<b>' + esc(e.new) + '</b>');
-  const canRevert = isAdmin() && e.field && e.field[0] !== '(' && live && normVal(e.table, e.field, live[e.field], e.rowId) === normVal(e.table, e.field, e.new, e.rowId);
+    'set <b>' + esc((e.table === 'sales' && { sales:'Store sales', other:'Other fundraising' }[e.field]) || FIELD_NAMES[e.field] || e.field) + '</b>' + (live ? ' for <b>' + esc(labelOf(e.table, live)) + '</b>' : '') + ' from ' + (blank(e.old) ? 'blank' : '<b>' + esc(e.old) + '</b>') + ' to ' + (blank(e.new) ? 'blank' : '<b>' + esc(e.new) + '</b>') + (e.role === 'auto' ? ' to match Money In' : '');
+  // an auto-fix has no Undo: the next save would only make it again (fix the Money In line instead)
+  const canRevert = isAdmin() && e.role !== 'auto' && e.field && e.field[0] !== '(' && live && normVal(e.table, e.field, live[e.field], e.rowId) === normVal(e.table, e.field, e.new, e.rowId);
   return `<div class="ent"><span class="t num">${esc(ftime(e.time))}</span><span><b>${esc(e.name || 'Someone')}</b> ${what} <span class="muted">· ${esc(tname)}</span></span>${canRevert ? `<button class="btn small" type="button" data-revert='${esc(JSON.stringify({ t:e.table, id:e.rowId, f:e.field, old:e.old, nw:e.new }))}'>Undo</button>` : '<span></span>'}</div>`;
 }
 /* the tracker's own bookkeeping (remembered answers, imported Cash App IDs) stays out of the change lists */
-function shownLog(){ return (data.log || []).filter(l => !(l.table === 'settings' && /^(learned|cashappSeen)$/.test(String(l.rowId)))); }
+function shownLog(){ return (data.log || []).filter(l => !(l.table === 'settings' && (/^(learned|cashappSeen)$/.test(String(l.rowId)) || (String(l.rowId) === 'salesKeep' && l.field === '(added)')))); }
 function vActivity(){
   const log = shownLog();
   return `<div class="sec-h"><h2><span class="paw" aria-hidden="true"></span>Activity</h2><p>Every saved change, newest first.${DEMO ? '' : ' The full record also lives in the Change Log tab of the Google Sheet.'}</p></div>
@@ -1364,8 +1519,9 @@ async function delUpGroup(){
    Opens on its own after unlocking with the admin or super admin PIN (and when the page opens already unlocked),
    up to 3 times on each phone or computer, or until "Don't show this again". "What's new" at the bottom of every
    page opens it any time. To announce the next batch of changes, give TOUR_ID a new name and write new slides. */
-const TOUR_ID = 'nov8', TOUR_TIMES = 3;
+const TOUR_ID = 'nov8b', TOUR_TIMES = 3;
 const TOUR_ART = {
+  money: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M14.8 8.8c-.6-.9-1.6-1.4-2.8-1.4-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.7 5.8 4.8 0 1.3-1.2 2.4-3 2.4-1.3 0-2.4-.6-3-1.6M12 5.2v13.6" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>',
   bags: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l1.2 12.2a1 1 0 0 1-1 1.1H5.8a1 1 0 0 1-1-1.1z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="18.5" font-size="8" font-weight="800" text-anchor="middle" fill="#fff">?</text></svg>',
   hello: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.6 6.3L21 9l-5 4.4L17.5 21 12 17.3 6.5 21 8 13.4 3 9l6.4-.7z"/></svg>',
   uploads: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h12v12H4z" opacity=".45"/><path d="M8 3h12v12H8z"/><path d="M10 12l2.5-3 2 2.2L16 10l2 3z" fill="#fff"/></svg>',
@@ -1375,10 +1531,21 @@ const TOUR_ART = {
 };
 function tourSlides(){
   const paw = (rows('items').find(i => String(i.id) === 'it16') || {});
-  let seen7 = false; try { const v = JSON.parse(localStorage.getItem('css-tour-nov7') || 'null'); seen7 = !!(v && (v.n > 0 || v.off)); } catch (e) {}
+  const seen = id => { try { const v = JSON.parse(localStorage.getItem('css-tour-' + id) || 'null'); return !!(v && (v.n > 0 || v.off)); } catch (e) { return false; } };
+  const seen7 = seen('nov7'), seen8 = seen('nov8'); // earlier news shows only to someone who has not seen it yet
   let M = null; try { M = model(); } catch (e) {}
+  // Nov 8, afternoon: sale numbers follow Money In, with the real numbers it corrected and the one sale still waiting
+  const sv = id => M && M.sales.find(s => String(s.id) === id && !s.live);
+  const good = s => s && (s.rc.store.status === 'ok' || s.rc.store.status === 'fix');
+  const s1 = sv('sh01'), s2 = sv('sh02'), s3 = sv('sh03'), ff = sv('shmvb73n2e');
+  const fixedParts = [good(s1) ? 'Sep 25 now includes its Cash App: ' + money(s1.salesV) + '.' : '', good(s2) ? 'Oct 2 now includes its Cash App: ' + money(s2.salesV) + (s2.otherV ? ', and other fundraising includes the class sponsors\' Cash App too: ' + money(s2.otherV) : '') + '.' : '', good(s3) ? 'Pink Out now matches its deposits: ' + money(s3.salesV) + '.' : ''].filter(Boolean);
+  const nov8b = [
+    { art:'money', t:'Sale numbers follow Money In', b:'Once a sale is closed, its store sales and other fundraising come straight from its lines on the Money tab (cash deposit plus Cash App), so History and the sales report always match the money that actually came in. Small differences fix themselves and show in Activity as "Tracker auto-fix". A big one becomes a to-do where you pick which number is right.', go:'history', goText:'Show me History' },
+    fixedParts.length ? { art:'money', t:'Your past sales are corrected', b:'Before, some sales only counted the cash deposit. ' + fixedParts.join(' ') } : null,
+    ff && ff.rc.store.status === 'open' ? { art:'money', t:'One question about Fall Festival', b:'Its Cash App line on the Money tab shows $0 but still says "Enter the Cash App total". If there really was no Cash App that day, tap "It was $0" on that line. If there was, type the total. Either way the sale finishes itself. For now it shows ' + money(ff.salesV) + ', which came from the item counts.', go:'money', goBtn:'row-moneyIn-mimvb73n2eb', goText:'Show me the line' } : null
+  ].filter(Boolean);
   const hb = M && M.bags.find(g => g.id === 'mbhalloween1030'); // the Oct 30 bags entered from Brittany's list
-  const nov8 = [
+  const nov8 = seen8 ? [] : [
     { art:'bags', t:'Mystery bags', b:'Mystery bags have their own button now: Count tab, Mystery bags. Say how many bags sold at each price, then how many of each item went into all of them, right off your list. The items inside come out of their own sales, the bags count at the bag price, and profit comes out right. You never have to say what went in each bag.', go:'count', goBtn:'mysteryBtn', goText:'Show me on the Count tab' },
     hb ? { art:'bags', t:'Your Oct 30 Halloween bags are in', b:count(hb.sold) + ' bags for ' + money(hb.rev) + ', with the ' + count(hb.used) + ' items from your list taken out of their own sales. The 5 mini mochi, 3 pumpkin paint kits and 2 glitter cubes were counted as part of the bags, since that is what the counts showed. Anything marked "Check count" is a count to look at again before you close out.', go:'count', goBtn:'mysteryBtn', goText:'Look at them' } : null,
     { art:'uploads', t:'Or just upload your list', b:'A photo of a handwritten bag list works too. Tap Upload, add the picture, and the tracker fills in Mystery bags for you to check before saving.' },
@@ -1391,7 +1558,7 @@ function tourSlides(){
     { art:'last', t:'Built to last', b:'The tracker now has room for years of sales, items, uploads and changes. One fix stopped saves from failing once the change history filled up. If the AI reader\'s model is ever retired, it finds the newest one on its own. Nothing for you to do.' }
   ].filter(Boolean);
   return [{ art:'hello', t:"What's new in the tracker", b:'A few things changed this week. This takes about a minute. Tap Next to see each one, or Skip to look later.' }]
-    .concat(nov8, nov7, [{ art:'hello', t:"That's everything", b:"You can open this again any time: tap What's new at the very bottom of any page." }]);
+    .concat(nov8b, nov8, nov7, [{ art:'hello', t:"That's everything", b:"You can open this again any time: tap What's new at the very bottom of any page." }]);
 }
 let tourAt = 0;
 function tourState(){ try { const v = JSON.parse(localStorage.getItem('css-tour-' + TOUR_ID) || 'null'); return v && typeof v === 'object' ? v : { n: 0, off: false }; } catch (e) { return { n: 0, off: false }; } }
@@ -1422,7 +1589,7 @@ function drawTour(first){
 }
 function tourGo(t, btn){
   closeSheet(); go(t);
-  if (t === 'count') setTimeout(() => { const b = $('#' + (btn || 'splitBtn')); if (b) { b.scrollIntoView({ block:'center', behavior:'smooth' }); b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 4000); } }, 150);
+  if (t === 'count' || btn) setTimeout(() => { const b = $('#' + (btn || 'splitBtn')); if (b) { b.scrollIntoView({ block:'center', behavior:'smooth' }); b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 4000); } }, 150);
 }
 
 /* ---------- Ask the tracker (admins only) ----------
@@ -1445,7 +1612,8 @@ function askContext(M){
     inBundles: M.items.filter(i => i.inBundles).map(i => [i.name, 'went into bundles: ' + i.inBundles, 'gone in total: ' + i.gone, 'sold on its own: ' + i.sold]),
     moneyIn: M.mIn.slice(-15).map(m => [m.date, m.event, m.amount]),
     moneyOut: M.mOut.slice(-15).map(m => [m.date, m.order, r2(m.amt)]),
-    pastSales: M.sales.map(x => [x.date, x.theme, x.spentV, x.salesV, x.live ? 'current sale' : '']),
+    pastSalesColumns: 'date, theme, spent on items, store sales, other fundraising, note (closed sales take store sales and other fundraising from their Money In lines)',
+    pastSales: M.sales.map(x => [x.date, x.theme, x.spentV, x.salesV, x.otherV, x.live ? 'current sale' : saleNotes(x).trim().replace(/\n/g, '; ')]),
     recentChanges: shownLog().slice(0, 12).map(e => [e.time, e.name, e.table, e.field, e.old, e.new])
   };
 }
@@ -2434,6 +2602,47 @@ async function saveSplit(){
   toast('Saved. ' + count(P.pieces) + ' ' + P.name + ' at ' + priceLabel(P.price) + ' each.');
   spDraft = null;
 }
+/* ---------- A sale that does not match Money In by more than it should change on its own ---------- */
+function openSaleCheck(ref){
+  if (!isAdmin()) return;
+  const [sid, f] = String(ref).split('|'), M = model(), s = M.sales.find(x => String(x.id) === sid);
+  const kind = f === 'sales' ? 'store' : 'other', lab = kind === 'store' ? 'store sales' : 'other fundraising';
+  const g = s && s.rc[kind];
+  if (!g || g.status !== 'ask') { closeSheet(); render(); toast('That one is settled already.'); return; }
+  const d = g.mi - g.stored;
+  openSheet(`<h3>${esc(s.theme || 'This sale')} ${lab}</h3>
+    <p>The sale says <b>${money(g.stored)}</b>. Its lines on the Money tab add up to <b>${money(g.mi)}</b>, ${money(Math.abs(d))} ${d > 0 ? 'more' : 'less'}. That is too big a difference for the tracker to change by itself, so you pick.</p>
+    <div class="sc-lines">${g.lines.map(m => `<div><span>${esc(fdate(m.date, true))} · ${esc(m.event || '')}</span><b class="num">${blank(m.amount) ? 'Not entered' : money(num(m.amount))}</b></div>`).join('')}
+      <div class="tot"><span>Money In for this sale</span><span class="num">${money(g.mi)}</span></div></div>
+    <p class="muted">If one of those lines is wrong, fix it on the Money tab instead. This goes away by itself once they agree.</p>
+    <div class="err" id="scErr" role="alert"></div>
+    <div class="acts"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn ghost" type="button" id="scMoney">Go to Money tab</button>
+      <button class="btn" type="button" id="scKeep" data-ref="${esc(ref)}">Keep ${money(g.stored)}</button><button class="btn primary" type="button" id="scUse" data-ref="${esc(ref)}">Use ${money(g.mi)}</button></div>`);
+}
+async function saveSaleCheck(ref, use){
+  const [sid, f] = String(ref).split('|'), M = model(), s = M.sales.find(x => String(x.id) === sid);
+  const kind = f === 'sales' ? 'store' : 'other', g = s && s.rc[kind], srv = serverRow('sales', sid);
+  if (!g || !srv || g.status !== 'ask') { closeSheet(); render(); return; }
+  let ops;
+  if (use) ops = [{ op:'set', table:'sales', id: sid, field: f, prev: srv[f] ?? '', value: g.mi }];
+  else { // remember that this number was checked against this Money In total; if Money In changes later, it asks again
+    const kr = serverRow('settings', 'salesKeep'), k = salesKeepFrom(data.settings);
+    k[sid] = Object.assign({}, k[sid], { [f]: g.mi });
+    // the first time, the setting is made empty and then set, so Activity can say which sale was kept
+    ops = kr ? [{ op:'set', table:'settings', id:'salesKeep', field:'value', prev: kr.value ?? '', value: JSON.stringify(k) }]
+      : [{ op:'add', table:'settings', row:{ id:'salesKeep', value:'{}' } }, { op:'set', table:'settings', id:'salesKeep', field:'value', prev:'{}', value: JSON.stringify(k) }];
+  }
+  ['scUse', 'scKeep'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; });
+  const r = await sendOps(ops);
+  if (!r.ok || (r.conflicts && r.conflicts.length)) {
+    if (r.data) data = r.data;
+    ['scUse', 'scKeep'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = false; });
+    const e = $('#scErr'); if (e) e.textContent = r.ok ? 'Someone changed this at the same moment. Close this and try again.' : (r.error || 'Not saved.');
+    return;
+  }
+  data = r.data; closeSheet(); render();
+  toast(use ? (s.theme || 'The sale') + ' now uses ' + money(g.mi) + ' from Money In.' : 'Kept ' + money(g.stored) + '. It will only ask again if Money In changes.');
+}
 /* ---------- Print: one button, three PDFs ---------- */
 function openPrintMenu(){
   openSheet(`<h3>Print</h3><p>Pick what to print. Each one makes a PDF from the numbers in the tracker right now.</p>
@@ -2710,15 +2919,15 @@ async function exportReport(btn){
     // every sale, then the totals
     y = pdfBar(doc, L, y, W - 2 * L, 'Every sale');
     const sales = M.sales.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const tot = sales.reduce((a, x) => ({ spent: a.spent + (x.spentV || 0), sales: a.sales + (x.salesV || 0), other: a.other + num(x.other), profit: a.profit + (x.profit || 0), total: a.total + (x.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
+    const tot = sales.reduce((a, x) => ({ spent: a.spent + (x.spentV || 0), sales: a.sales + (x.salesV || 0), other: a.other + (x.otherV || 0), profit: a.profit + (x.profit || 0), total: a.total + (x.total || 0) }), { spent:0, sales:0, other:0, profit:0, total:0 });
     doc.autoTable({ ...tableStyle, startY: y + 4,
       head: [['Date', 'Sale', 'Spent on items', 'Store sales', 'Store profit', 'Other fundraising', 'Total raised']],
-      body: sales.map(x => [fdate(x.date) + (x.date ? ', ' + String(x.date).slice(0, 4) : ''), (x.theme || '') + (x.live ? ' (current sale)' : '') + (x.what ? '\n' + x.what : ''), m$(x.spentV), x.salesV === null ? (x.live ? 'Not yet' : '') : money(x.salesV), m$(x.profit), m$(blank(x.other) ? null : num(x.other)), m$(x.total)]),
+      body: sales.map(x => [fdate(x.date) + (x.date ? ', ' + String(x.date).slice(0, 4) : ''), (x.theme || '') + (x.live ? ' (current sale)' : '') + saleNotes(x), m$(x.spentV), x.salesV === null ? (x.live ? 'Not yet' : '') : money(x.salesV), m$(x.profit), m$(x.otherV), m$(x.total)]),
       foot: [['', 'All ' + sales.length + ' sales', money(tot.spent), money(tot.sales), money(tot.profit), money(tot.other), money(tot.total)]],
       columnStyles:{ 0:{ cellWidth:76 }, 1:{ cellWidth:'auto' }, 2:{ halign:'right', cellWidth:62 }, 3:{ halign:'right', cellWidth:62 }, 4:{ halign:'right', cellWidth:62 }, 5:{ halign:'right', cellWidth:62 }, 6:{ halign:'right', cellWidth:66, fontStyle:'bold' } } });
     y = doc.lastAutoTable.finalY + 10;
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
-    const sn = doc.splitTextToSize('Store sales = the money that came in: cash (not counting the starting cash) plus Cash App. The current sale uses the cash box once it is counted, and the item counts until then. Store profit = store sales minus what was spent on items. Total raised = store profit plus other fundraising. ' + HISTORY_NOTE, W - 2 * L);
+    const sn = doc.splitTextToSize('Store sales = the money that came in: cash (not counting the starting cash) plus Cash App. A closed sale\'s store sales and other fundraising are its lines on the Money tab. The current sale uses the cash box once it is counted, and the item counts until then. Store profit = store sales minus what was spent on items. Total raised = store profit plus other fundraising. ' + HISTORY_NOTE, W - 2 * L);
     doc.text(sn, L, y + 4); y += sn.length * 10 + 16;
     // the money behind it
     const ledger = (title, rows, total) => {
@@ -3741,9 +3950,18 @@ document.addEventListener('click', e => {
     go(n.t);
     if (n.open === 'bundles' && isAdmin()) return openBundles();
     if (n.open === 'mystery' && isAdmin()) return openMystery();
+    if (n.check && isAdmin()) return openSaleCheck(n.check);
     if (n.id) { const [t, id] = n.id.split('|'); const row = document.getElementById('row-' + t + '-' + id); if (row) { row.scrollIntoView({ block:'center' }); const inp = row.querySelector('.amt input'); if (inp) inp.focus({ preventScroll:true }); } }
     return;
   }
+  if (b.dataset.zero) { // the $0 is real: say so in the note, so the sale can be checked against Money In
+    const srv = serverRow('moneyIn', b.dataset.zero); if (!srv || !auth) return;
+    pending.sets[key('moneyIn', srv.id, 'notes')] = { op:'set', table:'moneyIn', id: srv.id, field:'notes', prev: srv.notes ?? '', value: /cash ?app/i.test(srv.event || '') ? 'No Cash App this sale' : 'Nothing came in' };
+    render(); renderSavebar(); toast('Marked as $0. Submit to save, or Discard to undo.'); return;
+  }
+  if (b.dataset.salecheck) return openSaleCheck(b.dataset.salecheck);
+  if (b.id === 'scUse' || b.id === 'scKeep') return saveSaleCheck(b.dataset.ref, b.id === 'scUse');
+  if (b.id === 'scMoney') { closeSheet(); return go('money'); }
   if (b.dataset.addrow) return newRow(b.dataset.addrow);
   if (b.dataset.del) {
     const [t, id] = b.dataset.del.split('|');
