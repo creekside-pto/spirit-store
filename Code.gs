@@ -213,8 +213,13 @@ function doPost(e) {
   if (body.action === 'readDoc') return json(readDoc(body, role.role));
   if (body.action === 'ask') return json(ask(body, role.role, false, isSuper));
   if (body.action === 'setPhoto') return json(setPhoto(body, role.role));
+  if (body.action === 'keepUpload') return json(upSafe(keepUpload, body, role.role));
+  if (body.action === 'markUpload') return json(upSafe(markUpload, body, role.role));
+  if (body.action === 'uploads') return json(upSafe(listUploads, body, role.role));
+  if (body.action === 'getUpload') return json(upSafe(getUpload, body, role.role));
+  if (body.action === 'delUpload') return json(upSafe(delUpload, body, role.role));
   if (body.action !== 'save' || !Array.isArray(body.ops)) return json({ ok: false, error: 'Bad request.' });
-  if (body.ops.length > 3000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
+  if (body.ops.length > 20000) return json({ ok: false, error: 'Too many changes at once. Save in smaller batches.' });
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return json({ ok: false, error: 'The tracker is busy saving someone else\'s changes. Try again in a moment.' });
@@ -264,6 +269,22 @@ function setPinsFromWeb(body, role) {
 
 /* ------------------------------ AI order reader ------------------------------ */
 var AI_MODELS = ['claude-sonnet-5-5', 'claude-sonnet-4-5', 'claude-haiku-5-5'];
+/* Anthropic retires older models every year or two. When every model above is gone, the tracker asks Anthropic
+   which models this key can use, picks the newest Sonnet (or the newest of anything), remembers it in the Script
+   Properties as AI_MODEL, and carries on. A model that works after the first one failed is remembered the same way. */
+function aiModelList() {
+  var saved = PropertiesService.getScriptProperties().getProperty('AI_MODEL');
+  return (saved ? [saved] : []).concat(AI_MODELS.filter(function (m) { return m !== saved; }));
+}
+function aiFindModel(key, tried) {
+  try {
+    var r = UrlFetchApp.fetch('https://api.anthropic.com/v1/models?limit=100', { method: 'get', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
+    if (r.getResponseCode() !== 200) return '';
+    var ids = ((JSON.parse(r.getContentText()) || {}).data || []).map(function (m) { return String((m && m.id) || ''); })
+      .filter(function (id) { return /^claude-[a-z0-9.-]+$/.test(id) && tried.indexOf(id) < 0; }); // newest first, as Anthropic lists them
+    return ids.filter(function (id) { return /sonnet/.test(id); })[0] || ids.filter(function (id) { return /opus|haiku/.test(id); })[0] || ids[0] || '';
+  } catch (e) { return ''; }
+}
 
 function setAiKey() {
   var ui = SpreadsheetApp.getUi();
@@ -293,8 +314,8 @@ function readDoc(body, role) {
   if (role !== 'admin' && role !== 'volunteer') return { ok: false, error: 'Unlock with a PIN first.' };
   var files = cleanFiles(body);
   if (!files.length) return { ok: false, error: 'Add a photo, screenshot or PDF first.' };
-  var names = (Array.isArray(body.names) ? body.names : []).slice(0, 400).map(function (n) { return String(n).slice(0, 80); });
-  var rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 400).map(function (r) {
+  var names = (Array.isArray(body.names) ? body.names : []).slice(0, 2500).map(function (n) { return String(n).slice(0, 80); });
+  var rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 2500).map(function (r) {
     return { n: Number(r.n) || 0, name: String(r.name || '').slice(0, 80), price: String(r.price || '').slice(0, 12), printedBefore: r.before === '' || r.before === null || r.before === undefined ? null : Number(r.before) };
   });
   var prompt = [
@@ -322,7 +343,7 @@ function readDoc(body, role) {
 var HELP_GUIDE = [
   'How the tracker works (use these exact button and tab names):',
   '- One link for everyone. Looking needs only the access code. Changing anything needs a name and a PIN (button at the top: "Unlock to edit"). Volunteer PIN: counts, deposits, cash box. Admin PIN: everything, including orders, Cash App, sale details, PINs & access.',
-  '- Tabs: Overview, Count, Money, Cash Box, Orders, History, Activity.',
+  '- Tabs: Overview, Count, Money, Cash Box, Orders, History, Activity. Admins also see Uploads.',
   '- Overview: "Real profit to date" = money in minus spent plus stock on the shelf (valued at cost). The "This sale" card shows Items sold, Sold by count (after-sale counts times prices), Money taken in (cash taken in plus Cash App, once the cash box is counted), Profit (money taken in minus what the sold items cost). After unlocking, the number on the Overview tab and the "Needs your input" list show what that person can do next (viewers do not see it).',
   '- Sold by count and Money taken in rarely match exactly. Small gaps are normal: Cash App fees (if Cash App was entered after fees), pom pom pairs sold 2 for a deal, miscounts. A big short usually means an item was miscounted or money is missing; a big over usually means an item was missed on the Count tab.',
   '- Count tab: each item has BEFORE (leftovers on hand plus this sale\'s orders) and AFTER (what is left after the sale). Sold = before minus after. Items with nothing on hand do not need an after count.',
@@ -338,6 +359,8 @@ var HELP_GUIDE = [
   '- Typing in a field: a bar appears at the bottom with "Submit changes" (saves for everyone) and "Discard".',
   '- History tab: past sales with spent, sales and profit. To finish a sale: History tab, "Done with <sale name>?" card, "Close out". It locks in the sale (money taken in, or sold by count if the cash box is empty), carries the after counts forward as leftovers, clears the cash box and starts the next sale.',
   '- Activity tab: every saved change with name and time. Admins can Undo a change there.',
+  '- Cut up or split (Count tab, admins): for packs cut into pieces sold one at a time, like sticker sheets cut into single paws. Pick the item, say how many were cut up (blank means all), how many pieces there are now (count them; cutting rarely comes out even), the price for each piece, and a name. What the pack cost is spread over the pieces so profit stays right. All of it: the item changes in place, and this sale\'s order for it changes with it. Some of it: the pieces become their own item and the rest stay. It can not be done once the item has an after count for this sale; close out the sale first. The Saved screen has Undo. Print a new count sheet or price sheet afterward if one was already printed.',
+  '- Uploads tab (admins only): every count sheet photo, deposit slip, Amazon order and Cash App file uploaded since Nov 7, 2026 is kept there, newest first, with who uploaded it, when, for which sale, and whether it was saved. Tap one to see it full size (tap the picture to zoom), then "Save or share" to keep a copy or print it, or "Delete this upload". Deleting only removes the picture; the numbers it saved stay. Uploads from before Nov 7, 2026 were not kept. "See past uploads" on the Upload screen opens the same page.',
   '- "Edit sale details" on the Overview card (admin) changes the sale name, date and color.',
   '- PINs & access button (admin) changes the PINs and the access code.'
 ].join('\n');
@@ -460,6 +483,197 @@ function setPhoto(body, role) {
   } finally { lock.releaseLock(); }
 }
 
+/* ------------------------------ Past uploads ------------------------------
+   Every photo, PDF and Cash App file that gets uploaded is kept, so the paper is never the only copy.
+   They go in a second Google Sheet the tracker makes on its own ("Creekside Spirit Store Uploads"), so this
+   one stays quick. One row per file: who, when, what it was, a small picture for the list, and the file itself
+   split across the cells to the right (one cell holds 50,000 characters). When that Sheet gets big, the tracker
+   starts another one and keeps reading the old ones. Anyone with a PIN adds to it; only admins open or delete. */
+var UP_COLS = ['File ID', 'Upload ID', 'Time', 'Who', 'Role', 'What', 'Sale', 'Page', 'Pages', 'Type', 'File name', 'Summary', 'Status', 'Size', 'Small picture', 'Parts'];
+var UP_C = { id: 0, up: 1, t: 2, who: 3, role: 4, kind: 5, sale: 6, page: 7, pages: 8, type: 9, name: 10, sum: 11, st: 12, size: 13, thumb: 14, parts: 15 };
+var UP_META = UP_COLS.length, UP_CHUNK = 40000, UP_BOOK_LIMIT = 20000000, UP_FILE_MAX = 3200000;
+var UP_KINDS = { countSheet: 'Count sheet', order: 'Amazon order', deposit: 'Deposit slip', cashapp: 'Cash App file' };
+var UP_TYPES = { 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'image/gif': 1, 'application/pdf': 1, 'text/csv': 1 };
+var UP_ID = /^[a-z0-9]{4,20}$/;
+
+function upSafe(fn, body, role) {
+  try { return fn(body, role); }
+  catch (e) { return { ok: false, error: 'Past uploads are not working right now. Try again in a minute. (' + String(e && e.message || e).slice(0, 80) + ')' }; }
+}
+function upText(v, max) { return String(v === undefined || v === null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max); }
+function upBooks() {
+  try { var a = JSON.parse(PropertiesService.getScriptProperties().getProperty('UPLOAD_BOOKS') || '[]'); return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' && x; }) : []; }
+  catch (e) { return []; }
+}
+function upSheet(id) { var ss = SpreadsheetApp.openById(id); return ss.getSheetByName('Uploads') || ss.getSheets()[0]; }
+function upNewBook(n) {
+  var ss = SpreadsheetApp.create('Creekside Spirit Store Uploads' + (n > 1 ? ' ' + n : ''));
+  var sh = ss.getSheets()[0];
+  sh.setName('Uploads');
+  sh.getRange(1, 1, 1, UP_META + 1).setValues([UP_COLS.concat(['The file, split across the cells to the right. Open it from the Uploads tab in the tracker.'])]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  return ss.getId();
+}
+/* the rows of one upload, looking in the newest Sheet first */
+function upFind(uid, maxBooks) {
+  var books = upBooks().reverse().slice(0, maxBooks || 999);
+  for (var b = 0; b < books.length; b++) {
+    var sh; try { sh = upSheet(books[b]); } catch (e) { continue; }
+    var last = sh.getLastRow(), out = [];
+    if (last < 2) continue;
+    var ids = sh.getRange(2, UP_C.up + 1, last - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === uid) out.push({ sh: sh, row: i + 2, meta: sh.getRange(i + 2, 1, 1, UP_META).getValues()[0] });
+    if (out.length) return out;
+  }
+  return [];
+}
+
+function keepUpload(body, role) {
+  if (role !== 'admin' && role !== 'volunteer') return { ok: false, error: 'Unlock with a PIN first.' };
+  var uid = String(body.uid || ''), kind = String(body.kind || '');
+  if (!UP_ID.test(uid) || !Object.prototype.hasOwnProperty.call(UP_KINDS, kind)) return { ok: false, error: 'Bad request.' };
+  var files = (Array.isArray(body.files) ? body.files : []).slice(0, 8).filter(function (f) {
+    return f && UP_TYPES[f.type] === 1 && typeof f.data === 'string' && f.data.length > 0 && f.data.length <= UP_FILE_MAX && /^[A-Za-z0-9+\/]+={0,2}$/.test(f.data)
+      && (!f.thumb || (typeof f.thumb === 'string' && f.thumb.length <= 40000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+={0,2}$/.test(f.thumb)));
+  });
+  if (!files.length) return { ok: false, error: 'Nothing to keep.' };
+  var who = upText(body.name || 'Someone', 40), sale = upText(body.sale, 80), sum = upText(body.sum, 160), stamp;
+  var chars = 0, maxParts = 0;
+  files.forEach(function (f) { chars += f.data.length + (f.thumb || '').length; maxParts = Math.max(maxParts, Math.ceil(f.data.length / UP_CHUNK)); });
+  var sh, first, lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
+  try {
+    var props = PropertiesService.getScriptProperties(), books = upBooks(), used = Number(props.getProperty('UPLOAD_CHARS')) || 0;
+    if (books.length) { try { sh = upSheet(books[books.length - 1]); } catch (e) { sh = null; } }
+    if (!sh || (used > 0 && used + chars > UP_BOOK_LIMIT)) { // first upload, the Sheet is full, or someone deleted it
+      books.push(upNewBook(books.length + 1)); used = 0;
+      props.setProperty('UPLOAD_BOOKS', JSON.stringify(books));
+      sh = upSheet(books[books.length - 1]);
+    }
+    var last = sh.getLastRow();
+    if (last > 1) { // the same upload sent twice is kept once
+      var lo = Math.max(2, last - 199);
+      if (sh.getRange(lo, UP_C.up + 1, last - lo + 1, 1).getValues().some(function (r) { return String(r[0]) === uid; })) return { ok: true, kept: 0 };
+    }
+    // every upload gets its own time, a millisecond apart at least, so paging through the list never skips one
+    var now = new Date(), lastT = props.getProperty('UPLOAD_LAST_T') || '';
+    if (lastT && now.toISOString() <= lastT) now = new Date(Date.parse(lastT) + 1);
+    stamp = now.toISOString();
+    props.setProperty('UPLOAD_LAST_T', stamp);
+    first = last + 1;
+    // rows and columns are only ever added at the end, and only while holding the lock, so nothing already saved moves
+    ensureRows(sh, first + files.length - 1);
+    ensureCols(sh, UP_META + maxParts);
+    var meta = sh.getRange(first, 1, files.length, UP_META);
+    meta.setNumberFormat('@');
+    meta.setValues(files.map(function (f, i) {
+      return [uid + '-' + (i + 1), uid, stamp, who, role, kind, sale, String(i + 1), String(files.length), f.type, upText(f.name, 80), sum, 'writing', String(f.data.length), f.thumb || '', '0'];
+    }));
+    props.setProperty('UPLOAD_CHARS', String(used + chars));
+  } finally { lock.releaseLock(); }
+  // the big part is written after letting go of the lock, so a save never waits behind a photo
+  files.forEach(function (f, i) {
+    var parts = [];
+    for (var p = 0; p < f.data.length; p += UP_CHUNK) parts.push(f.data.slice(p, p + UP_CHUNK));
+    var d = sh.getRange(first + i, UP_META + 1, 1, parts.length);
+    d.setNumberFormat('@');
+    d.setValues([parts]);
+    sh.getRange(first + i, UP_C.st + 1, 1, UP_META - UP_C.st).setValues([['kept', String(f.data.length), f.thumb || '', String(parts.length)]]);
+  });
+  return { ok: true, kept: files.length };
+}
+
+/* after the upload is saved (or undone), so the list can say so */
+function markUpload(body, role) {
+  if (role !== 'admin' && role !== 'volunteer') return { ok: false, error: 'Unlock with a PIN first.' };
+  var uid = String(body.uid || ''), st = String(body.st || '');
+  if (!UP_ID.test(uid) || (st !== 'saved' && st !== 'undone')) return { ok: false, error: 'Bad request.' };
+  var rows = upFind(uid, 2).filter(function (r) { return String(r.meta[UP_C.st]) !== 'writing'; });
+  rows.forEach(function (r) { r.sh.getRange(r.row, UP_C.st + 1, 1, 1).setValues([[st]]); });
+  return { ok: true, marked: rows.length };
+}
+
+/* newest first, 30 uploads at a time (all pages of an upload stay together) */
+function listUploads(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can open past uploads.' };
+  var before = String(body.before || ''), want = 30, files = [], seen = {}, nUp = 0, more = false;
+  var books = upBooks().reverse();
+  outer:
+  for (var b = 0; b < books.length; b++) {
+    var sh; try { sh = upSheet(books[b]); } catch (e) { continue; }
+    var last = sh.getLastRow();
+    if (last < 2) continue;
+    var rows = sh.getRange(2, 1, last - 1, UP_META).getValues();
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var r = rows[i], up = String(r[UP_C.up]), t = String(r[UP_C.t]), st = String(r[UP_C.st]);
+      if (!r[UP_C.id] || st === 'writing' || (before && !(t < before))) continue;
+      if (!seen[up]) { if (nUp >= want) { more = true; break outer; } seen[up] = 1; nUp++; }
+      files.push({ id: String(r[UP_C.id]), up: up, t: t, who: String(r[UP_C.who]), role: String(r[UP_C.role]), kind: String(r[UP_C.kind]), sale: String(r[UP_C.sale]),
+        page: Number(r[UP_C.page]) || 1, pages: Number(r[UP_C.pages]) || 1, type: String(r[UP_C.type]), name: String(r[UP_C.name]), sum: String(r[UP_C.sum]),
+        st: st, size: Number(r[UP_C.size]) || 0, thumb: String(r[UP_C.thumb]) });
+    }
+  }
+  files.sort(function (x, y) { return x.t < y.t ? 1 : x.t > y.t ? -1 : x.up < y.up ? 1 : x.up > y.up ? -1 : x.page - y.page; });
+  return { ok: true, files: files, more: more };
+}
+
+function getUpload(body, role) {
+  if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can open past uploads.' };
+  var id = String(body.id || ''), m = id.match(/^([a-z0-9]{4,20})-(\d{1,2})$/);
+  if (!m) return { ok: false, error: 'Bad request.' };
+  var rows = upFind(m[1]);
+  for (var k = 0; k < rows.length; k++) {
+    var r = rows[k].meta;
+    if (String(r[UP_C.id]) !== id) continue;
+    var parts = Number(r[UP_C.parts]) || 0, size = Number(r[UP_C.size]) || 0;
+    var data = parts && String(r[UP_C.st]) !== 'writing' ? rows[k].sh.getRange(rows[k].row, UP_META + 1, 1, parts).getValues()[0].map(String).join('') : '';
+    if (!data || data.length !== size) return { ok: false, error: 'This file did not finish saving, so it can not be opened.' };
+    return { ok: true, type: String(r[UP_C.type]), name: String(r[UP_C.name]), data: data };
+  }
+  return { ok: false, error: 'That upload is not there anymore.' };
+}
+
+/* deletes every page of one upload; the numbers it saved stay in the tracker */
+function delUpload(body, role, quiet) {
+  if (role !== 'admin') return { ok: false, error: 'Only the admin PIN can delete uploads.' };
+  var uid = String(body.uid || '');
+  if (!UP_ID.test(uid)) return { ok: false, error: 'Bad request.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'The tracker is busy. Try again in a moment.' };
+  try {
+    var rows = upFind(uid);
+    if (!rows.length) return { ok: true, deleted: 0 };
+    var m = rows[0].meta;
+    rows.forEach(function (r) { r.sh.getRange(r.row, 1, 1, r.sh.getMaxColumns()).clearContent(); }); // cleared, not removed, so no other row moves
+    if (!quiet) {
+      var when = Utilities.formatDate(new Date(String(m[UP_C.t])), sheetTz(), 'MMM d, yyyy h:mm a');
+      appendLog([{ time: new Date().toISOString(), name: upText(body.name || 'Someone', 40), role: role, table: 'uploads', rowId: uid, field: '(removed)',
+                   old: (UP_KINDS[String(m[UP_C.kind])] || 'Upload') + (rows.length > 1 ? ' (' + rows.length + ' pages)' : '') + ' from ' + when + ' by ' + String(m[UP_C.who]), new: '' }]);
+    }
+    return { ok: true, deleted: rows.length };
+  } finally { lock.releaseLock(); }
+}
+
+/* Run from the script editor to check past uploads from start to finish: keeps a test file big enough to
+   need several cells, finds it, opens it, checks every character came back, then removes it. */
+function selfTestUploads() {
+  var big = '';
+  while (big.length < 95000) big += 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5K/+';
+  big = big.slice(0, 95000);
+  var uid = 'selftest' + Date.now().toString(36).slice(-6);
+  var k = keepUpload({ uid: uid, kind: 'deposit', name: 'Self test', sale: 'Self test', sum: 'Self test', files: [{ type: 'image/jpeg', name: 'test.jpg', data: big, thumb: '' }] }, 'admin');
+  var l = listUploads({}, 'admin'), found = !!(l.ok && l.files.some(function (f) { return f.up === uid; }));
+  var g = getUpload({ id: uid + '-1' }, 'admin'), same = !!(g.ok && g.data === big);
+  var d = delUpload({ uid: uid }, 'admin', true);
+  var gone = !listUploads({}, 'admin').files.some(function (f) { return f.up === uid; });
+  var good = k.ok && k.kept === 1 && found && same && d.ok && d.deleted === 1 && gone;
+  var msg = good ? 'Past uploads work. A test file of ' + big.length + ' characters (' + Math.ceil(big.length / UP_CHUNK) + ' cells) was kept, listed, opened in full and removed.'
+                 : 'Problem: ' + JSON.stringify({ keep: k, found: found, same: same, del: d, gone: gone }).slice(0, 400);
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
+  return msg;
+}
+
 /* One-time update, Oct 2026: adds the items on the paper count sheet that were not in the tracker yet.
    Run it from the script editor. Safe to run again: it skips anything already there. */
 function addCountSheetItems() {
@@ -484,6 +698,38 @@ function addCountSheetItems() {
     if (res.applied) { writeTable('items', tables.items); appendLog(res.log); }
     var msg = 'Added ' + ops.filter(function (o) { return o.op === 'add'; }).length + ' items' + (skipped.length ? '. Already there: ' + skipped.join(', ') : '') + (res.conflicts.length ? '. Problems: ' + JSON.stringify(res.conflicts) : '');
     Logger.log(msg);
+    return msg;
+  } finally { lock.releaseLock(); }
+}
+
+/* One-time correction, Nov 7, 2026: the pink paw print glitter eye stickers came as 120 pairs and were cut into
+   single paws. Brittany counted 196 and sells each one for 50 cents. Same result as Count > "Cut up or split":
+   the count becomes 196, the name says single paws, and the $13.99 they cost is spread over the 196 pieces.
+   Run it once from the script editor. It checks the numbers first and changes nothing if they already moved. */
+function fixPawStickersNov7() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('The tracker is busy. Try again in a minute.');
+  try {
+    var tables = { items: readTable('items').rows };
+    var it = tables.items.filter(function (r) { return String(r.id) === 'it16'; })[0], msg;
+    if (!it) msg = 'Not changed: the pink paw sticker item (it16) is not in the Items tab.';
+    else if (String(it.name) !== 'Pink paw print glitter eye stickers (120 pairs)' || Number(it.onHand) !== 120 || String(it.countedAfter) !== '')
+      msg = 'Not changed, because it no longer matches what was checked on Nov 7 (name "' + it.name + '", on hand ' + it.onHand + ', after count "' + it.countedAfter + '"). Use Count > Cut up or split instead.';
+    else {
+      var cost = Number(it.unitCost) > 0 ? Math.round(Number(it.unitCost) * 120 / 196 * 10000) / 10000 : it.unitCost;
+      var ops = [
+        { op: 'set', table: 'items', id: 'it16', field: 'onHand', prev: it.onHand, value: 196 },
+        { op: 'set', table: 'items', id: 'it16', field: 'name', prev: it.name, value: 'Pink paw print glitter eye stickers (single paws)' },
+        { op: 'set', table: 'items', id: 'it16', field: 'unitCost', prev: it.unitCost, value: cost },
+        { op: 'set', table: 'items', id: 'it16', field: 'notes', prev: it.notes, value: (String(it.notes || '').trim() ? String(it.notes).trim() + ' · ' : '') + 'Cut up Nov 7, 2026: 120 pairs became 196 single paws' }
+      ];
+      if (Number(it.price) !== 0.5) ops.push({ op: 'set', table: 'items', id: 'it16', field: 'price', prev: it.price, value: 0.5 });
+      var res = applyOps(tables, ops, 'admin', 'Hunter (correction)', new Date().toISOString(), true);
+      if (res.applied) { writeTable('items', tables.items); appendLog(res.log); }
+      msg = res.applied ? 'Done. Pink paw print glitter eye stickers (single paws): 196 on hand, 50 cents each, cost ' + cost + ' each.' : 'Not changed: ' + JSON.stringify(res.conflicts);
+    }
+    Logger.log(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}
     return msg;
   } finally { lock.releaseLock(); }
 }
@@ -541,25 +787,30 @@ function callClaude(images, prompt, opts) {
     return { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } };
   });
   content.push({ type: 'text', text: prompt });
-  var last = '';
-  for (var i = 0; i < AI_MODELS.length; i++) {
+  var last = '', models = aiModelList(), looked = false;
+  for (var i = 0; i < models.length; i++) {
     var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      payload: JSON.stringify({ model: AI_MODELS[i], max_tokens: opts.maxTokens || 8000, messages: [{ role: 'user', content: content }] })
+      payload: JSON.stringify({ model: models[i], max_tokens: opts.maxTokens || 8000, messages: [{ role: 'user', content: content }] })
     });
     var code = resp.getResponseCode(), raw = resp.getContentText();
-    if (code === 404 || (code === 400 && /model/i.test(raw) && !/credit/i.test(raw))) { last = raw; continue; }
+    if (code === 404 || (code === 400 && /model/i.test(raw) && !/credit/i.test(raw))) {
+      last = raw;
+      if (i === models.length - 1 && !looked) { looked = true; var found = aiFindModel(key, models); if (found) models.push(found); }
+      continue;
+    }
+    if (code === 200 && i > 0) { try { PropertiesService.getScriptProperties().setProperty('AI_MODEL', models[i]); } catch (e) {} }
     if (code === 401 || code === 403) return { ok: false, error: 'The AI key was rejected. Set a new one: Spirit Store > Set AI key.' };
     if (code === 429 || code === 529 || code >= 500) return { ok: false, error: 'The AI service is busy right now. Try again in a minute.' };
     if (code === 400 && /credit/i.test(raw)) return { ok: false, error: 'The AI account is out of credit. Add credit in the Claude Console.' };
     if (code !== 200) return { ok: false, error: 'The AI reader returned an error (' + code + ').' };
     var out = JSON.parse(raw), txt = (out.content || []).filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('');
     var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-    if (a < 0 || b < a) return opts.rawOk && txt.trim() ? { ok: true, result: { answer: txt.trim() }, model: AI_MODELS[i] } : { ok: false, error: opts.rawOk ? "Couldn't get an answer. Try asking another way." : "Couldn't find anything to read. Try a clearer picture." };
+    if (a < 0 || b < a) return opts.rawOk && txt.trim() ? { ok: true, result: { answer: txt.trim() }, model: models[i] } : { ok: false, error: opts.rawOk ? "Couldn't get an answer. Try asking another way." : "Couldn't find anything to read. Try a clearer picture." };
     var result;
-    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return opts.rawOk ? { ok: true, result: { answer: txt.trim() }, model: AI_MODELS[i] } : { ok: false, error: "Couldn't read that. Try again or use a clearer picture." }; }
-    return { ok: true, result: result, model: AI_MODELS[i] };
+    try { result = JSON.parse(txt.slice(a, b + 1)); } catch (e) { return opts.rawOk ? { ok: true, result: { answer: txt.trim() }, model: models[i] } : { ok: false, error: "Couldn't read that. Try again or use a clearer picture." }; }
+    return { ok: true, result: result, model: models[i] };
   }
   return { ok: false, error: 'No AI model was available. ' + String(last).slice(0, 120) };
 }
@@ -620,7 +871,36 @@ function readTable(t, tail) {
     if (t !== 'log' && row.id === '') { row.id = t.slice(0, 2) + Date.now().toString(36) + r; fixed = true; }
     rows.push(row);
   }
+  if (t === 'settings') rows = joinParts(rows);
   return { rows: rows, sheet: sh, idx: idx, fixed: fixed };
+}
+
+/* One cell holds 50,000 characters. A setting that grows past that over the years (the price sheet setup lists
+   every item) is split across extra rows named like "priceSheet~part2" and put back together when read, so the
+   rest of the tracker only ever sees one value. Parts are close to equal in size so none is a short scrap. */
+var PART_MAX = 40000, PART_TAG = '~part';
+function splitParts(rows) {
+  var out = [];
+  rows.forEach(function (r) {
+    var v = r.value, s = typeof v === 'string' ? v : String(v === undefined || v === null ? '' : v);
+    if (String(r.id).indexOf(PART_TAG) >= 0) return; // never write an old part back on its own
+    if (typeof v !== 'string' || s.length <= PART_MAX) { out.push(r); return; }
+    var n = Math.ceil(s.length / PART_MAX), size = Math.ceil(s.length / n);
+    for (var k = 0; k < n; k++) out.push({ id: k === 0 ? r.id : r.id + PART_TAG + (k + 1), value: s.slice(k * size, (k + 1) * size) });
+  });
+  return out;
+}
+function joinParts(rows) {
+  var parts = {}, out = [];
+  rows.forEach(function (r) {
+    var m = String(r.id).match(/^(.*)~part(\d+)$/);
+    if (m) (parts[m[1]] = parts[m[1]] || []).push([Number(m[2]), String(r.value)]); else out.push(r);
+  });
+  out.forEach(function (r) {
+    var p = parts[String(r.id)];
+    if (p) r.value = String(r.value) + p.sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; }).join('');
+  });
+  return out;
 }
 
 function normHeader(h) { return h.map(function (x) { return String(x).trim().toLowerCase(); }); }
@@ -634,6 +914,7 @@ function sheetSafe(t, field, v, id) {
 }
 function writeTable(t, rows) {
   dropCache();
+  if (t === 'settings') rows = splitParts(rows);
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA[t].tab);
   var header = normHeader(sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]);
   var height = Math.max(sh.getLastRow() - 1, rows.length, 1);
@@ -662,7 +943,10 @@ function appendLog(entries) {
   if (!entries || !entries.length) return;
   dropCache();
   var sh = SpreadsheetApp.getActive().getSheetByName(SCHEMA.log.tab);
-  var rows = entries.map(function (e) { return SCHEMA.log.cols.map(function (c) { return e[c[0]] === undefined ? '' : String(e[c[0]]); }); });
+  var rows = entries.map(function (e) { return SCHEMA.log.cols.map(function (c) { var v = e[c[0]] === undefined ? '' : String(e[c[0]]); return v.length > PART_MAX ? v.slice(0, PART_MAX) + ' (cut short)' : v; }); });
+  // a new tab has 26 columns but the log uses 8; the empty ones still count toward Google's 10 million cells per Sheet
+  var cols = rows[0].length;
+  if (sh.getMaxColumns() > cols + 2 && sh.getLastColumn() <= cols) sh.deleteColumns(cols + 1, sh.getMaxColumns() - cols);
   ensureRows(sh, sh.getLastRow() + rows.length);
   var rng = sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length);
   rng.setNumberFormat('@'); // keep log entries as plain text so dates and numbers are not reinterpreted
