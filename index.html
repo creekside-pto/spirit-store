@@ -649,7 +649,7 @@ function applyOps(t, ops, role, who, nowIso, atomic) {
 
 const SEED = null;
 const DEMO = !API_URL;
-const BUILD = '607a1c4ad0'; // set by the build; version.json next to this page says which build is live
+const BUILD = '11f65c7124'; // set by the build; version.json next to this page says which build is live
 const DEMO_PINS = { '1234': 'volunteer', '0000': 'admin' };
 const TABS = [['overview','Overview'],['count','Count'],['money','Money'],['cash','Cash Box'],['orders','Orders'],['history','History'],['activity','Activity']];
 const CATS = ['New','Restock','Carry-over','Donated'];
@@ -969,7 +969,14 @@ function moneyLine(M){
   if (d < 0 && a >= 25 && unsetB.length) return parts + gap + '<b>Your ' + (unsetB.length === 1 ? 'bundle is' : 'bundles are') + ' counted on top of the items inside ' + (unsetB.length === 1 ? 'it' : 'them') + '.</b> ' + (isAdmin() ? 'On the Count tab, tap Bundles and pick what goes in each one, and this gap should shrink.' : 'An admin can fix that on the Count tab.') + still;
   const unsetM = unsetBags(M).filter(i => i.sold > 0);
   if (d < 0 && a >= 25 && unsetM.length) return parts + gap + '<b>What went into your mystery bags is counted as sold at full price.</b> ' + (isAdmin() ? 'On the Count tab, tap Mystery bags and list what went in, and this gap should shrink.' : 'An admin can fix that on the Count tab.') + still;
-  return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' : (d < 0 ? 'A big short usually means mystery bags or bundles that are not set up yet (their items count as sold at full price), an item miscounted on the Count tab, or money missing from the cash box.' + (isAdmin() && !M.bags.length ? ' Sold mystery bags? Count tab, Mystery bags.' : '') : 'A big over usually means an item was missed on the Count tab.')) + still;
+  const chk = M.items.filter(i => i.bundleShort);
+  const chkTxt = chk.length ? ' Check the count of ' + chk.slice(0, 3).map(i => psCleanName(i.name)).join(', ') + ' (marked "Check count" on the Count tab): ' + (chk.length === 1 ? 'more went into bags or bundles than the count shows gone.' : 'more went into bags or bundles than their counts show gone.') : '';
+  const big = d < 0
+    ? (M.bags.length || M.items.some(i => i.bundle)
+      ? 'Your ' + (M.bags.length ? 'mystery bags' : 'bundles') + ' are set up, so what is left is usually an item miscounted on the Count tab, or money missing from the cash box.' + chkTxt
+      : 'A big short usually means mystery bags or bundles that are not set up yet (their items count as sold at full price), an item miscounted on the Count tab, or money missing from the cash box.' + (isAdmin() ? ' Sold mystery bags? Count tab, Mystery bags.' : ''))
+    : 'A big over usually means an item was missed on the Count tab.';
+  return parts + gap + (a < 25 ? 'Small gaps are normal: Cash App fees, pom pom pairs, miscounts.' + chkTxt : big) + still;
 }
 function startLeftOutHTML(M){
   const c = M.cash, fixed = Math.round((c.end + c.start) * 100) / 100;
